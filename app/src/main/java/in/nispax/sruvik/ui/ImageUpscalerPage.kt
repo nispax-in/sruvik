@@ -3,6 +3,8 @@ package `in`.nispax.sruvik.ui
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -100,13 +102,19 @@ fun ImageUpscalerPage() {
     var message by remember { mutableStateOf("Choose a photo to get started.") }
     var outputScale by remember { mutableStateOf<Float?>(null) }
 
+    fun clearResult() {
+        result?.recycle()
+        result = null
+        outputScale = null
+    }
+
     val picker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null) {
+            if (isProcessing || isSaving) return@rememberLauncherForActivityResult
             selectedUri = uri
-            result = null
-            outputScale = null
+            clearResult()
             message = "Loading your image…"
         }
     }
@@ -145,10 +153,19 @@ fun ImageUpscalerPage() {
         message = "Loading your image…"
         try {
             val decoded = withContext(Dispatchers.IO) { decodeForUpscaling(context, uri) }
+            val previous = original
             original = decoded
-            result = null
+            if (previous !== decoded) previous?.recycle()
+            clearResult()
             message = "Image ready. Choose 2× or 4×."
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (error: OutOfMemoryError) {
+            original?.recycle()
+            original = null
+            message = "This image is too large for the available memory. Try a smaller image."
         } catch (error: Exception) {
+            original?.recycle()
             original = null
             message = error.message ?: "Couldn't read this image."
         } finally {
@@ -211,8 +228,9 @@ fun ImageUpscalerPage() {
                         )
                     }
                     OutlinedButton(
-                        onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                        shape = RoundedCornerShape(15.dp)
+                        onClick = { if (!isProcessing && !isSaving) picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                        shape = RoundedCornerShape(15.dp),
+                        enabled = !isProcessing && !isSaving
                     ) {
                         Icon(Icons.Rounded.AddPhotoAlternate, null, modifier = Modifier.size(17.dp))
                         Spacer(Modifier.size(7.dp))
@@ -257,7 +275,7 @@ fun ImageUpscalerPage() {
                     listOf(2, 4).forEach { option ->
                         FilterChip(
                             selected = scale == option,
-                            onClick = { scale = option; result = null; outputScale = null },
+                            onClick = { scale = option; clearResult() },
                             label = {
                                 Text(
                                     "${option}×",
@@ -299,8 +317,9 @@ fun ImageUpscalerPage() {
                             message = "Upscaling on your device…"
                             try {
                                 val processed = withContext(Dispatchers.Default) {
-                                    createUpscaledBitmap(source, scale)
+                                    createUpscaledBitmap(source, scale, outputPixelLimit(context))
                                 }
+                                result?.recycle()
                                 result = processed.bitmap
                                 outputScale = processed.actualScale
                                 message = if (processed.actualScale + .02f < scale) {
@@ -308,6 +327,8 @@ fun ImageUpscalerPage() {
                                 } else {
                                     "Done. Preview your upscaled image below."
                                 }
+                            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                                throw cancelled
                             } catch (error: OutOfMemoryError) {
                                 message = "This image is too large for the available memory. Try a smaller source image."
                             } catch (error: Exception) {
@@ -444,22 +465,58 @@ private fun decodeForUpscaling(context: Context, uri: Uri): Bitmap {
     require(bounds.outWidth > 0 && bounds.outHeight > 0) { "This image format isn't supported." }
 
     var sample = 1
-    while ((bounds.outWidth.toLong() / (sample * 2)) *
-        (bounds.outHeight.toLong() / (sample * 2)) > MAX_INPUT_PIXELS) {
+    while (
+        (bounds.outWidth.toLong() / sample.toLong()) *
+            (bounds.outHeight.toLong() / sample.toLong()) > MAX_INPUT_PIXELS ||
+        maxOf(bounds.outWidth / sample, bounds.outHeight / sample) > MAX_INPUT_DIMENSION
+    ) {
         sample *= 2
     }
     val options = BitmapFactory.Options().apply {
         inSampleSize = sample
         inPreferredConfig = Bitmap.Config.ARGB_8888
     }
-    return context.contentResolver.openInputStream(uri)?.use {
+    val decoded = context.contentResolver.openInputStream(uri)?.use {
         BitmapFactory.decodeStream(it, null, options)
     } ?: error("Couldn't decode this image.")
+    val oriented = applyExifOrientation(context, uri, decoded)
+    if (oriented !== decoded) decoded.recycle()
+    return oriented
 }
 
-private fun createUpscaledBitmap(source: Bitmap, requestedScale: Int): UpscaleOutput {
+private fun applyExifOrientation(context: Context, uri: Uri, bitmap: Bitmap): Bitmap {
+    val orientation = try {
+        context.contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
+            ExifInterface(descriptor.fileDescriptor).getAttributeInt(
+                ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL
+            )
+        } ?: ExifInterface.ORIENTATION_NORMAL
+    } catch (_: Exception) {
+        ExifInterface.ORIENTATION_NORMAL
+    }
+    val matrix = Matrix()
+    when (orientation) {
+        ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.setScale(-1f, 1f)
+        ExifInterface.ORIENTATION_ROTATE_180 -> matrix.setRotate(180f)
+        ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.setScale(1f, -1f)
+        ExifInterface.ORIENTATION_TRANSPOSE -> {
+            matrix.setRotate(90f)
+            matrix.postScale(-1f, 1f)
+        }
+        ExifInterface.ORIENTATION_ROTATE_90 -> matrix.setRotate(90f)
+        ExifInterface.ORIENTATION_TRANSVERSE -> {
+            matrix.setRotate(-90f)
+            matrix.postScale(-1f, 1f)
+        }
+        ExifInterface.ORIENTATION_ROTATE_270 -> matrix.setRotate(270f)
+        else -> return bitmap
+    }
+    return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+}
+
+private fun createUpscaledBitmap(source: Bitmap, requestedScale: Int, maxOutputPixels: Long): UpscaleOutput {
     val sourcePixels = source.width.toLong() * source.height.toLong()
-    val pixelLimitScale = sqrt(MAX_OUTPUT_PIXELS.toDouble() / sourcePixels).toFloat()
+    val pixelLimitScale = sqrt(maxOutputPixels.toDouble() / sourcePixels).toFloat()
     val dimensionLimitScale = MAX_OUTPUT_DIMENSION.toFloat() /
         maxOf(source.width, source.height).toFloat()
     val actualScale = min(requestedScale.toFloat(), min(pixelLimitScale, dimensionLimitScale))
@@ -472,6 +529,14 @@ private fun createUpscaledBitmap(source: Bitmap, requestedScale: Int): UpscaleOu
     )
 }
 
+private fun outputPixelLimit(context: Context): Long {
+    val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+    // Keep the output bitmap near 24% of the app's memory class, in ARGB_8888 bytes.
+    val budget = manager.memoryClass.toLong() * 1024L * 1024L * 24L / 100L / 4L
+    return budget.coerceIn(4_000_000L, MAX_OUTPUT_PIXELS)
+}
+
 private const val MAX_INPUT_PIXELS = 4_000_000L
+private const val MAX_INPUT_DIMENSION = 4096
 private const val MAX_OUTPUT_PIXELS = 12_000_000L
 private const val MAX_OUTPUT_DIMENSION = 6144
