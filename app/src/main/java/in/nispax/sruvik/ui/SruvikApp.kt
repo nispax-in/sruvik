@@ -42,7 +42,7 @@ import java.time.Year
 import `in`.nispax.sruvik.ui.theme.SruvikColors
 
 private enum class Destination(val label: String, val icon: ImageVector) {
-    Home("Home", Icons.Rounded.Home), Models("Models", Icons.Rounded.Memory),
+    Home("Home", Icons.Rounded.Home), Upscaler("Upscale", Icons.Rounded.AutoFixHigh), Models("Models", Icons.Rounded.Memory),
     Activity("Activity", Icons.Rounded.History), Device("Device", Icons.Rounded.Speed), Settings("Settings", Icons.Rounded.Settings)
 }
 
@@ -68,7 +68,7 @@ fun SruvikApp() {
             label = "screen"
         ) { page ->
             when (page) {
-                Destination.Home -> HomeScreen({ selected = Destination.Models }, { selected = Destination.Settings })
+                Destination.Home -> HomeScreen({ selected = Destination.Models }, { selected = Destination.Settings }, { selected = Destination.Upscaler })
                 Destination.Models -> EmptyPage("YOUR DEVICE", "Model library",
                     "Choose on-device models that fit your phone and the work you want to do.",
                     Icons.Rounded.Memory, "No models installed",
@@ -79,6 +79,7 @@ fun SruvikApp() {
                     "Completed and in-progress tasks will appear here.")
                 Destination.Device -> DeviceMonitorPage()
                 Destination.Settings -> SettingsPage()
+                Destination.Upscaler -> ImageUpscalerPage()
             }
         }
         Text(
@@ -148,7 +149,7 @@ private fun DrawScope.drawAtmosphere() {
 }
 
 @Composable
-private fun HomeScreen(onModels: () -> Unit, onSettings: () -> Unit) {
+private fun HomeScreen(onModels: () -> Unit, onSettings: () -> Unit, onUpscale: () -> Unit) {
     val state = rememberLazyListState()
     val scope = rememberCoroutineScope()
     LazyColumn(Modifier.fillMaxSize(), state = state,
@@ -191,7 +192,7 @@ private fun HomeScreen(onModels: () -> Unit, onSettings: () -> Unit) {
                 WorkspaceTile(Modifier.weight(1f), "01", "Video\nnarration", Icons.Rounded.RecordVoiceOver,
                     Color(0xFF9A9863))
                 WorkspaceTile(Modifier.weight(1f), "02", "Image\nenhancement", Icons.Rounded.AutoFixHigh,
-                    Color(0xFF6EAAA0))
+                    Color(0xFF6EAAA0), "OPEN", onUpscale)
             }
         }
         item { SectionTitle("APP", "FOUNDATION") }
@@ -251,8 +252,9 @@ private fun SectionTitle(title: String, trailing: String) {
 }
 
 @Composable
-private fun WorkspaceTile(modifier: Modifier, number: String, title: String, icon: ImageVector, tint: Color) {
-    GlassCard(modifier.height(178.dp), RoundedCornerShape(27.dp),
+private fun WorkspaceTile(modifier: Modifier, number: String, title: String, icon: ImageVector, tint: Color,
+    status: String = "COMING SOON", onClick: (() -> Unit)? = null) {
+    GlassCard(modifier.height(178.dp).clickable(enabled = onClick != null) { onClick?.invoke() }, RoundedCornerShape(27.dp),
         Brush.linearGradient(listOf(tint.copy(alpha = .24f), Color(0xA51A241F), Color(0xB316201B)))) {
         Column(Modifier.fillMaxSize().padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -266,8 +268,8 @@ private fun WorkspaceTile(modifier: Modifier, number: String, title: String, ico
             Spacer(Modifier.weight(1f))
             Text(title, style = MaterialTheme.typography.titleLarge, color = SruvikColors.TextPrimary)
             Spacer(Modifier.height(12.dp))
-            Text("COMING SOON", style = MaterialTheme.typography.labelSmall,
-                color = SruvikColors.TextSecondary.copy(alpha = .78f), letterSpacing = 1.sp)
+            Text(status, style = MaterialTheme.typography.labelSmall,
+                color = if (onClick != null) SruvikColors.Lime else SruvikColors.TextSecondary.copy(alpha = .78f), letterSpacing = 1.sp)
         }
     }
 }
@@ -319,8 +321,8 @@ private fun FloatingDock(selected: Destination, onSelect: (Destination) -> Unit,
     GlassCard(modifier.fillMaxWidth().height(76.dp), RoundedCornerShape(40.dp),
         Brush.linearGradient(listOf(Color(0xD76C7057), Color(0xE1283028), Color(0xE018241E)))) {
         Row(Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Destination.entries.forEach { destination ->
-                val active = selected == destination
+            Destination.entries.filter { it != Destination.Upscaler }.forEach { destination ->
+                val active = (if (selected == Destination.Upscaler) Destination.Home else selected) == destination
                 val selectionProgress by animateFloatAsState(
                     targetValue = if (active) 1f else 0f,
                     animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
