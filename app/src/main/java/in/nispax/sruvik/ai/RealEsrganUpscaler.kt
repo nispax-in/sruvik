@@ -14,7 +14,6 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
-import java.io.File
 import java.util.concurrent.Executors
 import kotlin.math.ceil
 import kotlin.math.min
@@ -83,11 +82,12 @@ internal object RealEsrganUpscaler {
                 var outputs: List<TensorBuffer> = emptyList()
                 try {
                     val environment = PlayServicesLiteRtEnvironment.get(appContext)
-                    val modelPath = stageModel(appContext).absolutePath
-                    val options = CompiledModel.Options(Accelerator.CPU).apply {
-                        cpuOptions = CompiledModel.CpuOptions(numThreads = 2)
-                    }
-                    val compiled = CompiledModel.create(modelPath, options, environment)
+                    val compiled = CompiledModel.create(
+                        appContext.assets,
+                        ASSET_NAME,
+                        CompiledModel.Options(Accelerator.CPU),
+                        environment
+                    )
                     model = compiled
                     inputs = compiled.createInputBuffers()
                     outputs = compiled.createOutputBuffers()
@@ -238,17 +238,6 @@ internal object RealEsrganUpscaler {
         }
     }
 
-    private fun stageModel(context: Context): File {
-        val model = File(context.noBackupFilesDir, STAGED_NAME)
-        if (model.isFile && model.length() > 1_000_000L) return model
-        val temporary = File(context.noBackupFilesDir, "$STAGED_NAME.tmp")
-        context.assets.open(ASSET_NAME).use { input ->
-            temporary.outputStream().use { output -> input.copyTo(output) }
-        }
-        check(temporary.length() > 1_000_000L) { "The bundled AI model is incomplete." }
-        check(temporary.renameTo(model)) { "Couldn't prepare the on-device AI model." }
-        return model
-    }
 
     private fun outputPixelBudget(context: Context): Long {
         val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
