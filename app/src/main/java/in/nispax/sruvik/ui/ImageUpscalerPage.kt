@@ -27,6 +27,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -162,7 +164,7 @@ fun ImageUpscalerPage() {
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Column(Modifier.padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -471,5 +473,5 @@ private fun createUpscaledBitmap(source: Bitmap, requestedScale: Int): UpscaleOu
 }
 
 private const val MAX_INPUT_PIXELS = 4_000_000L
-private const val MAX_OUTPUT_PIXELS = 20_000_000L
-private const val MAX_OUTPUT_DIMENSION = 8192
+private const val MAX_OUTPUT_PIXELS = 12_000_000L
+private const val MAX_OUTPUT_DIMENSION = 6144
