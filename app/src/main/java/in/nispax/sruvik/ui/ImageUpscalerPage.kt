@@ -436,9 +436,9 @@ private data class UpscaleOutput(val bitmap: Bitmap, val actualScale: Float)
 
 private fun decodeForUpscaling(context: Context, uri: Uri): Bitmap {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    context.contentResolver.openInputStream(uri)?.use {
-        BitmapFactory.decodeStream(it, null, bounds)
-    } ?: error("Couldn't open the selected image.")
+    val boundsStream = context.contentResolver.openInputStream(uri)
+        ?: error("Couldn't open the selected image.")
+    boundsStream.use { BitmapFactory.decodeStream(it, null, bounds) }
     require(bounds.outWidth > 0 && bounds.outHeight > 0) { "This image format isn't supported." }
 
     var sample = 1
