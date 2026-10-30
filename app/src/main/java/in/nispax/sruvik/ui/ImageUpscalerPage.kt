@@ -1,5 +1,6 @@
 package `in`.nispax.sruvik.ui
 
+import android.app.ActivityManager
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
