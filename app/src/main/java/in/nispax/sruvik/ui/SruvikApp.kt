@@ -39,7 +39,7 @@ import `in`.nispax.sruvik.ui.theme.SruvikColors
 
 private enum class Destination(val label: String, val icon: ImageVector) {
     Home("Home", Icons.Rounded.Home), Models("Models", Icons.Rounded.Memory),
-    Activity("Activity", Icons.Rounded.History), Settings("Settings", Icons.Rounded.Settings)
+    Activity("Activity", Icons.Rounded.History), Device("Device", Icons.Rounded.Speed), Settings("Settings", Icons.Rounded.Settings)
 }
 
 @Composable
@@ -73,6 +73,7 @@ fun SruvikApp() {
                     "A quiet record of the things you create with Sruvik.",
                     Icons.Rounded.History, "Nothing here yet",
                     "Completed and in-progress tasks will appear here.")
+                Destination.Device -> DeviceMonitorPage()
                 Destination.Settings -> SettingsPage()
             }
         }
