@@ -2,6 +2,7 @@ package `in`.nispax.sruvik.ui
 
 import android.app.ActivityManager
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
@@ -15,6 +16,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -58,6 +60,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var selectedUri by remember { mutableStateOf<Uri?>(null) }
+    var imageLoadRequest by remember { mutableIntStateOf(0) }
     var original by remember { mutableStateOf<Bitmap?>(null) }
     var result by remember { mutableStateOf<Bitmap?>(null) }
     var scale by remember { mutableIntStateOf(4) }
@@ -83,8 +86,28 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
     ) { uri ->
         if (uri != null && !isProcessing && !isSaving) {
             selectedUri = uri
+            imageLoadRequest++
             resetResult()
             message = "Loading photo…"
+        } else if (uri == null) {
+            message = "No photo selected. Try again or browse files."
+        }
+    }
+    val filePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null && !isProcessing && !isSaving) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+            selectedUri = uri
+            imageLoadRequest++
+            resetResult()
+            message = "Loading image from files…"
+        } else if (uri == null) {
+            message = "No file selected."
         }
     }
     val saver = rememberLauncherForActivityResult(
@@ -115,7 +138,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
         }
     }
 
-    LaunchedEffect(selectedUri) {
+    LaunchedEffect(selectedUri, imageLoadRequest) {
         val uri = selectedUri ?: return@LaunchedEffect
         isLoading = true
         message = "Reading your photo…"
@@ -235,7 +258,10 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                         Modifier.fillMaxWidth().height(176.dp).clip(RoundedCornerShape(20.dp))
                             .background(Brush.linearGradient(
                                 listOf(Color(0xFF34435D), Color(0xFF483A5C), Color(0xFF25515B))
-                            )),
+                            ))
+                            .clickable(enabled = !isProcessing && !isSaving && !isLoading) {
+                                picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                            },
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally,
@@ -248,14 +274,36 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                         }
                     }
                 }
-                OutlinedButton(
-                    onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    shape = RoundedCornerShape(15.dp),
-                    enabled = !isProcessing && !isSaving
-                ) {
-                    Icon(Icons.Rounded.AddPhotoAlternate, null)
-                    Text(if (original == null) "  Select photo" else "  Change photo")
+                Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                    OutlinedButton(
+                        onClick = {
+                            picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        },
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(15.dp),
+                        enabled = !isProcessing && !isSaving && !isLoading
+                    ) {
+                        Icon(Icons.Rounded.AddPhotoAlternate, null)
+                        Text(if (original == null) "Photo library" else "Change photo")
+                    }
+                    OutlinedButton(
+                        onClick = { filePicker.launch(arrayOf("image/*")) },
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(15.dp),
+                        enabled = !isProcessing && !isSaving && !isLoading
+                    ) {
+                        Icon(Icons.Rounded.FolderOpen, null)
+                        Text("Browse files")
+                    }
+                }
+                if (original == null || message.startsWith("Couldn't") ||
+                    message.startsWith("This photo") || message.startsWith("No ")) {
+                    Text(
+                        message,
+                        color = if (message.startsWith("Couldn't") || message.startsWith("This photo"))
+                            LabCoral else LabMuted,
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
             }
         }
