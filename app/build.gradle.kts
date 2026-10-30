@@ -16,18 +16,6 @@ android {
         versionName = "0.1.${System.getenv("GITHUB_RUN_NUMBER") ?: "0"}"
     }
 
-    signingConfigs {
-        create("test") {
-            storeFile = file(System.getenv("SRUVIK_KEYSTORE") ?: "../ci/sruvik-test.jks")
-            storePassword = "sruvik-test-only"
-            keyAlias = "sruvik-test"
-            keyPassword = "sruvik-test-only"
-        }
-    }
-
-    buildTypes {
-        getByName("debug") { signingConfig = signingConfigs.getByName("test") }
-    }
 
     buildFeatures { compose = true }
     compileOptions {
