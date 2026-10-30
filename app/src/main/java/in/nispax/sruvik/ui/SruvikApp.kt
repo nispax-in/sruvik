@@ -1,5 +1,7 @@
 package `in`.nispax.sruvik.ui
 
+import `in`.nispax.sruvik.R
+
 import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
