@@ -12,8 +12,21 @@ android {
         applicationId = "in.nispax.sruvik"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+        versionName = "0.1.${System.getenv("GITHUB_RUN_NUMBER") ?: "0"}"
+    }
+
+    signingConfigs {
+        create("test") {
+            storeFile = file(System.getenv("SRUVIK_KEYSTORE") ?: "../ci/sruvik-test.jks")
+            storePassword = "sruvik-test-only"
+            keyAlias = "sruvik-test"
+            keyPassword = "sruvik-test-only"
+        }
+    }
+
+    buildTypes {
+        getByName("debug") { signingConfig = signingConfigs.getByName("test") }
     }
 
     buildFeatures { compose = true }
