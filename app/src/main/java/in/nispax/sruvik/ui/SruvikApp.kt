@@ -76,6 +76,14 @@ fun SruvikApp() {
                 Destination.Settings -> SettingsPage()
             }
         }
+        Text(
+            "© ${Year.now().value} NISPAX InfoTech. All Rights Reserved",
+            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                .padding(horizontal = 18.dp).padding(bottom = 94.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = SruvikColors.TextMuted,
+            textAlign = TextAlign.Center
+        )
         FloatingDock(selected, { selected = it },
             Modifier.align(Alignment.BottomCenter).padding(horizontal = 20.dp, vertical = 12.dp))
     }
@@ -186,22 +194,6 @@ private fun HomeScreen(onModels: () -> Unit, onSettings: () -> Unit) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 AppRow(Icons.Rounded.Memory, "Model manager", "Models for your device", "FOUNDATION", onModels)
                 AppRow(Icons.Rounded.Security, "Device & privacy", "Local-first controls and safety", "IN DEVELOPMENT", onSettings)
-            }
-        }
-        item {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(7.dp)
-            ) {
-                Text("SRUVIK  •  0.1.0", style = MaterialTheme.typography.labelSmall,
-                    color = SruvikColors.TextMuted, letterSpacing = 1.sp)
-                Text(
-                    "© ${Year.now().value} NISPAX InfoTech. All Rights Reserved",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = SruvikColors.TextMuted,
-                    textAlign = TextAlign.Center
-                )
             }
         }
     }
