@@ -1,4 +1,4 @@
-package in.nispax.sruvik.ui
+package `in`.nispax.sruvik.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -13,7 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import in.nispax.sruvik.ui.theme.SruvikColors
+import `in`.nispax.sruvik.ui.theme.SruvikColors
 
 private enum class Destination(val label: String, val icon: ImageVector) {
     Home("Home", Icons.Rounded.Home),
@@ -79,8 +79,7 @@ private fun HomeScreen(modifier: Modifier = Modifier) {
             Surface(shape = RoundedCornerShape(26.dp), color = SruvikColors.Surface, border = androidx.compose.foundation.BorderStroke(1.dp, SruvikColors.Border)) {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("YOUR CREATIVE SPACE", style = MaterialTheme.typography.labelMedium, color = SruvikColors.TextSecondary)
-                    Text("Make something
-worth sharing.", style = MaterialTheme.typography.headlineLarge)
+                    Text("Make something\nworth sharing.", style = MaterialTheme.typography.headlineLarge)
                     Text("Your tools, your device, your workflow.", style = MaterialTheme.typography.bodyMedium, color = SruvikColors.TextSecondary)
                     Surface(shape = RoundedCornerShape(14.dp), color = SruvikColors.Lime) {
                         Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {

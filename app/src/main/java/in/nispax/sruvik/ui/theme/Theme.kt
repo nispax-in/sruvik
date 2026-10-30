@@ -1,4 +1,4 @@
-package in.nispax.sruvik.ui.theme
+package `in`.nispax.sruvik.ui.theme
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
