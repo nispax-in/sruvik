@@ -1,12 +1,13 @@
 # Third-party model notices
 
-## Real-ESRGAN-General-x4v3
+## Real-ESRGAN General x4v3 LiteRT
 
-Sruvik bundles Qualcomm AI Hub's TFLite float export of Real-ESRGAN-General-x4v3.
+Sruvik includes the FP16 LiteRT-compatible export from LiteRT Community, based on the Real-ESRGAN General x4v3 weights.
 
-- Model repository: https://huggingface.co/qualcomm/Real-ESRGAN-General-x4v3
-- Model implementation and export recipe: https://github.com/qualcomm/ai-hub-models/tree/main/src/qai_hub_models/models/real_esrgan_general_x4v3
+- Model repository: https://huggingface.co/litert-community/real-esrgan-x4v3-litert
+- Upstream weights and implementation: https://huggingface.co/qualcomm/Real-ESRGAN-General-x4v3
 - Model license: BSD-3-Clause
-- Export archive: Qualcomm AI Hub public assets, version v0.65.0
+- Pinned model revision: 1017caa
+- SHA-256: 6d597b46d812ada42bdde641ec6e78c0ef0b78ff5a825fcfd74b9a1b3bcbe9a4
 
-Qualcomm lists 1.21 million parameters, a 4.65 MB float model size, and 128x128 input. Refer to the upstream model repository and its license file for full notices.
+See the upstream model repositories and license files for full notices.

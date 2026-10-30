@@ -1,21 +1,19 @@
 # Image upscaler model and runtime
 
-Sruvik's image restoration feature uses Qualcomm's Real-ESRGAN-General-x4v3 model through LiteRT on Android.
+Sruvik uses the BSD-3-Clause Real-ESRGAN General x4v3 weights re-authored as a LiteRT-native FP16 model by LiteRT Community.
 
 ## Model delivery
-The model is fetched from Qualcomm AI Hub's versioned v0.65.0 public TFLite float export during CI and placed in `app/src/main/assets/realesr-general-x4v3.tflite`. The model binary is intentionally not committed to the source repository. For a local build, run:
+The 3.55 MB model file is downloaded from pinned Hugging Face revision `1017caa` during CI and SHA-256 verified before packaging. The binary is intentionally not committed to the source repository. For a local build, run `bash scripts/fetch-upscaler-model.sh`.
 
-```bash
-bash scripts/fetch-upscaler-model.sh
-```
-
-## Runtime
-Inference uses LiteRT CompiledModel through Google Play services, CPU-only in this release. The model is bundled in the APK; Google Play services may prepare its LiteRT runtime component on first use. The app does not send photos to a Sruvik server and adds no app-side internet permission.
-
-Model calls and native tensor handles are confined to one worker thread. Tiles are processed sequentially with a context border; cancellation and Android thermal state are checked between tiles. A memory budget based on the device's memory class and current free memory limits input scaling and final image dimensions. Low-memory devices use a stricter cap.
+## Runtime and privacy
+Inference uses LiteRT CompiledModel through Google Play services, CPU-only in this release. The model is bundled in the APK; Google Play services may prepare its LiteRT runtime component on first use. The app has no Internet permission and does not upload photos.
 
 ## Model contract
-Qualcomm documents a 128x128 input and a 4x output scale. The model recipe uses RGB float input normalized to [0,1]. The 2x mode uses the learned 4x prediction and downsamples the tile output. This is still AI inference, but native 4x output is the highest-fidelity mode.
+Input: `[1,128,128,3]` NHWC, RGB float, range [0,1].
+Output: `[1,3,512,512]` NCHW, RGB float, range [0,1].
+The model reconstructs at 4x. The 2x option downsamples its learned 4x output.
 
-## Notes
-Performance varies by chipset. CPU-only is chosen as the conservative initial backend to avoid OEM GPU driver differences. If the runtime or model is unavailable, the app offers a clearly-labelled quick resize fallback; that fallback does not reconstruct image details.
+## Safety
+A preflight memory check rejects work when Android reports low memory or less than 400 MB free. Output dimensions and pixel count are bounded using current available memory. The app processes one overlapping tile at a time, checks cancellation and Android thermal state between tiles, and yields briefly at moderate thermal status. Native runtime handles are confined to one worker thread and closed after the task.
+
+CPU inference is intentionally selected for the first release to avoid OEM GPU-driver incompatibilities. Performance is hardware-dependent; published measurements show substantial differences between GPU and CPU runtimes. If the AI model/runtime cannot run, a clearly labelled standard resize fallback is offered; it is not presented as AI.

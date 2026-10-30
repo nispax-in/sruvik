@@ -29,7 +29,7 @@ internal class DeviceThermalLimitException :
     IllegalStateException("Your phone is running hot. Let it cool, then try again.")
 
 internal object RealEsrganUpscaler {
-    private const val ASSET_NAME = "realesr-general-x4v3.tflite"
+    private const val ASSET_NAME = "realesr_general_x4v3.tflite"
     private const val STAGED_NAME = "realesr-general-x4v3-bsd-v1.tflite"
     private const val MODEL_INPUT = 128
     private const val MODEL_OUTPUT = 512
@@ -40,7 +40,7 @@ internal object RealEsrganUpscaler {
     private const val OUTPUT_TILE_AREA = MODEL_OUTPUT * MODEL_OUTPUT
     private const val MAX_OUTPUT_PIXELS = 8_000_000L
     private const val MAX_OUTPUT_DIMENSION = 6_144
-    private const val MIN_FREE_MEMORY_BYTES = 280L * 1024L * 1024L
+    private const val MIN_FREE_MEMORY_BYTES = 400L * 1024L * 1024L
     private const val RESERVED_MEMORY_BYTES = 180L * 1024L * 1024L
 
     /** Model creation, warm-up, inference and close are confined to one worker thread. */
@@ -229,11 +229,11 @@ internal object RealEsrganUpscaler {
             for (x in 0 until MODEL_INPUT) {
                 val sourceX = (startX + x).coerceIn(0, width - 1)
                 val pixel = source[sourceY * width + sourceX]
-                val index = y * MODEL_INPUT + x
-                // RGB, NCHW, normalized to [0, 1] per Qualcomm's model recipe.
+                val index = (y * MODEL_INPUT + x) * 3
+                // LiteRT input is RGB NHWC, normalized to [0, 1].
                 target[index] = ((pixel shr 16) and 0xFF) / 255f
-                target[area + index] = ((pixel shr 8) and 0xFF) / 255f
-                target[area * 2 + index] = (pixel and 0xFF) / 255f
+                target[index + 1] = ((pixel shr 8) and 0xFF) / 255f
+                target[index + 2] = (pixel and 0xFF) / 255f
             }
         }
     }
