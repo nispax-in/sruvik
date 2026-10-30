@@ -2,25 +2,19 @@ package `in`.nispax.sruvik.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-/** Shared visual tokens for Sruvik. */
+/** Restrained palette for Sruvik's atmospheric dark interface. */
 object SruvikColors {
-    val Background = Color(0xFF07110E)
-    val Surface = Color(0xE610201A)
-    val SurfaceElevated = Color(0xD91A2C23)
+    val Background = Color(0xFF080E0C)
+    val Surface = Color(0xE6121C17)
+    val SurfaceElevated = Color(0xD91A2921)
     val SurfaceSoft = Color(0xFF1B3026)
-    val NavigationGlass = Color(0xF20A1712)
-    val GlassTop = Color(0xCC20372B)
-    val GlassBottom = Color(0xB30D1D16)
-    val GlassHighlight = Color(0x553F684C)
-    val GlassBorder = Color(0x665D8067)
-    val GlassEdge = Color(0x443A5B43)
-    val IconGlass = Color(0xCC274332)
-    val Lime = Color(0xFFC7F36B)
-    val LimeBright = Color(0xFFD7FF82)
-    val LimeMuted = Color(0xFF9DBD55)
-    val TextPrimary = Color(0xFFF1F5EF)
-    val TextSecondary = Color(0xFFA2B0A6)
-    val TextMuted = Color(0xFF718078)
-    val Border = Color(0xFF26382E)
+    val Lime = Color(0xFFC8E667)
+    val LimeMuted = Color(0xFFB2C978)
+    val Mint = Color(0xFF7DD8C3)
+    val TextPrimary = Color(0xFFF0F0E9)
+    val TextSecondary = Color(0xFFABB2A9)
+    val TextMuted = Color(0xFF727B73)
+    val Border = Color(0xFF344039)
+    val GlassBorder = Color(0x668F9B83)
     val Danger = Color(0xFFFF827C)
 }

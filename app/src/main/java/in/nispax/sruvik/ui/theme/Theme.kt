@@ -7,6 +7,8 @@ import androidx.compose.runtime.Composable
 private val DarkScheme = darkColorScheme(
     primary = SruvikColors.Lime,
     onPrimary = SruvikColors.Background,
+    secondary = SruvikColors.Mint,
+    onSecondary = SruvikColors.Background,
     background = SruvikColors.Background,
     onBackground = SruvikColors.TextPrimary,
     surface = SruvikColors.Surface,
