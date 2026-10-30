@@ -3,6 +3,7 @@ package `in`.nispax.sruvik.ui
 import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,10 +25,14 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.time.Year
 import `in`.nispax.sruvik.ui.theme.SruvikColors
 
 private enum class Destination(val label: String, val icon: ImageVector) {
@@ -37,6 +42,16 @@ private enum class Destination(val label: String, val icon: ImageVector) {
 
 @Composable
 fun SruvikApp() {
+    var splashVisible by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        delay(850)
+        splashVisible = false
+    }
+    if (splashVisible) {
+        SplashScreen()
+        return
+    }
+
     var selected by remember { mutableStateOf(Destination.Home) }
     Box(Modifier.fillMaxSize().background(SruvikColors.Background)
         .drawBehind { drawAtmosphere() }
@@ -61,6 +76,39 @@ fun SruvikApp() {
         }
         FloatingDock(selected, { selected = it },
             Modifier.align(Alignment.BottomCenter).padding(horizontal = 20.dp, vertical = 12.dp))
+    }
+}
+
+@Composable
+private fun SplashScreen() {
+    Box(
+        Modifier.fillMaxSize()
+            .background(SruvikColors.Background)
+            .drawBehind { drawAtmosphere() }
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+    ) {
+        Column(
+            modifier = Modifier.align(Alignment.Center).padding(bottom = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(13.dp)
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.sruvik_logo),
+                contentDescription = "Sruvik",
+                modifier = Modifier.size(118.dp)
+            )
+            Text("Sruvik", style = MaterialTheme.typography.displayLarge,
+                color = SruvikColors.TextPrimary)
+            Text("IDEAS INTO REALITY", style = MaterialTheme.typography.labelLarge,
+                color = SruvikColors.TextSecondary, letterSpacing = 3.sp)
+        }
+        Text(
+            "a NISPAX InfoTech Product",
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = SruvikColors.TextMuted,
+            letterSpacing = .7.sp
+        )
     }
 }
 
@@ -94,17 +142,20 @@ private fun HomeScreen(onModels: () -> Unit, onSettings: () -> Unit) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(21.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(40.dp).clip(RoundedCornerShape(13.dp))
-                        .background(Brush.linearGradient(listOf(Color(0x553D5542), Color(0x221B3026))))
-                        .border(1.dp, SruvikColors.GlassBorder, RoundedCornerShape(13.dp)),
-                        contentAlignment = Alignment.Center) {
-                        Text("N", style = MaterialTheme.typography.titleMedium, color = SruvikColors.TextPrimary)
-                    }
+                    Image(
+                        painter = painterResource(id = R.drawable.sruvik_logo),
+                        contentDescription = "Sruvik logo",
+                        modifier = Modifier.size(44.dp)
+                    )
                     Spacer(Modifier.width(12.dp))
-                    Text("NISPAX INFOTECH", style = MaterialTheme.typography.labelLarge,
-                        color = SruvikColors.TextSecondary, letterSpacing = 2.1.sp)
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("SRUVIK", style = MaterialTheme.typography.labelLarge,
+                            color = SruvikColors.TextSecondary, letterSpacing = 2.1.sp)
+                        Text("IDEAS INTO REALITY", style = MaterialTheme.typography.labelSmall,
+                            color = SruvikColors.TextMuted, letterSpacing = 1.1.sp)
+                    }
                     Spacer(Modifier.weight(1f))
-                    Text("SRUVIK / 01", style = MaterialTheme.typography.labelSmall,
+                    Text("01", style = MaterialTheme.typography.labelSmall,
                         color = SruvikColors.TextMuted, letterSpacing = 1.sp)
                 }
                 Column {
@@ -136,9 +187,19 @@ private fun HomeScreen(onModels: () -> Unit, onSettings: () -> Unit) {
             }
         }
         item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("NISPAX INFOTECH", style = MaterialTheme.typography.labelSmall, color = SruvikColors.TextMuted)
-                Text("SRUVIK  •  0.1.0", style = MaterialTheme.typography.labelSmall, color = SruvikColors.TextMuted)
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(7.dp)
+            ) {
+                Text("SRUVIK  •  0.1.0", style = MaterialTheme.typography.labelSmall,
+                    color = SruvikColors.TextMuted, letterSpacing = 1.sp)
+                Text(
+                    "© ${Year.now().value} NISPAX InfoTech. All Rights Reserved",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = SruvikColors.TextMuted,
+                    textAlign = TextAlign.Center
+                )
             }
         }
     }

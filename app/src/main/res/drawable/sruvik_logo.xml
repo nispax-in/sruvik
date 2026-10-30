@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="512dp"
+    android:height="512dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+    <path
+        android:fillColor="@color/sruvik_tile_gradient"
+        android:pathData="M84,4 H428 C472,4 508,40 508,84 V428 C508,472 472,508 428,508 H84 C40,508 4,472 4,428 V84 C4,40 40,4 84,4 Z"/>
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="@color/sruvik_edge_gradient"
+        android:strokeWidth="3"
+        android:pathData="M84,5 H428 C471,5 507,41 507,84 V428 C507,471 471,507 428,507 H84 C41,507 5,471 5,428 V84 C5,41 41,5 84,5 Z"/>
+    <path
+        android:fillColor="@color/sruvik_ribbon_gradient"
+        android:strokeColor="#168D75"
+        android:strokeWidth="1"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M350,104 C297,75 226,79 185,119 C130,173 150,224 219,265 C281,302 355,329 352,381 C349,431 283,452 209,410 C184,395 161,370 146,348 C184,385 218,402 247,386 C270,373 243,344 217,325 C171,291 125,266 124,223 C122,177 159,132 220,99 C263,76 311,77 350,104 Z"/>
+    <path
+        android:fillColor="@color/sruvik_ribbon_highlight"
+        android:pathData="M337,104 C289,89 232,99 198,131 C161,166 158,202 193,232 C226,261 282,286 323,315 C354,337 371,366 350,400 C355,369 338,344 308,323 C274,299 222,276 190,244 C159,213 159,179 186,144 C223,100 284,88 337,104 Z"/>
+    <path
+        android:fillColor="#005C4A"
+        android:fillAlpha="0.62"
+        android:strokeColor="#003F35"
+        android:strokeWidth="1"
+        android:pathData="M210,410 C260,441 315,431 340,401 C331,430 297,451 263,450 C240,449 221,431 210,410 Z"/>
+    <path
+        android:fillColor="@color/sruvik_orb_gradient"
+        android:pathData="M217,340 A43,43 0,1 1,131 340 A43,43 0,1 1,217 340 Z"/>
+    <path
+        android:fillColor="#F4FFB2"
+        android:fillAlpha="0.24"
+        android:pathData="M175,325 A14,14 0,1 1,147 325 A14,14 0,1 1,175 325 Z"/>
+</vector>
