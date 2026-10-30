@@ -1,4 +1,4 @@
-name: Build Sruvik APK
+name: Build Sruvik Debug APK
 
 on:
   push:
@@ -26,20 +26,23 @@ jobs:
         with:
           gradle-version: '8.11.1'
 
-      - name: Prepare stable test signing key
-        run: |
-          base64 --decode ci/sruvik-test.keystore.base64 > "$RUNNER_TEMP/sruvik-test.jks"
+      # Keep Android's automatically generated debug key stable between CI runs,
+      # so new debug APKs can update-install over the previous test build.
+      - name: Restore debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: sruvik-debug-keystore-v1
 
-      - name: Build APK
+      - name: Build debug APK
         env:
-          SRUVIK_KEYSTORE: ${{ runner.temp }}/sruvik-test.jks
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
         run: gradle --no-daemon :app:assembleDebug
 
-      - name: Upload APK
+      - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: sruvik-test-apk
+          name: sruvik-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
