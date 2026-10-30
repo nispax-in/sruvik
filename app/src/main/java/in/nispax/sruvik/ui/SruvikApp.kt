@@ -4,11 +4,15 @@ import `in`.nispax.sruvik.R
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -60,7 +64,7 @@ fun SruvikApp() {
         .windowInsetsPadding(WindowInsets.safeDrawing)) {
         AnimatedContent(
             targetState = selected, modifier = Modifier.fillMaxSize(),
-            transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
+            transitionSpec = { (fadeIn(tween(220)) + slideInHorizontally(tween(260)) { it / 18 }) togetherWith (fadeOut(tween(140)) + slideOutHorizontally(tween(190)) { -it / 24 }) },
             label = "screen"
         ) { page ->
             when (page) {
@@ -270,7 +274,15 @@ private fun WorkspaceTile(modifier: Modifier, number: String, title: String, ico
 
 @Composable
 private fun AppRow(icon: ImageVector, title: String, subtitle: String, status: String, onClick: () -> Unit) {
-    GlassCard(Modifier.fillMaxWidth().clickable(onClick = onClick), RoundedCornerShape(21.dp),
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) .985f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        label = "app-row-press"
+    )
+    GlassCard(Modifier.fillMaxWidth().scale(pressScale)
+        .clickable(interactionSource = interactionSource, indication = null, onClick = onClick), RoundedCornerShape(21.dp),
         Brush.linearGradient(listOf(Color(0x552D3E35), Color(0xAA121D18)))) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(13.dp)) {
@@ -309,16 +321,34 @@ private fun FloatingDock(selected: Destination, onSelect: (Destination) -> Unit,
         Row(Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Destination.entries.forEach { destination ->
                 val active = selected == destination
-                val scale by animateFloatAsState(if (active) 1.08f else 1f, label = "dock-icon-scale")
-                Box(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(28.dp))
-                    .then(if (active) Modifier.background(Color.White.copy(alpha = .13f))
-                        .border(1.dp, Color.White.copy(alpha = .13f), RoundedCornerShape(28.dp)) else Modifier)
-                    .clickable { onSelect(destination) }, contentAlignment = Alignment.Center) {
+                val selectionProgress by animateFloatAsState(
+                    targetValue = if (active) 1f else 0f,
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+                    label = "dock-selection"
+                )
+                val scale by animateFloatAsState(
+                    targetValue = if (active) 1.08f else 1f,
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+                    label = "dock-icon-scale"
+                )
+                Box(
+                    Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(28.dp))
+                        .clickable { onSelect(destination) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        Modifier.fillMaxSize().clip(RoundedCornerShape(28.dp))
+                            .background(Color.White.copy(alpha = .13f * selectionProgress))
+                            .border(1.dp, Color.White.copy(alpha = .13f * selectionProgress), RoundedCornerShape(28.dp))
+                    )
                     Icon(destination.icon, destination.label,
                         tint = if (active) SruvikColors.TextPrimary else SruvikColors.TextSecondary.copy(alpha = .72f),
                         modifier = Modifier.size(23.dp).scale(scale))
-                    if (active) Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 2.dp)
-                        .size(4.dp).clip(CircleShape).background(SruvikColors.TextPrimary))
+                    Box(
+                        Modifier.align(Alignment.BottomCenter).padding(bottom = 2.dp)
+                            .size(4.dp).scale(selectionProgress)
+                            .clip(CircleShape).background(SruvikColors.TextPrimary)
+                    )
                 }
             }
         }

@@ -12,6 +12,18 @@ import android.os.PowerManager
 import android.os.Process
 import android.os.StatFs
 import android.os.SystemClock
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -53,6 +65,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -121,6 +135,14 @@ fun DeviceMonitorPage() {
         }
     }
 
+    val liveTransition = rememberInfiniteTransition(label = "live-indicator")
+    val liveAlpha by liveTransition.animateFloat(
+        initialValue = .62f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(animation = tween(1150), repeatMode = RepeatMode.Reverse),
+        label = "live-indicator-alpha"
+    )
+
     val data = snapshot
     val ramPercent = data?.let { safePercent(it.ramUsedBytes, it.ramTotalBytes) } ?: 0f
     val storagePercent = data?.let { safePercent(it.storageUsedBytes, it.storageTotalBytes) } ?: 0f
@@ -131,6 +153,7 @@ fun DeviceMonitorPage() {
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         item {
+            MonitorEntrance(index = 0) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -147,7 +170,7 @@ fun DeviceMonitorPage() {
                             .padding(horizontal = 10.dp, vertical = 6.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Box(Modifier.size(6.dp).clip(CircleShape).background(SruvikColors.Lime))
+                            Box(Modifier.size(6.dp).clip(CircleShape).background(SruvikColors.Lime.copy(alpha = liveAlpha)))
                             Text("LIVE · 2 SEC", style = MaterialTheme.typography.labelSmall, color = SruvikColors.LimeMuted)
                         }
                     }
@@ -159,8 +182,10 @@ fun DeviceMonitorPage() {
                     color = SruvikColors.TextSecondary
                 )
             }
+            }
         }
         item {
+            MonitorEntrance(index = 1) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 MonitorCard(
                     modifier = Modifier.weight(1f),
@@ -179,8 +204,10 @@ fun DeviceMonitorPage() {
                     progress = data?.cpuSharePercent?.div(100f)
                 )
             }
+            }
         }
         item {
+            MonitorEntrance(index = 2) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 MonitorCard(
                     modifier = Modifier.weight(1f),
@@ -198,8 +225,10 @@ fun DeviceMonitorPage() {
                     progress = if (data == null) null else storagePercent / 100f
                 )
             }
+            }
         }
         item {
+            MonitorEntrance(index = 3) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 MonitorCard(
                     modifier = Modifier.weight(1f),
@@ -225,8 +254,10 @@ fun DeviceMonitorPage() {
                     warning = data?.thermalStatus in listOf("Severe", "Critical", "Emergency", "Shutdown")
                 )
             }
+            }
         }
         item {
+            MonitorEntrance(index = 4) {
             Row(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
                     .background(Color(0x5530473A))
@@ -242,15 +273,33 @@ fun DeviceMonitorPage() {
                     color = SruvikColors.TextSecondary
                 )
             }
+            }
         }
         item {
+            MonitorEntrance(index = 5) {
             Text(
                 "Readings stay on this device. Monitoring pauses when this page is not active.",
                 style = MaterialTheme.typography.labelSmall,
                 color = SruvikColors.TextMuted,
                 modifier = Modifier.padding(horizontal = 3.dp)
             )
+            }
         }
+    }
+}
+
+@Composable
+private fun MonitorEntrance(index: Int, content: @Composable () -> Unit) {
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(index) {
+        delay(index * 75L)
+        visible = true
+    }
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(tween(260)) + slideInVertically(tween(320)) { it / 16 }
+    ) {
+        content()
     }
 }
 
@@ -278,12 +327,21 @@ private fun MonitorCard(
             Spacer(Modifier.weight(1f))
             Text(title, style = MaterialTheme.typography.labelSmall, color = SruvikColors.TextMuted, letterSpacing = .8.sp)
         }
-        Text(
-            value,
-            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
-            color = valueColor,
-            maxLines = 1
-        )
+        AnimatedContent(
+            targetState = value,
+            transitionSpec = {
+                (fadeIn(tween(190)) + slideInVertically(tween(190)) { it / 4 }) togetherWith
+                    (fadeOut(tween(120)) + slideOutVertically(tween(120)) { -it / 4 })
+            },
+            label = "monitor-value"
+        ) { displayedValue ->
+            Text(
+                displayedValue,
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+                color = valueColor,
+                maxLines = 1
+            )
+        }
         Text(detail, style = MaterialTheme.typography.bodySmall, color = SruvikColors.TextSecondary, minLines = 2)
         if (progress != null) {
             Spacer(Modifier.height(1.dp))
@@ -291,8 +349,17 @@ private fun MonitorCard(
                 Modifier.fillMaxWidth().height(5.dp).clip(CircleShape)
                     .background(Color.White.copy(alpha = .09f))
             ) {
+                val animatedProgress by animateFloatAsState(
+                    targetValue = progress.coerceIn(0f, 1f),
+                    animationSpec = tween(durationMillis = 520),
+                    label = "resource-progress"
+                )
                 Box(
-                    Modifier.fillMaxWidth(progress.coerceIn(0f, 1f)).fillMaxHeight()
+                    Modifier.fillMaxWidth().fillMaxHeight()
+                        .graphicsLayer {
+                            scaleX = animatedProgress
+                            transformOrigin = TransformOrigin(0f, .5f)
+                        }
                         .clip(CircleShape)
                         .background(if (warning) SruvikColors.Danger else SruvikColors.Lime)
                 )
