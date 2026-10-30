@@ -79,7 +79,7 @@ fun SruvikApp() {
                     "Completed and in-progress tasks will appear here.")
                 Destination.Device -> DeviceMonitorPage()
                 Destination.Settings -> SettingsPage()
-                Destination.Upscaler -> ImageUpscalerPage()
+                Destination.Upscaler -> ImageUpscalerPage(onBack = { selected = Destination.Home })
             }
         }
         Text(

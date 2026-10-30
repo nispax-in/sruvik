@@ -1,44 +1,36 @@
 name: Build Sruvik Debug APK
-
 on:
   push:
     branches: [main]
   workflow_dispatch:
-
 permissions:
   contents: read
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
         uses: actions/checkout@v4
-
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
-
-      # Keep Android's automatically generated debug key stable between CI runs,
-      # so new debug APKs can update-install over the previous test build.
+      - name: Download pinned Real-ESRGAN model
+        run: bash scripts/fetch-upscaler-model.sh
       - name: Restore debug signing key
         uses: actions/cache@v4
         with:
           path: ~/.android/debug.keystore
           key: sruvik-debug-keystore-v1
-
       - name: Build debug APK
         env:
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
         run: gradle --no-daemon :app:assembleDebug
-
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:

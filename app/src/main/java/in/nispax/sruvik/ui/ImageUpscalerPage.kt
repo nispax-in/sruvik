@@ -11,123 +11,90 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AddPhotoAlternate
-import androidx.compose.material.icons.rounded.AutoFixHigh
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.Download
-import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.*
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.ui.platform.LocalContext
+import `in`.nispax.sruvik.ai.DeviceThermalLimitException
+import `in`.nispax.sruvik.ai.RealEsrganUpscaler
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.min
 import kotlin.math.roundToInt
-import kotlin.math.sqrt
 
-private val UpscaleInk = Color(0xFF111827)
-private val UpscaleViolet = Color(0xFFB9A3FF)
-private val UpscaleCyan = Color(0xFF78DCE5)
-private val UpscaleAmber = Color(0xFFFFC477)
-private val UpscaleCard = Color(0xFF182330)
+private val LabInk = Color(0xFF0D1421)
+private val LabViolet = Color(0xFFB6A1FF)
+private val LabCyan = Color(0xFF78DFE4)
+private val LabCoral = Color(0xFFFF9A83)
+private val LabGold = Color(0xFFFFD08A)
+private val LabSurface = Color(0xFF172334)
+private val LabText = Color(0xFFF4F4FA)
+private val LabMuted = Color(0xFFAEB9C9)
 
-/**
- * First local upscaling pass. Uses Android's filtered bitmap scaler, with strict
- * output limits to avoid allocating huge bitmaps on lower-memory phones.
- * A neural super-resolution model can replace this processing step later.
- */
 @Composable
-fun ImageUpscalerPage() {
+fun ImageUpscalerPage(onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var selectedUri by remember { mutableStateOf<Uri?>(null) }
     var original by remember { mutableStateOf<Bitmap?>(null) }
     var result by remember { mutableStateOf<Bitmap?>(null) }
-    var scale by remember { mutableIntStateOf(2) }
+    var scale by remember { mutableIntStateOf(4) }
     var isLoading by remember { mutableStateOf(false) }
     var isProcessing by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf("Choose a photo to get started.") }
-    var outputScale by remember { mutableStateOf<Float?>(null) }
+    var progress by remember { mutableFloatStateOf(0f) }
+    var progressLabel by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf("Choose a photo to start enhancing it.") }
+    var optimizedSource by remember { mutableStateOf(false) }
+    var processingJob by remember { mutableStateOf<Job?>(null) }
+    var showQuickResize by remember { mutableStateOf(false) }
 
-    fun clearResult() {
-        result?.recycle()
+    fun resetResult() {
         result = null
-        outputScale = null
+        optimizedSource = false
+        progress = 0f
+        showQuickResize = false
     }
 
     val picker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
+        ActivityResultContracts.PickVisualMedia()
     ) { uri ->
-        if (uri != null) {
-            if (isProcessing || isSaving) return@rememberLauncherForActivityResult
+        if (uri != null && !isProcessing && !isSaving) {
             selectedUri = uri
-            clearResult()
-            message = "Loading your image…"
+            resetResult()
+            message = "Loading photo…"
         }
     }
-
     val saver = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("image/png")
+        ActivityResultContracts.CreateDocument("image/png")
     ) { uri ->
         val bitmap = result
-        if (uri != null && bitmap != null) {
+        if (uri != null && bitmap != null && !isSaving && !isProcessing) {
             scope.launch {
                 isSaving = true
-                message = "Saving image…"
+                message = "Saving enhanced image…"
                 try {
                     withContext(Dispatchers.IO) {
                         val stream = context.contentResolver.openOutputStream(uri)
@@ -138,7 +105,7 @@ fun ImageUpscalerPage() {
                             }
                         }
                     }
-                    message = "Saved. Your upscaled image is ready."
+                    message = "Saved. Your image is ready."
                 } catch (error: Exception) {
                     message = error.message ?: "Couldn't save this image."
                 } finally {
@@ -151,20 +118,18 @@ fun ImageUpscalerPage() {
     LaunchedEffect(selectedUri) {
         val uri = selectedUri ?: return@LaunchedEffect
         isLoading = true
-        message = "Loading your image…"
+        message = "Reading your photo…"
         try {
-            val decoded = withContext(Dispatchers.IO) { decodeForUpscaling(context, uri) }
-            val previous = original
+            val decoded = withContext(Dispatchers.IO) { decodeImage(context, uri) }
+            original?.recycle()
             original = decoded
-            if (previous !== decoded) previous?.recycle()
-            clearResult()
-            message = "Image ready. Choose 2× or 4×."
-        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            message = "Photo ready. Choose your AI output size."
+        } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: OutOfMemoryError) {
             original?.recycle()
             original = null
-            message = "This image is too large for the available memory. Try a smaller image."
+            message = "This photo is too large to preview safely. Choose a smaller image."
         } catch (error: Exception) {
             original?.recycle()
             original = null
@@ -174,311 +139,378 @@ fun ImageUpscalerPage() {
         }
     }
 
-    DisposableEffect(Unit) {
-        onDispose {
-            original?.recycle()
-            result?.recycle()
-        }
-    }
-
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(17.dp)
     ) {
-        Column(Modifier.padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                "IMAGE LAB  /  01",
-                color = UpscaleCyan,
-                style = MaterialTheme.typography.labelLarge,
-                letterSpacing = 2.2.sp
-            )
-            Text(
-                "Give your images\nmore room.",
-                color = Color(0xFFF4F2FA),
-                style = MaterialTheme.typography.displayMedium,
-                lineHeight = 39.sp
-            )
-            Text(
-                "Upscale a photo locally on your phone. No account or upload.",
-                color = Color(0xFFB4C0CD),
-                style = MaterialTheme.typography.bodyMedium
-            )
+        Row(
+            Modifier.fillMaxWidth().padding(top = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TextButton(onClick = onBack, enabled = !isProcessing && !isSaving) {
+                Icon(Icons.Rounded.ArrowBack, null, tint = LabMuted)
+                Text("  STUDIO", color = LabMuted, style = MaterialTheme.typography.labelLarge,
+                    letterSpacing = 1.4.sp)
+            }
+            Spacer(Modifier.weight(1f))
+            Surface(color = Color(0xFF163B3E), shape = CircleShape) {
+                Row(Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(6.dp).clip(CircleShape).background(LabCyan))
+                    Text("  ON-DEVICE AI", color = LabCyan,
+                        style = MaterialTheme.typography.labelSmall, letterSpacing = 1.sp)
+                }
+            }
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("IMAGE RESTORATION", color = LabCoral,
+                style = MaterialTheme.typography.labelLarge, letterSpacing = 2.3.sp)
+            Text("Bring back the\ndetail.", color = LabText,
+                style = MaterialTheme.typography.displayMedium, lineHeight = 40.sp)
+            Text("Reconstruct fine detail and enlarge your photo with a local AI model.",
+                color = LabMuted, style = MaterialTheme.typography.bodyMedium)
         }
 
         Surface(
-            modifier = Modifier.fillMaxWidth().animateContentSize(),
-            color = UpscaleCard,
-            shape = RoundedCornerShape(26.dp),
+            modifier = Modifier.fillMaxWidth(),
+            color = LabSurface,
+            shape = RoundedCornerShape(28.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .09f))
+        ) {
+            Column(
+                Modifier.background(Brush.linearGradient(
+                    listOf(Color(0xFF25344F), Color(0xFF27233F), Color(0xFF17313C))
+                )).padding(17.dp),
+                verticalArrangement = Arrangement.spacedBy(13.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(43.dp).clip(RoundedCornerShape(15.dp))
+                        .background(LabViolet.copy(alpha = .18f)), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Rounded.AutoFixHigh, null, tint = LabViolet)
+                    }
+                    Column(Modifier.weight(1f).padding(start = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("REAL-ESRGAN", color = LabText,
+                            style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("General x4v3  ·  1.21M parameters", color = LabMuted,
+                            style = MaterialTheme.typography.labelSmall)
+                    }
+                    Text("AI MODEL", color = LabGold,
+                        style = MaterialTheme.typography.labelSmall, letterSpacing = 1.sp)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    ModelTag("4× detail")
+                    ModelTag("Noise aware")
+                    ModelTag("Local processing")
+                }
+                Text(
+                    "The model reconstructs at 4×. Choose 2× to downsample its AI result for a smaller file.",
+                    color = Color(0xFFD0D7E4), style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = LabSurface,
+            shape = RoundedCornerShape(26.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .08f))
         ) {
             Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier.size(38.dp).clip(RoundedCornerShape(13.dp))
-                            .background(UpscaleViolet.copy(alpha = .17f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Rounded.Image, null, tint = UpscaleViolet)
-                    }
-                    Column(Modifier.weight(1f).padding(start = 11.dp)) {
-                        Text("Your image", color = Color.White, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            original?.let { "${it.width} × ${it.height}" } ?: "PNG, JPG or WebP",
-                            color = Color(0xFF9EABBA),
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    }
-                    OutlinedButton(
-                        onClick = { if (!isProcessing && !isSaving) picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                        shape = RoundedCornerShape(15.dp),
-                        enabled = !isProcessing && !isSaving
-                    ) {
-                        Icon(Icons.Rounded.AddPhotoAlternate, null, modifier = Modifier.size(17.dp))
-                        Spacer(Modifier.size(7.dp))
-                        Text(if (original == null) "Choose" else "Change")
+                    Icon(Icons.Rounded.Image, null, tint = LabCyan)
+                    Text("  SOURCE PHOTO", color = LabText,
+                        style = MaterialTheme.typography.labelLarge, letterSpacing = 1.4.sp)
+                    Spacer(Modifier.weight(1f))
+                    original?.let {
+                        Text("${it.width} × ${it.height}", color = LabMuted,
+                            style = MaterialTheme.typography.labelSmall)
                     }
                 }
-
                 if (original != null) {
-                    BitmapPreview(bitmap = original!!, modifier = Modifier.fillMaxWidth())
+                    ImagePreview(original!!, Modifier.fillMaxWidth().height(190.dp))
                 } else {
                     Box(
-                        Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(19.dp))
-                            .background(Brush.linearGradient(listOf(Color(0xFF26354B), Color(0xFF302744)))),
+                        Modifier.fillMaxWidth().height(176.dp).clip(RoundedCornerShape(20.dp))
+                            .background(Brush.linearGradient(
+                                listOf(Color(0xFF34435D), Color(0xFF483A5C), Color(0xFF25515B))
+                            )),
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(Icons.Rounded.AddPhotoAlternate, null, tint = UpscaleCyan, modifier = Modifier.size(34.dp))
-                            Text("Pick an image to preview it here", color = Color(0xFFD4D9E7))
+                        Column(horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                            Icon(Icons.Rounded.AddPhotoAlternate, null, tint = LabCyan,
+                                modifier = Modifier.size(37.dp))
+                            Text("Choose an image", color = LabText, fontWeight = FontWeight.SemiBold)
+                            Text("JPG  ·  PNG  ·  WebP", color = LabMuted,
+                                style = MaterialTheme.typography.labelSmall)
                         }
                     }
+                }
+                OutlinedButton(
+                    onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = RoundedCornerShape(15.dp),
+                    enabled = !isProcessing && !isSaving
+                ) {
+                    Icon(Icons.Rounded.AddPhotoAlternate, null)
+                    Text(if (original == null) "  Select photo" else "  Change photo")
                 }
             }
         }
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = Color(0xFF211F33),
-            shape = RoundedCornerShape(24.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, UpscaleViolet.copy(alpha = .20f))
+            color = Color(0xFF29253E),
+            shape = RoundedCornerShape(25.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, LabViolet.copy(alpha = .24f))
         ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.AutoFixHigh, null, tint = UpscaleAmber)
-                    Text(
-                        "  OUTPUT SIZE",
-                        color = Color(0xFFE7E1F5),
-                        style = MaterialTheme.typography.labelLarge,
-                        letterSpacing = 1.4.sp
-                    )
+                    Text("OUTPUT SIZE", color = LabText,
+                        style = MaterialTheme.typography.labelLarge, letterSpacing = 1.5.sp)
+                    Spacer(Modifier.weight(1f))
+                    Text("AI SUPER-RESOLUTION", color = LabViolet,
+                        style = MaterialTheme.typography.labelSmall, letterSpacing = .8.sp)
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                     listOf(2, 4).forEach { option ->
                         FilterChip(
                             selected = scale == option,
-                            onClick = { scale = option; clearResult() },
+                            onClick = { if (!isProcessing) { scale = option; resetResult() } },
                             label = {
-                                Text(
-                                    "${option}×",
-                                    fontWeight = FontWeight.Bold,
-                                    style = MaterialTheme.typography.titleMedium
-                                )
+                                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                                    Text("${option}×", style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold)
+                                    Text(if (option == 4) "Full AI output" else "AI then resize",
+                                        style = MaterialTheme.typography.labelSmall)
+                                }
                             },
                             leadingIcon = if (scale == option) {
                                 { Icon(Icons.Rounded.CheckCircle, null, modifier = Modifier.size(16.dp)) }
                             } else null,
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = UpscaleViolet.copy(alpha = .23f),
+                                selectedContainerColor = LabViolet.copy(alpha = .22f),
                                 selectedLabelColor = Color.White,
-                                labelColor = Color(0xFFD7D2E5),
-                                selectedLeadingIconColor = UpscaleCyan
+                                labelColor = LabMuted,
+                                selectedLeadingIconColor = LabCyan
                             ),
                             border = FilterChipDefaults.filterChipBorder(
-                                enabled = true,
-                                selected = scale == option,
-                                borderColor = Color.White.copy(alpha = .16f),
-                                selectedBorderColor = UpscaleViolet
+                                enabled = true, selected = scale == option,
+                                borderColor = Color.White.copy(alpha = .15f),
+                                selectedBorderColor = LabViolet
                             )
                         )
                     }
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        "ON-DEVICE",
-                        color = UpscaleCyan,
-                        style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.align(Alignment.CenterVertically)
-                    )
                 }
                 Button(
                     onClick = {
                         val source = original ?: return@Button
-                        scope.launch {
+                        processingJob = scope.launch {
                             isProcessing = true
+                            progress = 0f
+                            progressLabel = "Preparing on-device model…"
+                            message = "Starting local AI…"
                             result = null
-                            message = "Upscaling on your device…"
+                            showQuickResize = false
                             try {
-                                val processed = withContext(Dispatchers.Default) {
-                                    createUpscaledBitmap(source, scale, outputPixelLimit(context))
+                                val processed = RealEsrganUpscaler.upscale(context, source, scale) { done, total ->
+                                    progress = done.toFloat() / total.toFloat()
+                                    progressLabel = "Reconstructing tile $done of $total"
                                 }
-                                result?.recycle()
                                 result = processed.bitmap
-                                outputScale = processed.actualScale
-                                message = if (processed.actualScale + .02f < scale) {
-                                    "Adjusted to ${"%.1f".format(processed.actualScale)}× to protect device memory."
+                                optimizedSource = processed.sourceWasOptimized
+                                message = if (processed.sourceWasOptimized) {
+                                    "AI complete. Source resolution was reduced to stay within this phone's memory budget."
                                 } else {
-                                    "Done. Preview your upscaled image below."
+                                    "AI enhancement complete. Your image stayed on this device."
                                 }
-                            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                            } catch (cancelled: CancellationException) {
+                                message = "Processing cancelled. No file was saved."
                                 throw cancelled
                             } catch (error: OutOfMemoryError) {
-                                message = "This image is too large for the available memory. Try a smaller source image."
+                                message = "The phone ran out of memory. Try a smaller source image."
+                                showQuickResize = true
                             } catch (error: Exception) {
-                                message = error.message ?: "Upscaling failed. Please try another image."
+                                message = if (error is DeviceThermalLimitException) {
+                                    error.message ?: "Phone is too warm."
+                                } else error.message ?: "AI enhancement couldn't start on this device."
+                                showQuickResize = true
                             } finally {
                                 isProcessing = false
+                                processingJob = null
                             }
                         }
                     },
+                    modifier = Modifier.fillMaxWidth().height(55.dp),
                     enabled = original != null && !isLoading && !isProcessing && !isSaving,
-                    modifier = Modifier.fillMaxWidth().height(54.dp),
                     shape = RoundedCornerShape(17.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = UpscaleViolet,
-                        contentColor = UpscaleInk,
-                        disabledContainerColor = Color(0xFF45404F),
-                        disabledContentColor = Color(0xFF9D97AA)
+                        containerColor = LabViolet, contentColor = LabInk,
+                        disabledContainerColor = Color(0xFF494559),
+                        disabledContentColor = Color(0xFFA7A1B7)
                     )
                 ) {
-                    if (isProcessing || isLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(19.dp),
-                            color = UpscaleInk,
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(Modifier.size(10.dp))
+                    if (isProcessing) {
+                        CircularProgressIndicator(Modifier.size(19.dp), color = LabInk, strokeWidth = 2.dp)
+                        Text("  Enhancing…", fontWeight = FontWeight.Bold)
                     } else {
                         Icon(Icons.Rounded.AutoFixHigh, null)
-                        Spacer(Modifier.size(9.dp))
+                        Text("  Enhance with AI", fontWeight = FontWeight.Bold)
                     }
-                    Text(
-                        when {
-                            isLoading -> "Loading image…"
-                            isProcessing -> "Upscaling…"
-                            else -> "Upscale image"
-                        },
-                        fontWeight = FontWeight.Bold
-                    )
                 }
-                Text(message, color = if (message.startsWith("Done") || message.startsWith("Saved")) UpscaleCyan else Color(0xFFB6B1C5),
-                    style = MaterialTheme.typography.bodySmall)
+
+                if (isProcessing) {
+                    LinearProgressIndicator(
+                        progress = progress,
+                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
+                        color = LabCyan, trackColor = Color.White.copy(alpha = .10f)
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(progressLabel, color = LabMuted, style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.weight(1f))
+                        Text("${(progress * 100).roundToInt()}%", color = LabCyan,
+                            style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    }
+                    TextButton(onClick = { processingJob?.cancel() }, modifier = Modifier.align(Alignment.End)) {
+                        Icon(Icons.Rounded.Close, null, tint = LabCoral)
+                        Text("  Cancel", color = LabCoral)
+                    }
+                } else {
+                    Text(message, color = if (result != null) LabCyan else LabMuted,
+                        style = MaterialTheme.typography.bodySmall)
+                }
+
+                if (showQuickResize && original != null) {
+                    OutlinedButton(
+                        onClick = {
+                            val source = original ?: return@OutlinedButton
+                            scope.launch {
+                                isProcessing = true
+                                try {
+                                    result = withContext(Dispatchers.Default) {
+                                        quickResize(source, scale, context)
+                                    }
+                                    optimizedSource = true
+                                    message = "Basic resize complete. This fallback does not reconstruct detail with AI."
+                                    showQuickResize = false
+                                } catch (error: Exception) {
+                                    message = error.message ?: "Quick resize failed."
+                                } finally {
+                                    isProcessing = false
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(15.dp)
+                    ) {
+                        Text("Use quick resize instead  ·  not AI")
+                    }
+                }
             }
         }
 
-        AnimatedVisibility(
-            visible = result != null,
-            enter = fadeIn() + slideInVertically { it / 5 }
-        ) {
+        AnimatedVisibility(visible = result != null, enter = fadeIn() + slideInVertically { it / 6 }) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("RESULT", color = UpscaleCyan, style = MaterialTheme.typography.labelLarge, letterSpacing = 2.sp)
+                    Text("BEFORE / AFTER", color = LabCyan,
+                        style = MaterialTheme.typography.labelLarge, letterSpacing = 1.7.sp)
                     Spacer(Modifier.weight(1f))
-                    Text(
-                        outputScale?.let { "${"%.1f".format(it)}× output" } ?: "",
-                        color = UpscaleAmber,
-                        style = MaterialTheme.typography.labelMedium
-                    )
+                    Text(if (optimizedSource) "DEVICE-SAFE SIZE" else "READY",
+                        color = LabGold, style = MaterialTheme.typography.labelSmall)
                 }
-                result?.let { bitmap ->
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(24.dp),
-                        color = Color(0xFF142B2F),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, UpscaleCyan.copy(alpha = .30f))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    original?.let {
+                        ComparisonCard("ORIGINAL", "${it.width} × ${it.height}", it,
+                            Modifier.weight(1f), LabMuted)
+                    }
+                    result?.let {
+                        ComparisonCard("ENHANCED", "${it.width} × ${it.height}", it,
+                            Modifier.weight(1f), LabCyan)
+                    }
+                }
+                result?.let {
+                    Button(
+                        onClick = { saver.launch("sruvik-ai-upscaled.png") },
+                        modifier = Modifier.fillMaxWidth().height(54.dp),
+                        shape = RoundedCornerShape(17.dp),
+                        enabled = !isSaving && !isProcessing,
+                        colors = ButtonDefaults.buttonColors(containerColor = LabCyan, contentColor = LabInk)
                     ) {
-                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            BitmapPreview(bitmap, Modifier.fillMaxWidth())
-                            Text(
-                                "${bitmap.width} × ${bitmap.height} px",
-                                color = UpscaleCyan,
-                                style = MaterialTheme.typography.labelMedium
-                            )
-                            Button(
-                                onClick = { saver.launch("sruvik-upscaled.png") },
-                                enabled = !isSaving && !isProcessing,
-                                modifier = Modifier.fillMaxWidth().height(52.dp),
-                                shape = RoundedCornerShape(16.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = UpscaleCyan,
-                                    contentColor = UpscaleInk
-                                )
-                            ) {
-                                Icon(Icons.Rounded.Download, null)
-                                Spacer(Modifier.size(8.dp))
-                                Text(if (isSaving) "Saving…" else "Save upscaled image", fontWeight = FontWeight.Bold)
-                            }
-                        }
+                        Icon(Icons.Rounded.Download, null)
+                        Text(if (isSaving) "  Saving…" else "  Save enhanced PNG", fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
 
         Surface(
-            color = Color(0xFF20242B),
-            shape = RoundedCornerShape(18.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .06f))
+            color = Color(0xFF1B2A2F), shape = RoundedCornerShape(18.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, LabCyan.copy(alpha = .14f))
         ) {
             Row(Modifier.padding(13.dp), verticalAlignment = Alignment.Top) {
-                Icon(Icons.Rounded.Refresh, null, tint = UpscaleAmber, modifier = Modifier.size(18.dp))
+                Icon(Icons.Rounded.Shield, null, tint = LabCyan, modifier = Modifier.size(18.dp))
                 Text(
-                    "  This first version uses high-quality local resizing. AI detail reconstruction will be added with Sruvik's on-device model.",
-                    color = Color(0xFFAEB7C3),
-                    style = MaterialTheme.typography.labelSmall
+                    "  Your photo is processed locally and is never uploaded. The first run may prepare the LiteRT runtime through Google Play services.",
+                    color = LabMuted, style = MaterialTheme.typography.labelSmall
                 )
             }
         }
-        Spacer(Modifier.height(98.dp))
+        Spacer(Modifier.height(100.dp))
     }
 }
 
 @Composable
-private fun BitmapPreview(bitmap: Bitmap, modifier: Modifier = Modifier) {
-    Box(
-        modifier.height(220.dp).clip(RoundedCornerShape(18.dp))
-            .background(Color(0xFF0B1119)),
-        contentAlignment = Alignment.Center
-    ) {
-        Image(
-            bitmap = bitmap.asImageBitmap(),
-            contentDescription = "Image preview",
-            modifier = Modifier.fillMaxSize().padding(5.dp),
-            contentScale = ContentScale.Fit
-        )
+private fun ModelTag(label: String) {
+    Surface(color = Color.White.copy(alpha = .08f), shape = CircleShape) {
+        Text(label, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            color = Color(0xFFD7E5EE), style = MaterialTheme.typography.labelSmall)
     }
 }
 
-private data class UpscaleOutput(val bitmap: Bitmap, val actualScale: Float)
+@Composable
+private fun ComparisonCard(title: String, size: String, bitmap: Bitmap, modifier: Modifier, accent: Color) {
+    Surface(
+        modifier = modifier, color = Color(0xFF172334), shape = RoundedCornerShape(20.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = .22f))
+    ) {
+        Column(Modifier.padding(9.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text(title, color = accent, style = MaterialTheme.typography.labelSmall,
+                letterSpacing = 1.sp, fontWeight = FontWeight.Bold)
+            ImagePreview(bitmap, Modifier.fillMaxWidth().height(126.dp))
+            Text(size, color = LabMuted, style = MaterialTheme.typography.labelSmall)
+        }
+    }
+}
 
-private fun decodeForUpscaling(context: Context, uri: Uri): Bitmap {
+@Composable
+private fun ImagePreview(bitmap: Bitmap, modifier: Modifier = Modifier) {
+    Box(modifier.clip(RoundedCornerShape(17.dp)).background(Color(0xFF0A101A)),
+        contentAlignment = Alignment.Center) {
+        Image(bitmap.asImageBitmap(), "Image preview",
+            Modifier.fillMaxSize().padding(4.dp), contentScale = ContentScale.Fit)
+    }
+}
+
+private fun decodeImage(context: Context, uri: Uri): Bitmap {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    val boundsStream = context.contentResolver.openInputStream(uri)
-        ?: error("Couldn't open the selected image.")
-    boundsStream.use { BitmapFactory.decodeStream(it, null, bounds) }
+    context.contentResolver.openInputStream(uri)?.use {
+        BitmapFactory.decodeStream(it, null, bounds)
+    } ?: error("Couldn't open the selected image.")
     require(bounds.outWidth > 0 && bounds.outHeight > 0) { "This image format isn't supported." }
 
     var sample = 1
     while (
         (bounds.outWidth.toLong() / sample.toLong()) *
-            (bounds.outHeight.toLong() / sample.toLong()) > MAX_INPUT_PIXELS ||
-        maxOf(bounds.outWidth / sample, bounds.outHeight / sample) > MAX_INPUT_DIMENSION
-    ) {
-        sample *= 2
-    }
-    val options = BitmapFactory.Options().apply {
-        inSampleSize = sample
-        inPreferredConfig = Bitmap.Config.ARGB_8888
-    }
+            (bounds.outHeight.toLong() / sample.toLong()) > MAX_PREVIEW_PIXELS ||
+        maxOf(bounds.outWidth / sample, bounds.outHeight / sample) > MAX_PREVIEW_DIMENSION
+    ) sample *= 2
+
     val decoded = context.contentResolver.openInputStream(uri)?.use {
-        BitmapFactory.decodeStream(it, null, options)
+        BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply {
+            inSampleSize = sample
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+        })
     } ?: error("Couldn't decode this image.")
     val oriented = applyExifOrientation(context, uri, decoded)
     if (oriented !== decoded) decoded.recycle()
@@ -492,52 +524,44 @@ private fun applyExifOrientation(context: Context, uri: Uri, bitmap: Bitmap): Bi
                 ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL
             )
         } ?: ExifInterface.ORIENTATION_NORMAL
-    } catch (_: Exception) {
-        ExifInterface.ORIENTATION_NORMAL
-    }
+    } catch (_: Exception) { ExifInterface.ORIENTATION_NORMAL }
     val matrix = Matrix()
     when (orientation) {
         ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.setScale(-1f, 1f)
         ExifInterface.ORIENTATION_ROTATE_180 -> matrix.setRotate(180f)
         ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.setScale(1f, -1f)
-        ExifInterface.ORIENTATION_TRANSPOSE -> {
-            matrix.setRotate(90f)
-            matrix.postScale(-1f, 1f)
-        }
+        ExifInterface.ORIENTATION_TRANSPOSE -> { matrix.setRotate(90f); matrix.postScale(-1f, 1f) }
         ExifInterface.ORIENTATION_ROTATE_90 -> matrix.setRotate(90f)
-        ExifInterface.ORIENTATION_TRANSVERSE -> {
-            matrix.setRotate(-90f)
-            matrix.postScale(-1f, 1f)
-        }
+        ExifInterface.ORIENTATION_TRANSVERSE -> { matrix.setRotate(-90f); matrix.postScale(-1f, 1f) }
         ExifInterface.ORIENTATION_ROTATE_270 -> matrix.setRotate(270f)
         else -> return bitmap
     }
     return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
 }
 
-private fun createUpscaledBitmap(source: Bitmap, requestedScale: Int, maxOutputPixels: Long): UpscaleOutput {
-    val sourcePixels = source.width.toLong() * source.height.toLong()
-    val pixelLimitScale = sqrt(maxOutputPixels.toDouble() / sourcePixels).toFloat()
-    val dimensionLimitScale = MAX_OUTPUT_DIMENSION.toFloat() /
-        maxOf(source.width, source.height).toFloat()
-    val actualScale = min(requestedScale.toFloat(), min(pixelLimitScale, dimensionLimitScale))
-        .coerceAtLeast(1.01f)
-    val width = (source.width * actualScale).roundToInt().coerceAtLeast(source.width + 1)
-    val height = (source.height * actualScale).roundToInt().coerceAtLeast(source.height + 1)
-    return UpscaleOutput(
-        bitmap = Bitmap.createScaledBitmap(source, width, height, true),
-        actualScale = min(width.toFloat() / source.width, height.toFloat() / source.height)
-    )
-}
-
-private fun outputPixelLimit(context: Context): Long {
+private fun quickResize(source: Bitmap, requestedScale: Int, context: Context): Bitmap {
     val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-    // Keep the output bitmap near 24% of the app's memory class, in ARGB_8888 bytes.
-    val budget = manager.memoryClass.toLong() * 1024L * 1024L * 24L / 100L / 4L
-    return budget.coerceIn(4_000_000L, MAX_OUTPUT_PIXELS)
+    val info = ActivityManager.MemoryInfo().also(manager::getMemoryInfo)
+    check(!info.lowMemory && info.availMem > 220L * 1024L * 1024L) {
+        "Your phone is low on free memory. Try after closing a few apps."
+    }
+    val pixelCap = if (manager.isLowRamDevice) 2_000_000L else 4_000_000L
+    val maxSource = pixelCap / (requestedScale * requestedScale)
+    val pixelScale = kotlin.math.sqrt(maxSource.toDouble() /
+        (source.width.toLong() * source.height)).toFloat().coerceAtMost(1f)
+    val dimScale = 6144f / (maxOf(source.width, source.height) * requestedScale)
+    val factor = min(pixelScale, dimScale).coerceAtMost(1f)
+    val input = if (factor < .999f) Bitmap.createScaledBitmap(
+        source, (source.width * factor).roundToInt().coerceAtLeast(1),
+        (source.height * factor).roundToInt().coerceAtLeast(1), true
+    ) else source
+    return try {
+        Bitmap.createScaledBitmap(input, input.width * requestedScale,
+            input.height * requestedScale, true)
+    } finally {
+        if (input !== source) input.recycle()
+    }
 }
 
-private const val MAX_INPUT_PIXELS = 4_000_000L
-private const val MAX_INPUT_DIMENSION = 4096
-private const val MAX_OUTPUT_PIXELS = 12_000_000L
-private const val MAX_OUTPUT_DIMENSION = 6144
+private const val MAX_PREVIEW_PIXELS = 4_000_000L
+private const val MAX_PREVIEW_DIMENSION = 4096
