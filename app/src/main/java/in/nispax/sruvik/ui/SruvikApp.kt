@@ -15,6 +15,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,6 +32,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontStyle
@@ -129,11 +131,11 @@ private fun SplashScreen() {
 }
 
 private fun DrawScope.drawAtmosphere() {
-    drawRect(Brush.radialGradient(listOf(Color(0x553C4B29), Color.Transparent),
+    drawRect(Brush.radialGradient(listOf(Color(0x554B327D), Color.Transparent),
         Offset(size.width * .10f, size.height * .22f), size.maxDimension * .72f))
-    drawRect(Brush.radialGradient(listOf(Color(0x44316A5B), Color.Transparent),
+    drawRect(Brush.radialGradient(listOf(Color(0x44305C8A), Color.Transparent),
         Offset(size.width * .92f, size.height * .52f), size.maxDimension * .62f))
-    drawRect(Brush.radialGradient(listOf(Color(0x332D311F), Color.Transparent),
+    drawRect(Brush.radialGradient(listOf(Color(0x334E2F77), Color.Transparent),
         Offset(size.width * .48f, size.height * .96f), size.maxDimension * .48f))
     val step = 38.dp.toPx()
     var x = 0f
@@ -192,7 +194,24 @@ private fun HomeScreen(onModels: () -> Unit, onSettings: () -> Unit, onUpscale: 
                 WorkspaceTile(Modifier.weight(1f), "01", "Video\nnarration", Icons.Rounded.RecordVoiceOver,
                     Color(0xFF9A9863))
                 WorkspaceTile(Modifier.weight(1f), "02", "Image\nenhancement", Icons.Rounded.AutoFixHigh,
-                    Color(0xFF6EAAA0), "OPEN", onUpscale)
+                    Color(0xFF7D75D8), "OPEN", onUpscale, artRes = R.drawable.sruvik_glass_art)
+            }
+        }
+        item { SectionTitle("VISUAL INSPIRATION", "SRUVIK ORIGINALS") }
+        item {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                item {
+                    ArtCard(Modifier.width(198.dp).height(224.dp), R.drawable.sruvik_city_art,
+                        "Dreamscapes", "Worlds without limits")
+                }
+                item {
+                    ArtCard(Modifier.width(178.dp).height(224.dp), R.drawable.sruvik_glass_art,
+                        "Fluid forms", "Light, colour and motion")
+                }
+                item {
+                    ArtCard(Modifier.width(178.dp).height(224.dp), R.drawable.sruvik_alpine_art,
+                        "Cinematic nature", "Atmosphere in every frame")
+                }
             }
         }
         item { SectionTitle("APP", "FOUNDATION") }
@@ -209,16 +228,26 @@ private fun HomeScreen(onModels: () -> Unit, onSettings: () -> Unit, onUpscale: 
 private fun HeroCard(onExplore: () -> Unit) {
     GlassCard(Modifier.fillMaxWidth(), RoundedCornerShape(30.dp),
         Brush.linearGradient(listOf(Color(0xBDA8AA78), Color(0xA5416558), Color(0xC31B3933)))) {
-        Box(Modifier.fillMaxWidth().height(248.dp)) {
-            Box(Modifier.align(Alignment.BottomEnd).size(190.dp, 145.dp)
-                .clip(RoundedCornerShape(topStart = 42.dp))
-                .background(Brush.linearGradient(listOf(Color(0x334CC3AD), Color(0x224D8F80), Color(0x114C796A)))))
+        Box(Modifier.fillMaxWidth().height(258.dp)) {
+            Image(
+                painter = painterResource(R.drawable.sruvik_city_art),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.verticalGradient(
+                        listOf(Color(0x1810162B), Color(0x6D101126), Color(0xF20A0B19))
+                    )
+                )
+            )
             Column(Modifier.fillMaxSize().padding(horizontal = 21.dp, vertical = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(13.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                     Box(Modifier.size(7.dp).clip(CircleShape).background(SruvikColors.Lime))
                     Text("YOUR CREATIVE SPACE", style = MaterialTheme.typography.labelLarge,
-                        color = SruvikColors.TextPrimary.copy(alpha = .78f), letterSpacing = 2.sp)
+                        color = SruvikColors.TextPrimary.copy(alpha = .88f), letterSpacing = 2.sp)
                 }
                 Spacer(Modifier.height(4.dp))
                 Column {
@@ -228,7 +257,7 @@ private fun HeroCard(onExplore: () -> Unit) {
                 }
                 Spacer(Modifier.weight(1f))
                 Row(Modifier.clip(RoundedCornerShape(30.dp)).background(Color.White.copy(alpha = .16f))
-                    .border(1.dp, Color.White.copy(alpha = .17f), RoundedCornerShape(30.dp))
+                    .border(1.dp, Color.White.copy(alpha = .22f), RoundedCornerShape(30.dp))
                     .clickable(onClick = onExplore)
                     .padding(start = 17.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -253,23 +282,57 @@ private fun SectionTitle(title: String, trailing: String) {
 
 @Composable
 private fun WorkspaceTile(modifier: Modifier, number: String, title: String, icon: ImageVector, tint: Color,
-    status: String = "COMING SOON", onClick: (() -> Unit)? = null) {
+    status: String = "COMING SOON", onClick: (() -> Unit)? = null, artRes: Int? = null) {
     GlassCard(modifier.height(178.dp).clickable(enabled = onClick != null) { onClick?.invoke() }, RoundedCornerShape(27.dp),
         Brush.linearGradient(listOf(tint.copy(alpha = .24f), Color(0xA51A241F), Color(0xB316201B)))) {
-        Column(Modifier.fillMaxSize().padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(42.dp).clip(CircleShape).background(Color.White.copy(alpha = .13f))
-                    .border(1.dp, Color.White.copy(alpha = .13f), CircleShape), contentAlignment = Alignment.Center) {
-                    Icon(icon, null, tint = SruvikColors.TextPrimary, modifier = Modifier.size(20.dp))
+        Box(Modifier.fillMaxSize()) {
+            if (artRes != null) {
+                Image(
+                    painter = painterResource(artRes),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+                Box(Modifier.fillMaxSize().background(
+                    Brush.verticalGradient(listOf(Color(0x24101425), Color(0xAE101226), Color(0xF20A0D18)))
+                ))
+            }
+            Column(Modifier.fillMaxSize().padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(42.dp).clip(CircleShape).background(Color.White.copy(alpha = .13f))
+                        .border(1.dp, Color.White.copy(alpha = .16f), CircleShape), contentAlignment = Alignment.Center) {
+                        Icon(icon, null, tint = SruvikColors.TextPrimary, modifier = Modifier.size(20.dp))
+                    }
+                    Spacer(Modifier.weight(1f))
+                    Text(number, style = MaterialTheme.typography.labelMedium, color = SruvikColors.TextPrimary.copy(alpha = .82f))
                 }
                 Spacer(Modifier.weight(1f))
-                Text(number, style = MaterialTheme.typography.labelMedium, color = SruvikColors.TextSecondary)
+                Text(title, style = MaterialTheme.typography.titleLarge, color = SruvikColors.TextPrimary)
+                Spacer(Modifier.height(12.dp))
+                Text(status, style = MaterialTheme.typography.labelSmall,
+                    color = if (onClick != null) SruvikColors.Lime else SruvikColors.TextSecondary.copy(alpha = .9f), letterSpacing = 1.sp)
             }
-            Spacer(Modifier.weight(1f))
-            Text(title, style = MaterialTheme.typography.titleLarge, color = SruvikColors.TextPrimary)
-            Spacer(Modifier.height(12.dp))
-            Text(status, style = MaterialTheme.typography.labelSmall,
-                color = if (onClick != null) SruvikColors.Lime else SruvikColors.TextSecondary.copy(alpha = .78f), letterSpacing = 1.sp)
+        }
+    }
+}
+
+@Composable
+private fun ArtCard(modifier: Modifier, artRes: Int, title: String, subtitle: String) {
+    Box(modifier.clip(RoundedCornerShape(24.dp))
+        .border(1.dp, Color.White.copy(alpha = .16f), RoundedCornerShape(24.dp))) {
+        Image(
+            painter = painterResource(artRes),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
+        Box(Modifier.fillMaxSize().background(
+            Brush.verticalGradient(listOf(Color(0x08090D1B), Color(0x3510142B), Color(0xF20A0B18)))
+        ))
+        Column(Modifier.align(Alignment.BottomStart).padding(15.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, color = SruvikColors.TextPrimary)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = SruvikColors.TextSecondary)
         }
     }
 }
@@ -401,6 +464,22 @@ private fun SettingsPage() {
                     }
                     Text("SOON", style = MaterialTheme.typography.labelSmall, color = SruvikColors.LimeMuted)
                 }
+            }
+        }
+        GlassCard(Modifier.fillMaxWidth(), RoundedCornerShape(22.dp),
+            Brush.linearGradient(listOf(Color(0x66483C78), Color(0xAA141326)))) {
+            Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Icon(Icons.Rounded.Lock, null, tint = SruvikColors.Lime, modifier = Modifier.size(21.dp))
+                    Text("SRUKRYPT STORAGE PROMISE", style = MaterialTheme.typography.labelLarge,
+                        color = SruvikColors.Lime, letterSpacing = 1.1.sp)
+                }
+                Text("App-bound. Not recoverable after uninstall.",
+                    style = MaterialTheme.typography.titleMedium, color = SruvikColors.TextPrimary)
+                Text("When Srukrypt is introduced, its encrypted files will stay in Sruvik's private, no-backup storage and its key in Android Keystore. Uninstalling Sruvik permanently deletes the vault. Export anything you want to keep before uninstalling.",
+                    style = MaterialTheme.typography.bodySmall, color = SruvikColors.TextSecondary)
+                Text("PLANNED SECURITY BEHAVIOUR", style = MaterialTheme.typography.labelSmall,
+                    color = SruvikColors.TextMuted, letterSpacing = 1.sp)
             }
         }
     }
