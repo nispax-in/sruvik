@@ -8,6 +8,8 @@ import com.google.mediapipe.tasks.vision.imagegenerator.ImageGenerator
 import com.google.mediapipe.tasks.vision.imagegenerator.ImageGeneratorResult
 import java.io.ByteArrayOutputStream
 import java.security.SecureRandom
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -24,6 +26,7 @@ class MediaPipeSruGenEngine(
 
     @Volatile
     private var imageGenerator: ImageGenerator? = null
+    private val inferenceLock = ReentrantLock()
 
     private fun getOrCreateGenerator(): ImageGenerator {
         imageGenerator?.let { return it }
@@ -42,6 +45,7 @@ class MediaPipeSruGenEngine(
         request: SruGenRequest,
         onProgress: (Int, String) -> Unit
     ): SruGenResult = withContext(Dispatchers.Default) {
+        inferenceLock.withLock {
         require(request.mode == SruGenMode.TEXT_TO_IMAGE) {
             when (request.mode) {
                 SruGenMode.PROMPT_EDIT -> "This installed Stable Diffusion 1.5 runtime currently supports text-to-image only. Reference-image editing is not enabled in this engine."
@@ -88,10 +92,11 @@ class MediaPipeSruGenEngine(
             modelName = displayName,
             seed = seed.toLong()
         )
+        }
     }
 
     override fun close() {
-        synchronized(this) {
+        inferenceLock.withLock {
             try {
                 imageGenerator?.close()
             } catch (_: Exception) {

@@ -105,7 +105,12 @@ fun SruGenPage(memoryEnabled: Boolean) {
     }
 
     fun activateInstalledModel() {
-        (SruGenEngineRegistry.engine as? AutoCloseable)?.close()
+        if (SruGenEngineRegistry.engine is MediaPipeSruGenEngine) {
+            // Reuse the process-local engine. A screen-exit close may be waiting
+            // for an in-flight native inference step; the engine lock serializes it.
+            modelReady = true
+            return
+        }
         SruGenEngineRegistry.engine = MediaPipeSruGenEngine(
             context.applicationContext,
             File(SruGenModelInstaller.modelDirectory(context), "sd15_bins").absolutePath
@@ -254,8 +259,15 @@ fun SruGenPage(memoryEnabled: Boolean) {
     DisposableEffect(Unit) {
         onDispose {
             thumbnails.values.forEach { if (!it.isRecycled) it.recycle() }
-            (SruGenEngineRegistry.engine as? AutoCloseable)?.close()
-            SruGenEngineRegistry.engine = null
+            val engineToClose = SruGenEngineRegistry.engine as? AutoCloseable
+            if (engineToClose != null) {
+                // Don't block Compose or close the native task during an execute() call.
+                kotlinx.coroutines.CoroutineScope(
+                    kotlinx.coroutines.SupervisorJob() + Dispatchers.IO
+                ).launch {
+                    runCatching { engineToClose.close() }
+                }
+            }
         }
     }
 
