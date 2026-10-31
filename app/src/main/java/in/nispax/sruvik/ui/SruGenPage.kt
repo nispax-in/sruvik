@@ -191,6 +191,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
         if (modelReady) activateInstalledModel()
         downloadId = SruGenModelInstaller.savedDownloadId(context)
         downloadId = SruGenModelInstaller.savedDownloadId(context)
+        downloadId = SruGenModelInstaller.savedDownloadId(context)
     }
 
     LaunchedEffect(downloadId) {
@@ -236,7 +237,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
             val wallDelta = (nowWall - priorWall).coerceAtLeast(1)
             val cpuDelta = (nowCpu - priorCpu).coerceAtLeast(0)
             val cores = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
-            val cpu = (cpuDelta.toFloat() / (wallDelta * cores) * 100f).coerceIn(0f, 100f)
+            val cpu = (cpuDelta.toFloat() / (wallDelta.toFloat() * cores.toFloat()) * 100f).coerceIn(0f, 100f)
             val memory = ActivityManager.MemoryInfo()
             (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(memory)
             resourceStats = SruGenResourceStats(
@@ -485,7 +486,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
                 }
             }
 
-            currentChat?.let { chat ->
+            activeChat?.let { chat ->
                 LazyColumn(
                     Modifier.weight(1f).fillMaxWidth(),
                     contentPadding = PaddingValues(vertical = 7.dp),
