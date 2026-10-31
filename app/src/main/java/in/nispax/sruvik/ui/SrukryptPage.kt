@@ -210,8 +210,8 @@ fun SrukryptPage(autoLockMinutes: Int) {
         scope.launch {
             var challenge: SrukryptUnlockChallenge? = null
             try {
-                challenge = withContext(Dispatchers.IO) { SrukryptVault.prepareUnlock(context) }
-                val authChallenge = challenge
+                val authChallenge = withContext(Dispatchers.IO) { SrukryptVault.prepareUnlock(context) }
+                challenge = authChallenge
                 val promptInfo = BiometricPrompt.PromptInfo.Builder()
                     .setTitle("Unlock Srukrypt")
                     .setSubtitle("Authenticate to access your encrypted private files.")

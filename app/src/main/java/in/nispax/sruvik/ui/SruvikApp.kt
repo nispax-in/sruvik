@@ -46,7 +46,8 @@ import `in`.nispax.sruvik.ui.theme.SruvikColors
 
 private enum class Destination(val label: String, val icon: ImageVector) {
     Home("Home", Icons.Rounded.Home), Upscaler("Upscale", Icons.Rounded.AutoFixHigh), Models("Models", Icons.Rounded.Memory),
-    Activity("Activity", Icons.Rounded.History), Device("Device", Icons.Rounded.Speed), Settings("Settings", Icons.Rounded.Settings)
+    Activity("Activity", Icons.Rounded.History), Device("Device", Icons.Rounded.Speed), Settings("Settings", Icons.Rounded.Settings),
+    SruGen("SruGen", Icons.Rounded.AutoAwesome), Srukrypt("Srukrypt", Icons.Rounded.ShieldLock)
 }
 
 @Composable
@@ -74,7 +75,7 @@ fun SruvikApp() {
             label = "screen"
         ) { page ->
             when (page) {
-                Destination.Home -> HomeScreen(profile.name, showDailyTip, { selected = Destination.Models }, { selected = Destination.Settings }, { selected = Destination.Upscaler })
+                Destination.Home -> HomeScreen(profile.name, showDailyTip, { selected = Destination.Models }, { selected = Destination.Settings }, { selected = Destination.Upscaler }, { selected = Destination.SruGen }, { selected = Destination.Srukrypt })
                 Destination.Models -> EmptyPage("YOUR DEVICE", "Model library",
                     "Choose on-device models that fit your phone and the work you want to do.",
                     Icons.Rounded.Memory, "No models installed",
@@ -97,6 +98,8 @@ fun SruvikApp() {
                     }
                 )
                 Destination.Upscaler -> ImageUpscalerPage(onBack = { selected = Destination.Home })
+                Destination.SruGen -> SruGenPage()
+                Destination.Srukrypt -> SrukryptPage(SruvikPreferences.vaultAutoLockMinutes(context))
             }
         }
         Text(
@@ -172,7 +175,7 @@ private fun DrawScope.drawAtmosphere() {
 }
 
 @Composable
-private fun HomeScreen(name: String, showDailyTip: Boolean, onModels: () -> Unit, onSettings: () -> Unit, onUpscale: () -> Unit) {
+private fun HomeScreen(name: String, showDailyTip: Boolean, onModels: () -> Unit, onSettings: () -> Unit, onUpscale: () -> Unit, onSruGen: () -> Unit, onSrukrypt: () -> Unit) {
     val state = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var greeting by remember { mutableStateOf(greetingForNow()) }
@@ -239,6 +242,15 @@ private fun HomeScreen(name: String, showDailyTip: Boolean, onModels: () -> Unit
                     Color(0xFF9A9863))
                 WorkspaceTile(Modifier.weight(1f), "02", "Image\nenhancement", Icons.Rounded.AutoFixHigh,
                     Color(0xFF7D75D8), "OPEN", onUpscale, artRes = R.drawable.sruvik_glass_art)
+            }
+        }
+        item { SectionTitle("CREATE & PROTECT", "SRUVIK TOOLS") }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                WorkspaceTile(Modifier.weight(1f), "03", "SruGen\nimage studio", Icons.Rounded.AutoAwesome,
+                    Color(0xFF8A72D9), "OPEN STUDIO", onSruGen, artRes = R.drawable.sruvik_glass_art)
+                WorkspaceTile(Modifier.weight(1f), "04", "Srukrypt\nprivate vault", Icons.Rounded.ShieldLock,
+                    Color(0xFF4A9BBD), "OPEN VAULT", onSrukrypt, artRes = R.drawable.sruvik_alpine_art)
             }
         }
         item { SectionTitle("VISUAL INSPIRATION", "SRUVIK ORIGINALS") }
@@ -428,8 +440,8 @@ private fun FloatingDock(selected: Destination, onSelect: (Destination) -> Unit,
     GlassCard(modifier.fillMaxWidth().height(76.dp), RoundedCornerShape(40.dp),
         Brush.linearGradient(listOf(Color(0xD76C7057), Color(0xE1283028), Color(0xE018241E)))) {
         Row(Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Destination.entries.filter { it != Destination.Upscaler }.forEach { destination ->
-                val active = (if (selected == Destination.Upscaler) Destination.Home else selected) == destination
+            Destination.entries.filter { it in setOf(Destination.Home, Destination.Models, Destination.Activity, Destination.Device, Destination.Settings) }.forEach { destination ->
+                val active = (if (selected in setOf(Destination.Upscaler, Destination.SruGen, Destination.Srukrypt)) Destination.Home else selected) == destination
                 val selectionProgress by animateFloatAsState(
                     targetValue = if (active) 1f else 0f,
                     animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),

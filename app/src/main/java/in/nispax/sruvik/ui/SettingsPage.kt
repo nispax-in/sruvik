@@ -125,7 +125,6 @@ fun SettingsPage(
     val context = LocalContext.current
     var query by remember { mutableStateOf("") }
     var editProfile by remember { mutableStateOf(false) }
-    var biometric by remember { mutableStateOf(SruvikPreferences.requireVaultBiometric(context)) }
     var autoLock by remember { mutableIntStateOf(SruvikPreferences.vaultAutoLockMinutes(context)) }
     var lockMenuExpanded by remember { mutableStateOf(false) }
     val q = query.trim()
@@ -209,16 +208,21 @@ fun SettingsPage(
                 SettingsSection("SRUKRYPT VAULT", "Security preferences for your private space.") {
                     SettingsPanel {
                         if (biometricVisible) {
-                            SettingsSwitchRow(
-                                icon = Icons.Rounded.Fingerprint,
-                                title = "Prefer biometric unlock",
-                                description = "Save your preferred unlock policy for the Srukrypt vault.",
-                                checked = biometric,
-                                onCheckedChange = {
-                                    biometric = it
-                                    SruvikPreferences.setRequireVaultBiometric(context, it)
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(11.dp)
+                            ) {
+                                Icon(Icons.Rounded.Fingerprint, null, tint = SruvikColors.Lime,
+                                    modifier = Modifier.size(23.dp))
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Text("Strong biometric authentication", style = MaterialTheme.typography.titleSmall,
+                                        color = SruvikColors.TextPrimary)
+                                    Text("Required to unwrap the vault data key on every unlock. This is a security control, not a cosmetic lock.",
+                                        style = MaterialTheme.typography.bodySmall, color = SruvikColors.TextSecondary)
                                 }
-                            )
+                                Text("REQUIRED", style = MaterialTheme.typography.labelSmall, color = SruvikColors.Lime)
+                            }
                         }
                         if (biometricVisible && lockVisible) SettingsThinDivider()
                         if (lockVisible) {
@@ -271,7 +275,7 @@ fun SettingsPage(
                         }
                     }
                     Text(
-                        "Vault controls are saved locally as your preferred policy. The encrypted Srukrypt vault and its biometric lock are not active in this build yet.",
+                        "Srukrypt encrypts images and their metadata with AES-256-GCM. The data key is wrapped by a per-use biometric-authenticated Android Keystore key. Enrolling new biometrics may invalidate the key; export important items before changing device security.",
                         style = MaterialTheme.typography.bodySmall, color = SruvikColors.TextMuted
                     )
                 }
@@ -456,7 +460,7 @@ private fun profileFieldColors() = OutlinedTextFieldDefaults.colors(
 )
 
 private fun autoLockLabel(minutes: Int) = when (minutes) {
-    0 -> "Immediately"
+    0 -> "When app leaves"
     1 -> "1 minute"
     else -> "$minutes minutes"
 }
