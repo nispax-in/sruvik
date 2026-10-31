@@ -477,6 +477,11 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                         )
                     }
                 }
+                Text(
+                    "Progress notifications let the enhancement continue visibly while you switch tabs or apps.",
+                    color = LabMuted,
+                    style = MaterialTheme.typography.bodySmall
+                )
                 Button(
                     onClick = {
                         val uri = selectedUri ?: return@Button
