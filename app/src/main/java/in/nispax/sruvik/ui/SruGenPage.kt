@@ -343,6 +343,26 @@ fun SruGenPage(memoryEnabled: Boolean) {
             return
         }
 
+        if (attachment != null && mode == SruGenMode.TEXT_TO_IMAGE) {
+            persist(updatedChat.copy(
+                messages = updatedChat.messages + SruGenMessage(
+                    role = "assistant",
+                    text = "Your reference image is saved in this encrypted chat, but the installed Stable Diffusion text-to-image model cannot condition on it. I did not use the image for this generation. Choose Edit to see the current image-editing availability."
+                )
+            ))
+            return
+        }
+
+        if (mode != SruGenMode.TEXT_TO_IMAGE && attachment == null) {
+            persist(updatedChat.copy(
+                messages = updatedChat.messages + SruGenMessage(
+                    role = "assistant",
+                    text = "Attach an image first, then describe the change you want."
+                )
+            ))
+            return
+        }
+
         if (mode != SruGenMode.TEXT_TO_IMAGE) {
             val unavailable = when (mode) {
                 SruGenMode.PROMPT_EDIT -> "The installed Stable Diffusion 1.5 base model currently supports text-to-image. Reference-image editing requires a separate conditioning model."
@@ -395,7 +415,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
                 }
                 previewBytes.fill(0)
                 if (bitmap != null) thumbnails = thumbnails + (imageId to bitmap)
-                val newest = chats.firstOrNull { it.id == activeId } ?: updatedChat
+                val newest = chats.firstOrNull { it.id == updatedChat.id } ?: updatedChat
                 persist(newest.copy(
                     updatedAt = System.currentTimeMillis(),
                     messages = newest.messages + SruGenMessage(
