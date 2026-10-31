@@ -329,7 +329,7 @@ fun SettingsPage(
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                 Text("Offline-ready", style = MaterialTheme.typography.titleSmall,
                                     color = SruvikColors.TextPrimary)
-                                Text("Current tools and on-device image upscaling do not need an internet connection. No account or cloud sync is used.",
+                                Text("Image upscaling, installed SruGen generation, encrypted chats and vault storage run on-device. Internet is used only when you choose to download the optional SruGen model. Prompts and images are not sent to a generation server; there is no account or cloud sync.",
                                     style = MaterialTheme.typography.bodySmall, color = SruvikColors.TextSecondary)
                             }
                             Surface(shape = RoundedCornerShape(30.dp),
