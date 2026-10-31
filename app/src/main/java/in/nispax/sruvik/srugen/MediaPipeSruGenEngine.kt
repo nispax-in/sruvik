@@ -26,14 +26,22 @@ class MediaPipeSruGenEngine(
 
     @Volatile
     private var imageGenerator: ImageGenerator? = null
+    @Volatile
+    private var closed = false
+    override val isClosed: Boolean get() = closed
     private val inferenceLock = ReentrantLock()
 
     private fun getOrCreateGenerator(): ImageGenerator {
+        check(!closed) { "The local SruGen engine was released. Reopen SruGen to initialize it again." }
         imageGenerator?.let { return it }
         synchronized(this) {
+            check(!closed) { "The local SruGen engine was released. Reopen SruGen to initialize it again." }
             imageGenerator?.let { return it }
             val options = ImageGenerator.ImageGeneratorOptions.builder()
                 .setImageGeneratorModelDirectory(modelDirectory)
+                .setErrorListener { failure ->
+                    android.util.Log.e("SruGenEngine", "MediaPipe image-generation task failed.", failure)
+                }
                 .build()
             val created = ImageGenerator.createFromOptions(context, options)
             imageGenerator = created
@@ -46,6 +54,7 @@ class MediaPipeSruGenEngine(
         onProgress: (Int, String) -> Unit
     ): SruGenResult = withContext(Dispatchers.Default) {
         inferenceLock.withLock {
+        check(!closed) { "The local SruGen engine was released. Reopen SruGen to initialize it again." }
         require(request.mode == SruGenMode.TEXT_TO_IMAGE) {
             when (request.mode) {
                 SruGenMode.PROMPT_EDIT -> "This installed Stable Diffusion 1.5 runtime currently supports text-to-image only. Reference-image editing is not enabled in this engine."
@@ -57,8 +66,14 @@ class MediaPipeSruGenEngine(
         require(request.prompt.isNotBlank()) { "Describe the image you want to create." }
         val memory = ActivityManager.MemoryInfo()
         (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(memory)
-        require(memory.availMem >= 2_800_000_000L) {
-            "SruGen needs about 2.8 GB of free system memory before loading Stable Diffusion. Close other apps and try again. An 8 GB RAM phone is recommended."
+        val minimumDeviceRam = 8L * 1024L * 1024L * 1024L
+        require(memory.totalMem >= minimumDeviceRam) {
+            "This phone has less than 8 GB of physical RAM. Google's MediaPipe image-generation guide recommends at least 8 GB for Stable Diffusion 1.5 on Android, so SruGen stopped before loading the model to protect the app."
+        }
+        val minimumAvailableRam = 3_500_000_000L
+        require(!memory.lowMemory && memory.availMem >= minimumAvailableRam) {
+            val availableGb = String.format(java.util.Locale.US, "%.1f", memory.availMem / 1_000_000_000.0)
+            "SruGen needs at least 3.5 GB of currently available system memory to load Stable Diffusion safely. Only $availableGb GB is available. Close other apps and retry."
         }
         val generator = getOrCreateGenerator()
         val seed = SecureRandom().nextInt()
@@ -97,9 +112,12 @@ class MediaPipeSruGenEngine(
 
     override fun close() {
         inferenceLock.withLock {
+            if (closed) return
+            closed = true
             try {
                 imageGenerator?.close()
-            } catch (_: Exception) {
+            } catch (failure: Exception) {
+                android.util.Log.w("SruGenEngine", "Error while releasing the local image generator.", failure)
             } finally {
                 imageGenerator = null
             }
