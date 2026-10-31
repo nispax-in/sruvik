@@ -278,7 +278,7 @@ fun SettingsPage(
                         }
                     }
                     Text(
-                        "Srukrypt encrypts images and their metadata with AES-256-GCM. The data key is wrapped by a per-use biometric-authenticated Android Keystore key. Enrolling new biometrics may invalidate the key; export important items before changing device security.",
+                        "Srukrypt encrypts images and their metadata with AES-256-GCM. Its data key is wrapped by a per-use Android Keystore key, authorised by strong biometrics or a supported device screen lock. A local passphrase fallback can also be configured. Export important items before changing device security.",
                         style = MaterialTheme.typography.bodySmall, color = SruvikColors.TextMuted
                     )
                 }

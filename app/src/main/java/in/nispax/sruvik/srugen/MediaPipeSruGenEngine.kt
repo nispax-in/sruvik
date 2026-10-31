@@ -1,6 +1,7 @@
 package `in`.nispax.sruvik.srugen
 
 import android.content.Context
+import android.app.ActivityManager
 import android.graphics.Bitmap
 import com.google.mediapipe.framework.image.BitmapExtractor
 import com.google.mediapipe.tasks.vision.imagegenerator.ImageGenerator
@@ -49,6 +50,11 @@ class MediaPipeSruGenEngine(
             }
         }
         require(request.prompt.isNotBlank()) { "Describe the image you want to create." }
+        val memory = ActivityManager.MemoryInfo()
+        (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(memory)
+        require(memory.availMem >= 2_800_000_000L) {
+            "SruGen needs about 2.8 GB of free system memory before loading Stable Diffusion. Close other apps and try again. An 8 GB RAM phone is recommended."
+        }
         val generator = getOrCreateGenerator()
         val seed = SecureRandom().nextInt()
         onProgress(3, "Preparing local diffusion model")

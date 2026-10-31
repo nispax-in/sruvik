@@ -174,7 +174,11 @@ fun SruGenPage(memoryEnabled: Boolean) {
     }
 
     LaunchedEffect(Unit) {
-        chats = withContext(Dispatchers.IO) { SruGenChatStore.loadChats(context) }
+        chats = runCatching { withContext(Dispatchers.IO) { SruGenChatStore.loadChats(context) } }
+            .getOrElse {
+                error = "Local SruGen history could not be decrypted: ${it.message}. The app has not discarded the encrypted file."
+                emptyList()
+            }
         if (chats.isEmpty()) {
             val fresh = SruGenChat(title = "New chat")
             chats = listOf(fresh)
@@ -185,6 +189,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
         }
         modelReady = SruGenModelInstaller.isInstalled(context)
         if (modelReady) activateInstalledModel()
+        downloadId = SruGenModelInstaller.savedDownloadId(context)
         downloadId = SruGenModelInstaller.savedDownloadId(context)
     }
 

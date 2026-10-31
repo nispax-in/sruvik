@@ -133,8 +133,12 @@ object SruGenModelInstaller {
             val next = File(parent, "sd15-mediapipe-next")
             if (next.exists()) next.deleteRecursively()
             if (!next.mkdirs()) throw IllegalStateException("Unable to prepare the model install.")
-            bins.copyRecursively(File(next, "sd15_bins"), overwrite = true)
-            if (!File(File(next, "sd15_bins"), "bpe_simple_vocab_16e6.txt").isFile) {
+            val installedBins = File(next, "sd15_bins")
+            if (!bins.renameTo(installedBins)) {
+                bins.copyRecursively(installedBins, overwrite = true)
+                bins.deleteRecursively()
+            }
+            if (!File(installedBins, "bpe_simple_vocab_16e6.txt").isFile) {
                 throw IllegalArgumentException("The extracted model is missing its tokenizer vocabulary.")
             }
             if (modelRoot.exists()) modelRoot.deleteRecursively()
