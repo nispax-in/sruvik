@@ -485,6 +485,26 @@ fun SruGenPage(memoryEnabled: Boolean) {
                         modelName = result.modelName
                     )
                 ))
+            } catch (failure: LinkageError) {
+                android.util.Log.e(
+                    "SruGen",
+                    "MediaPipe could not link a runtime dependency during image generation.",
+                    failure
+                )
+                val failedEngine = SruGenEngineRegistry.detach(SruGenEngineRegistry.engine)
+                if (failedEngine is AutoCloseable) {
+                    kotlinx.coroutines.CoroutineScope(
+                        kotlinx.coroutines.SupervisorJob() + Dispatchers.IO
+                    ).launch { runCatching { failedEngine.close() } }
+                }
+                val newest = chats.firstOrNull { it.id == activeId } ?: updatedChat
+                persist(newest.copy(
+                    updatedAt = System.currentTimeMillis(),
+                    messages = newest.messages + SruGenMessage(
+                        role = "assistant",
+                        text = "SruGen's image engine could not load a compatible Android runtime library. The failure was recorded locally instead of closing the app. Please update Sruvik; no prompt or image was uploaded."
+                    )
+                ))
             } catch (failure: OutOfMemoryError) {
                 val failedEngine = SruGenEngineRegistry.detach(SruGenEngineRegistry.engine)
                 if (failedEngine is AutoCloseable) {
