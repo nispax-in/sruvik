@@ -219,12 +219,12 @@ fun SettingsPage(
                                 Icon(Icons.Rounded.Fingerprint, null, tint = SruvikColors.Lime,
                                     modifier = Modifier.size(23.dp))
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                    Text("Strong biometric authentication", style = MaterialTheme.typography.titleSmall,
+                                    Text("Secure unlock methods", style = MaterialTheme.typography.titleSmall,
                                         color = SruvikColors.TextPrimary)
-                                    Text("Required to unwrap the vault data key on every unlock. This is a security control, not a cosmetic lock.",
+                                    Text("Use strong fingerprint/face or your Android PIN, pattern or password where supported. A local passphrase can be added as a fallback.",
                                         style = MaterialTheme.typography.bodySmall, color = SruvikColors.TextSecondary)
                                 }
-                                Text("REQUIRED", style = MaterialTheme.typography.labelSmall, color = SruvikColors.Lime)
+                                Text("PROTECTED", style = MaterialTheme.typography.labelSmall, color = SruvikColors.Lime)
                             }
                         }
                         if (biometricVisible && lockVisible) SettingsThinDivider()
