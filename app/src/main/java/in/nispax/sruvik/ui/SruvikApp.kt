@@ -249,7 +249,7 @@ private fun HomeScreen(name: String, showDailyTip: Boolean, onModels: () -> Unit
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 WorkspaceTile(Modifier.weight(1f), "03", "SruGen\nimage studio", Icons.Rounded.AutoAwesome,
                     Color(0xFF8A72D9), "OPEN STUDIO", onSruGen, artRes = R.drawable.sruvik_glass_art)
-                WorkspaceTile(Modifier.weight(1f), "04", "Srukrypt\nprivate vault", Icons.Rounded.ShieldLock,
+                WorkspaceTile(Modifier.weight(1f), "04", "Srukrypt\nprivate vault", Icons.Rounded.Security,
                     Color(0xFF4A9BBD), "OPEN VAULT", onSrukrypt, artRes = R.drawable.sruvik_alpine_art)
             }
         }
