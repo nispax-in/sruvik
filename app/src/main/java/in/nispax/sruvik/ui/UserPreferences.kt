@@ -21,6 +21,7 @@ object SruvikPreferences {
     private const val KEY_SHOW_DAILY_TIP = "show_daily_tip"
     private const val KEY_VAULT_BIOMETRIC = "vault_require_biometric"
     private const val KEY_VAULT_AUTO_LOCK = "vault_auto_lock_minutes"
+    private const val KEY_SRUGEN_MEMORY_ENABLED = "srugen_memory_enabled"
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
@@ -52,6 +53,13 @@ object SruvikPreferences {
 
     fun setRequireVaultBiometric(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean(KEY_VAULT_BIOMETRIC, enabled).apply()
+    }
+
+    fun sruGenMemoryEnabled(context: Context) =
+        prefs(context).getBoolean(KEY_SRUGEN_MEMORY_ENABLED, false)
+
+    fun setSruGenMemoryEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEY_SRUGEN_MEMORY_ENABLED, enabled).apply()
     }
 
     fun vaultAutoLockMinutes(context: Context) =
