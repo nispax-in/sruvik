@@ -38,6 +38,7 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.9.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.0")
     implementation("com.google.android.gms:play-services-litert:17.0.0")
+    implementation("com.google.mediapipe:tasks-vision-image-generator:latest.release")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
