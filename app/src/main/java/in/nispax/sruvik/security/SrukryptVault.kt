@@ -109,6 +109,12 @@ object SrukryptVault {
     fun createVaultWithPassphrase(context: Context, passphrase: CharArray): ByteArray {
         require(passphrase.size >= 10) { "Use a passphrase with at least 10 characters." }
         require(!hasVault(context)) { "A Srukrypt vault already exists." }
+        // A prior failed biometric setup may have left an empty orphan Keystore alias.
+        // Remove it so this passphrase vault cannot accidentally create a second data key.
+        if (hasMasterKey()) {
+            val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+            keyStore.deleteEntry(SrukryptStorage.keyAlias(MASTER_ALIAS_ID))
+        }
         val dataKey = ByteArray(32).also { SecureRandom().nextBytes(it) }
         try {
             writePassphraseEnvelope(
@@ -150,7 +156,7 @@ object SrukryptVault {
     fun prepareUnlock(context: Context): SrukryptUnlockChallenge {
         val dir = SrukryptStorage.vaultDirectory(context)
         val wrappedFile = File(dir, WRAPPED_KEY_FILE)
-        if (!wrappedFile.exists() && hasPassphraseFallback(context) && !hasMasterKey()) {
+        if (!wrappedFile.exists() && hasPassphraseFallback(context)) {
             throw IllegalStateException("This vault uses a passphrase. Choose “Use passphrase” to unlock it.")
         }
         val masterKey = if (hasMasterKey()) getMasterKey() else createMasterKey()
@@ -181,12 +187,21 @@ object SrukryptVault {
     }
 
     private fun authenticatorFlagsForKey(key: SecretKey): Int {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            KeyFactory.getInstance("AES", "AndroidKeyStore")
-                .getKeySpec(key, KeyInfo::class.java).userAuthenticationType
-        } else {
-            BiometricManagerFlags.BIOMETRIC_STRONG
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            return BiometricManagerFlags.BIOMETRIC_STRONG
         }
+        // KeyInfo uses KeyProperties bit values, not BiometricPrompt authenticator flags.
+        val keyAuth = KeyFactory.getInstance("AES", "AndroidKeyStore")
+            .getKeySpec(key, KeyInfo::class.java).userAuthenticationType
+        var flags = 0
+        if ((keyAuth and KeyProperties.AUTH_BIOMETRIC_STRONG) != 0) {
+            flags = flags or BiometricManagerFlags.BIOMETRIC_STRONG
+        }
+        if ((keyAuth and KeyProperties.AUTH_DEVICE_CREDENTIAL) != 0) {
+            flags = flags or BiometricManagerFlags.DEVICE_CREDENTIAL
+        }
+        if (flags == 0) throw SecurityException("The Srukrypt Keystore key has no supported unlock method.")
+        return flags
     }
 
     /**
