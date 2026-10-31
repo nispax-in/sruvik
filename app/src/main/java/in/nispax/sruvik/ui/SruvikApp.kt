@@ -77,10 +77,7 @@ fun SruvikApp() {
         ) { page ->
             when (page) {
                 Destination.Home -> HomeScreen(profile.name, showDailyTip, { selected = Destination.Models }, { selected = Destination.Settings }, { selected = Destination.Upscaler }, { selected = Destination.SruGen }, { selected = Destination.Srukrypt })
-                Destination.Models -> EmptyPage("YOUR DEVICE", "Model library",
-                    "Choose on-device models that fit your phone and the work you want to do.",
-                    Icons.Rounded.Memory, "No models installed",
-                    "Model downloads and storage controls will appear here.")
+                Destination.Models -> ModelsPage(onOpenSruGen = { selected = Destination.SruGen })
                 Destination.Activity -> EmptyPage("YOUR WORK", "Activity",
                     "A quiet record of the things you create with Sruvik.",
                     Icons.Rounded.History, "Nothing here yet",
