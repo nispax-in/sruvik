@@ -27,6 +27,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import `in`.nispax.sruvik.ui.theme.SruvikColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -109,7 +110,7 @@ fun SruGenPage() {
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("SRUVIK CREATIVE LAB", style = MaterialTheme.typography.labelLarge,
-                    color = SruvikColors.LimeMuted, letterSpacing = 1.9.dp.value.sp)
+                    color = SruvikColors.LimeMuted, letterSpacing = 1.9.sp)
                 Spacer(Modifier.weight(1f))
                 Surface(shape = RoundedCornerShape(30.dp), color = Color(0xFF5BC9A0).copy(alpha = .12f)) {
                     Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -134,7 +135,7 @@ fun SruGenPage() {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Rounded.AutoAwesome, null, tint = SruvikColors.Lime, modifier = Modifier.size(21.dp))
                 Text("WORKFLOW", color = SruvikColors.TextPrimary,
-                    style = MaterialTheme.typography.labelLarge, letterSpacing = 1.1.dp.value.sp)
+                    style = MaterialTheme.typography.labelLarge, letterSpacing = 1.1.sp)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 ModeChip("Create", mode == SruGenMode.TEXT_TO_IMAGE) { mode = SruGenMode.TEXT_TO_IMAGE }
@@ -203,7 +204,7 @@ fun SruGenPage() {
 
             if (mode == SruGenMode.TEXT_TO_IMAGE || mode == SruGenMode.PROMPT_EDIT) {
                 Text("VISUAL DIRECTION", style = MaterialTheme.typography.labelSmall,
-                    color = SruvikColors.TextMuted, letterSpacing = 1.2.dp.value.sp)
+                    color = SruvikColors.TextMuted, letterSpacing = 1.2.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     sruGenStyles.take(3).forEach { item -> ModeChip(item, style == item) { style = item } }
                 }
