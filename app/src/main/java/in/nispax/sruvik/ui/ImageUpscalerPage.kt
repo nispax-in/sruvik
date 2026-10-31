@@ -456,7 +456,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                                 Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                                     Text("${option}×", style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold)
-                                    Text(if (option == 4) "Full AI output" else "AI then resize",
+                                    Text(if (option == 4) "4× output" else "2× output",
                                         style = MaterialTheme.typography.labelSmall)
                                 }
                             },
@@ -583,8 +583,18 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                     Text("BEFORE / AFTER", color = LabCyan,
                         style = MaterialTheme.typography.labelLarge, letterSpacing = 1.7.sp)
                     Spacer(Modifier.weight(1f))
-                    Text(if (optimizedSource) "DEVICE-SAFE SIZE" else "READY",
-                        color = LabGold, style = MaterialTheme.typography.labelSmall)
+                    val actualScale = if (original != null && result != null) {
+                        minOf(
+                            result!!.width.toFloat() / original!!.width,
+                            result!!.height.toFloat() / original!!.height
+                        )
+                    } else 0f
+                    val actualScaleLabel = ((actualScale * 100f).roundToInt() / 100f)
+                    Text(
+                        if (result != null) "ACTUAL ${actualScaleLabel}× OUTPUT" else "READY",
+                        color = LabGold,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     original?.let {
@@ -806,6 +816,10 @@ private fun quickResize(source: Bitmap, requestedScale: Int, context: Context): 
         (source.width.toLong() * source.height)).toFloat().coerceAtMost(1f)
     val dimScale = 6144f / (maxOf(source.width, source.height) * requestedScale)
     val factor = min(pixelScale, dimScale).coerceAtMost(1f)
+    check(factor * requestedScale >= 1.25f) {
+        "Quick resize cannot safely create a meaningfully larger image on this device. " +
+            "Use a smaller source photo or free up device memory."
+    }
     val input = if (factor < .999f) Bitmap.createScaledBitmap(
         source, (source.width * factor).roundToInt().coerceAtLeast(1),
         (source.height * factor).roundToInt().coerceAtLeast(1), true
