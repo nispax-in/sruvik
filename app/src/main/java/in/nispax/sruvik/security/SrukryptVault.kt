@@ -8,7 +8,6 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import java.io.*
 import java.security.KeyStore
-import java.security.KeyFactory
 import android.security.keystore.KeyInfo
 import java.security.SecureRandom
 import java.util.Arrays
@@ -89,7 +88,7 @@ object SrukryptVault {
         if (!hasMasterKey()) {
             return BiometricManagerFlags.BIOMETRIC_STRONG or BiometricManagerFlags.DEVICE_CREDENTIAL
         }
-        val info = KeyFactory.getInstance("AES", "AndroidKeyStore")
+        val info = SecretKeyFactory.getInstance("AES", "AndroidKeyStore")
             .getKeySpec(getMasterKey(), KeyInfo::class.java)
         return info.userAuthenticationType
     }
@@ -191,7 +190,7 @@ object SrukryptVault {
             return BiometricManagerFlags.BIOMETRIC_STRONG
         }
         // KeyInfo uses KeyProperties bit values, not BiometricPrompt authenticator flags.
-        val keyAuth = KeyFactory.getInstance("AES", "AndroidKeyStore")
+        val keyAuth = SecretKeyFactory.getInstance("AES", "AndroidKeyStore")
             .getKeySpec(key, KeyInfo::class.java).userAuthenticationType
         var flags = 0
         if ((keyAuth and KeyProperties.AUTH_BIOMETRIC_STRONG) != 0) {
