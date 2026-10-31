@@ -58,11 +58,18 @@ class MediaPipeSruGenEngine(
         val generator = getOrCreateGenerator()
         val seed = SecureRandom().nextInt()
         onProgress(3, "Preparing local diffusion model")
-        // MediaPipe ImageGenerator.generate is a blocking native call; stay off the UI thread.
-        onProgress(8, "Generating on this device")
-        val result = generator.generate(request.prompt, 20, seed)
-            ?: throw IllegalStateException("The local image engine returned no result.")
-        val generated = result.generatedImage()
+        // Run each native diffusion step off the main thread and report real progress.
+        val iterations = 20
+        generator.setInputs(request.prompt, iterations, seed)
+        var finalResult: ImageGenerator.Result? = null
+        for (step in 0 until iterations) {
+            finalResult = generator.execute(step == iterations - 1)
+            onProgress(
+                8 + ((step + 1) * 82 / iterations),
+                "Generating locally · ${step + 1}/$iterations"
+            )
+        }
+        val generated = finalResult?.generatedImage()
             ?: throw IllegalStateException("The local image engine returned no image.")
         val bitmap: Bitmap = BitmapExtractor.extract(generated)
             ?: throw IllegalStateException("Unable to decode the generated image.")
