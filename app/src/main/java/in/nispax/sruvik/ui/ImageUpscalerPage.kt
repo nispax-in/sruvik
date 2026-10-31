@@ -547,6 +547,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                     OutlinedButton(
                         onClick = {
                             val source = original ?: return@OutlinedButton
+                            UpscaleSession.clearResult()
                             scope.launch {
                                 isQuickResizing = true
                                 try {
