@@ -88,9 +88,7 @@ object SrukryptVault {
         if (!hasMasterKey()) {
             return BiometricManagerFlags.BIOMETRIC_STRONG or BiometricManagerFlags.DEVICE_CREDENTIAL
         }
-        val info = SecretKeyFactory.getInstance("AES", "AndroidKeyStore")
-            .getKeySpec(getMasterKey(), KeyInfo::class.java)
-        return info.userAuthenticationType
+        return authenticatorFlagsForKey(getMasterKey())
     }
 
     private object BiometricManagerFlags {
@@ -158,9 +156,13 @@ object SrukryptVault {
         if (!wrappedFile.exists() && hasPassphraseFallback(context)) {
             throw IllegalStateException("This vault uses a passphrase. Choose “Use passphrase” to unlock it.")
         }
-        val masterKey = if (hasMasterKey()) getMasterKey() else createMasterKey()
-        val allowedAuthenticators = if (hasMasterKey()) authenticatorFlagsForKey(masterKey)
-            else preferredAuthenticatorFlags(context)
+        val existingMasterKey = hasMasterKey()
+        val masterKey = if (existingMasterKey) getMasterKey() else createMasterKey()
+        val allowedAuthenticators = if (existingMasterKey) {
+            authenticatorFlagsForKey(masterKey)
+        } else {
+            preferredAuthenticatorFlags(context)
+        }
 
         if (!wrappedFile.exists()) {
             if (entryFiles(dir).isNotEmpty()) {
@@ -203,11 +205,6 @@ object SrukryptVault {
         return flags
     }
 
-    /**
-     * Backwards-compatible method kept in the class body below.
-     */
-    private fun legacyPrepareUnlockMarker() { }
-    
     @Throws(Exception::class)
     fun finishUnlock(
         context: Context,
