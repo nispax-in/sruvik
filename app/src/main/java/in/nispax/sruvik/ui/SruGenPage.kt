@@ -330,7 +330,9 @@ fun SruGenPage(memoryEnabled: Boolean) {
     }
 
     fun sendMessage() {
-        val chat = chats.firstOrNull { it.id == activeId } ?: return
+        val chat = chats.firstOrNull { it.id == activeId }
+            ?: draftChat.takeIf { it.id == activeId }
+            ?: return
         val text = prompt.trim()
         val attachment = selectedImage
         if (text.isBlank() && attachment == null || generating) return
@@ -471,10 +473,11 @@ fun SruGenPage(memoryEnabled: Boolean) {
                     Text(
                         "SruGen",
                         color = Color(0xFFE8E5D8),
-                        fontSize = 39.sp,
-                        lineHeight = 42.sp,
-                        fontWeight = FontWeight.Normal,
-                        letterSpacing = (-1.8).sp
+                        style = MaterialTheme.typography.displayLarge.copy(
+                            fontSize = 42.sp,
+                            lineHeight = 46.sp,
+                            letterSpacing = (-1.4).sp
+                        )
                     )
                 }
                 TextButton(onClick = { historyOpen = true }) {
@@ -585,10 +588,11 @@ fun SruGenPage(memoryEnabled: Boolean) {
                                 Text(
                                     "Make a world\nthat isn't here.",
                                     color = Color(0xFFE8E5D8),
-                                    fontSize = 37.sp,
-                                    lineHeight = 40.sp,
-                                    fontWeight = FontWeight.Normal,
-                                    letterSpacing = (-1.3).sp
+                                    style = MaterialTheme.typography.displayLarge.copy(
+                                        fontSize = 38.sp,
+                                        lineHeight = 41.sp,
+                                        letterSpacing = (-1.2).sp
+                                    )
                                 )
                                 Text(
                                     "Start with a scene, a feeling, or a strange detail. SruGen builds the image on this device.",
