@@ -213,8 +213,7 @@ private fun HomeScreen(name: String, showDailyTip: Boolean, onModels: () -> Unit
                             color = SruvikColors.TextMuted, letterSpacing = 1.1.sp)
                     }
                     Spacer(Modifier.weight(1f))
-                    Text("01", style = MaterialTheme.typography.labelSmall,
-                        color = SruvikColors.TextMuted, letterSpacing = 1.sp)
+                    SruvikAvatar(name, Modifier.size(42.dp))
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("$greeting, $name!", style = MaterialTheme.typography.displayLarge,

@@ -58,10 +58,13 @@ fun FirstRunProfileDialog(onContinue: (SruvikProfile) -> Unit) {
                 }
                 Text("A little about you", style = MaterialTheme.typography.headlineSmall,
                     color = SruvikColors.TextPrimary, fontWeight = FontWeight.SemiBold)
-                Text(
-                    "Let's make Sruvik feel like yours. Add your name and age to get started.",
-                    style = MaterialTheme.typography.bodyMedium, color = SruvikColors.TextSecondary
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SruvikAvatar(name.ifBlank { "Sruvik" }, Modifier.size(52.dp))
+                    Text(
+                        "Let's make Sruvik feel like yours. Your name creates your own Sruvik identity mark.",
+                        style = MaterialTheme.typography.bodyMedium, color = SruvikColors.TextSecondary
+                    )
+                }
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it.take(32) },
@@ -185,13 +188,7 @@ fun SettingsPage(
                 SettingsSection("YOUR PROFILE", "Your details are stored locally.") {
                     SettingsPanel {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(48.dp).clip(CircleShape)
-                                .background(Color(0xFF7162B0).copy(alpha = .25f)),
-                                contentAlignment = Alignment.Center) {
-                                Text(profile.name.take(1).uppercase(Locale.getDefault()),
-                                    style = MaterialTheme.typography.titleLarge,
-                                    color = SruvikColors.TextPrimary)
-                            }
+                            SruvikAvatar(profile.name, Modifier.size(64.dp))
                             Spacer(Modifier.width(13.dp))
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                 Text(profile.name, style = MaterialTheme.typography.titleMedium,
@@ -414,6 +411,15 @@ private fun EditProfileDialog(
         title = { Text("Your profile", color = SruvikColors.TextPrimary) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SruvikAvatar(name.ifBlank { "Sruvik" }, Modifier.size(52.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("Your identity mark", color = SruvikColors.TextPrimary,
+                            style = MaterialTheme.typography.titleSmall)
+                        Text("Updates as your name changes", color = SruvikColors.TextSecondary,
+                            style = MaterialTheme.typography.bodySmall)
+                    }
+                }
                 OutlinedTextField(
                     value = name, onValueChange = { name = it.take(32) },
                     singleLine = true, label = { Text("Name") }, modifier = Modifier.fillMaxWidth(),
