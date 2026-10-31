@@ -1,5 +1,7 @@
 package `in`.nispax.sruvik.ui
 
+import `in`.nispax.sruvik.R
+
 import android.Manifest
 import android.app.ActivityManager
 import android.app.NotificationManager
