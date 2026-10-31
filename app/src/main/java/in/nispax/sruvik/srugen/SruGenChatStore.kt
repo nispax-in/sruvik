@@ -92,9 +92,14 @@ object SruGenChatStore {
         val plain = decryptFile(file, MAGIC_CHAT, "SruGen:conversations:v1")
         return try {
             val array = JSONArray(String(plain, Charsets.UTF_8))
-            buildList {
+            val loaded = buildList {
                 for (i in 0 until array.length()) add(chatFromJson(array.getJSONObject(i)))
-            }.sortedByDescending { it.updatedAt }
+            }
+            // Older builds wrote a blank "New chat" as soon as SruGen opened.
+            // Drop those drafts during migration; only user-authored content is history.
+            val meaningful = loaded.filter(::hasUserContent)
+            if (meaningful.size != loaded.size) saveChats(context, meaningful)
+            meaningful.sortedByDescending { it.updatedAt }
         } finally {
             plain.fill(0)
         }
@@ -103,7 +108,7 @@ object SruGenChatStore {
     @Synchronized
     fun saveChats(context: Context, chats: List<SruGenChat>) {
         val json = JSONArray()
-        chats.take(100).forEach { chat -> json.put(chatToJson(chat)) }
+        chats.asSequence().filter(::hasUserContent).take(100).forEach { chat -> json.put(chatToJson(chat)) }
         val bytes = json.toString().toByteArray(Charsets.UTF_8)
         require(bytes.size <= MAX_CHAT_BYTES) { "SruGen chat history reached its local storage limit." }
         try {
@@ -257,6 +262,12 @@ object SruGenChatStore {
             messages = list
         )
     }
+
+
+    private fun hasUserContent(chat: SruGenChat): Boolean =
+        chat.messages.any { message ->
+            message.role == "user" && (message.text.isNotBlank() || message.attachmentId != null)
+        }
 
     private fun isId(value: String) = value.matches(Regex("[0-9a-fA-F-]{36}"))
 }
