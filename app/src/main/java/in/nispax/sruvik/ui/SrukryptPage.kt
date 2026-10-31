@@ -85,7 +85,14 @@ fun SrukryptPage(autoLockMinutes: Int) {
 
     DisposableEffect(activity, lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP) lockVault()
+            if (event == Lifecycle.Event.ON_STOP) {
+                lockVault()
+                pendingImportKey?.let { Arrays.fill(it, 0) }
+                pendingImportKey = null
+                pendingExportKey?.let { Arrays.fill(it, 0) }
+                pendingExportKey = null
+                exportId = null
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
@@ -119,8 +126,9 @@ fun SrukryptPage(autoLockMinutes: Int) {
         pendingImportKey = null
         if (uri == null) {
             activeKey?.let { Arrays.fill(it, 0) }
-        } else if (activeKey == null) {
-            errorText = "Unlock Srukrypt before importing."
+        } else if (activeKey == null || sessionKey == null) {
+            activeKey?.let { Arrays.fill(it, 0) }
+            errorText = "The vault locked while the image picker was open. Unlock Srukrypt and select the image again."
         } else {
             busy = true
             scope.launch {
@@ -148,10 +156,13 @@ fun SrukryptPage(autoLockMinutes: Int) {
                             Arrays.fill(bytes, 0)
                         }
                     }
-                    refreshEntries(activeKey)
-                    sessionKey = activeKey.copyOf()
-                    lastInteraction = SystemClock.elapsedRealtime()
-                    infoText = "Encrypted image added to your private vault."
+                    if (sessionKey == null) {
+                        errorText = "The vault was locked before import finished. Unlock to continue."
+                    } else {
+                        refreshEntries(activeKey)
+                        lastInteraction = SystemClock.elapsedRealtime()
+                        infoText = "Encrypted image added to your private vault."
+                    }
                 } catch (error: Exception) {
                     errorText = error.message ?: "Unable to encrypt this image."
                 } finally {
