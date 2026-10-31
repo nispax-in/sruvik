@@ -100,8 +100,8 @@ fun FirstRunProfileDialog(onContinue: (SruvikProfile) -> Unit) {
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     shape = RoundedCornerShape(17.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF7764C9),
-                        contentColor = Color.White,
+                        containerColor = SruvikColors.Lime,
+                        contentColor = SruvikColors.Background,
                         disabledContainerColor = Color(0xFF46503D),
                         disabledContentColor = Color.White.copy(alpha = .45f)
                     )
