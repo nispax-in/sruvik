@@ -5,6 +5,7 @@ import android.app.ActivityManager
 import android.graphics.Bitmap
 import com.google.mediapipe.framework.image.BitmapExtractor
 import com.google.mediapipe.tasks.vision.imagegenerator.ImageGenerator
+import com.google.mediapipe.tasks.vision.imagegenerator.ImageGeneratorResult
 import java.io.ByteArrayOutputStream
 import java.security.SecureRandom
 import kotlinx.coroutines.Dispatchers
@@ -61,7 +62,7 @@ class MediaPipeSruGenEngine(
         // Run each native diffusion step off the main thread and report real progress.
         val iterations = 20
         generator.setInputs(request.prompt, iterations, seed)
-        var finalResult: ImageGenerator.Result? = null
+        var finalResult: ImageGeneratorResult? = null
         for (step in 0 until iterations) {
             finalResult = generator.execute(step == iterations - 1)
             onProgress(
