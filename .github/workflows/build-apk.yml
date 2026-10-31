@@ -5,6 +5,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: sruvik-debug-apk-signing
+  cancel-in-progress: false
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -27,6 +30,13 @@ jobs:
         with:
           path: ~/.android/debug.keystore
           key: sruvik-debug-keystore-v1
+      - name: Ensure stable debug signing key
+        run: |
+          mkdir -p ~/.android
+          if [ ! -s ~/.android/debug.keystore ]; then
+            keytool -genkeypair -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 10000
+          fi
+          keytool -list -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey | grep "SHA256:"
       - name: Build debug APK
         env:
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
