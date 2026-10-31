@@ -333,6 +333,16 @@ fun SruGenPage(memoryEnabled: Boolean) {
         error = ""
         info = ""
 
+        if (text.isBlank() && attachment != null) {
+            persist(updatedChat.copy(
+                messages = updatedChat.messages + SruGenMessage(
+                    role = "assistant",
+                    text = "Image attached and encrypted in this conversation. Add an instruction and choose Edit, Remove BG or Object to continue. The corresponding editing model is not installed in this version yet."
+                )
+            ))
+            return
+        }
+
         if (mode != SruGenMode.TEXT_TO_IMAGE) {
             val unavailable = when (mode) {
                 SruGenMode.PROMPT_EDIT -> "The installed Stable Diffusion 1.5 base model currently supports text-to-image. Reference-image editing requires a separate conditioning model."
