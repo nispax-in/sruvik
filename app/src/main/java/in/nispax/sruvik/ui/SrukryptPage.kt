@@ -1,5 +1,7 @@
 package `in`.nispax.sruvik.ui
 
+import `in`.nispax.sruvik.ui.theme.SruvikColors
+
 import android.net.Uri
 import android.os.SystemClock
 import android.view.WindowManager
@@ -28,8 +30,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.awaitPointerEvent
-import androidx.compose.ui.input.pointer.awaitPointerEventScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -333,7 +333,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Icon(Icons.Rounded.ShieldLock, null, tint = SruvikColors.Lime, modifier = Modifier.size(22.dp))
+            Icon(Icons.Rounded.Security, null, tint = SruvikColors.Lime, modifier = Modifier.size(22.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("AES-256-GCM · Android Keystore", style = MaterialTheme.typography.labelMedium,
                     color = SruvikColors.TextPrimary)

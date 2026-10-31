@@ -212,7 +212,7 @@ fun SruGenPage() {
                     sruGenStyles.drop(3).forEach { item -> ModeChip(item, style == item) { style = item } }
                 }
                 Text("ASPECT RATIO", style = MaterialTheme.typography.labelSmall,
-                    color = SruvikColors.TextMuted, letterSpacing = 1.2.dp.value.sp)
+                    color = SruvikColors.TextMuted, letterSpacing = 1.2.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     listOf("1:1", "3:2", "2:3", "16:9").forEach { item ->
                         ModeChip(item, ratio == item) { ratio = item }
