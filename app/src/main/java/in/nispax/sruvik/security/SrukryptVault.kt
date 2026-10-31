@@ -1,0 +1,345 @@
+package `in`.nispax.sruvik.security
+
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.os.Build
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import java.io.*
+import java.security.KeyStore
+import java.security.SecureRandom
+import java.util.Arrays
+import java.util.UUID
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.SecretKeySpec
+
+data class SrukryptUnlockChallenge internal constructor(
+    internal val cipher: Cipher,
+    internal val isNewVault: Boolean,
+    internal val pendingDataKey: ByteArray?,
+    internal val wrappedDataKey: ByteArray?
+)
+
+data class SrukryptEntryPreview(
+    val id: String,
+    val title: String,
+    val mimeType: String,
+    val createdAtMillis: Long,
+    val byteCount: Int,
+    val thumbnail: Bitmap
+)
+
+/**
+ * Envelope encryption for Srukrypt:
+ * - A random 256-bit data key encrypts files with AES-256-GCM and a fresh nonce.
+ * - An Android Keystore AES key, requiring per-use strong-biometric authentication,
+ *   wraps the data key. The Keystore key is non-exportable.
+ * - The unwrapped data key exists only in memory for the active vault session.
+ *
+ * The wrapped key and ciphertext live under noBackupFilesDir. Filenames are random IDs;
+ * names, MIME types and file contents are all inside authenticated ciphertext.
+ */
+object SrukryptVault {
+    private const val MASTER_ALIAS_ID = "master"
+    private const val WRAPPED_KEY_FILE = "master.wrap"
+    private const val WRAP_MAGIC = 0x53524B57 // SRKW
+    private const val ENTRY_MAGIC = 0x53524B31 // SRK1
+    private const val FORMAT_VERSION = 1
+    private const val IV_BYTES = 12
+    private const val TAG_BITS = 128
+    const val MAX_IMAGE_BYTES = 24 * 1024 * 1024
+
+    private val wrapAad = "Srukrypt:data-key:v1".toByteArray(Charsets.UTF_8)
+
+    fun hasVault(context: Context): Boolean {
+        val dir = SrukryptStorage.vaultDirectory(context)
+        return File(dir, WRAPPED_KEY_FILE).exists() ||
+            entryFiles(dir).isNotEmpty() || hasMasterKey()
+    }
+
+    fun entryCount(context: Context): Int =
+        entryFiles(SrukryptStorage.vaultDirectory(context)).size
+
+    /**
+     * Prepare a Cipher for BiometricPrompt.CryptoObject.
+     * On first use, authenticate wrapping a fresh random data key.
+     * On later unlocks, authenticate unwrapping the existing data key.
+     */
+    @Throws(Exception::class)
+    fun prepareUnlock(context: Context): SrukryptUnlockChallenge {
+        val dir = SrukryptStorage.vaultDirectory(context)
+        val wrappedFile = File(dir, WRAPPED_KEY_FILE)
+        val masterKey = if (hasMasterKey()) getMasterKey() else createMasterKey()
+
+        if (!wrappedFile.exists()) {
+            if (entryFiles(dir).isNotEmpty()) {
+                throw SecurityException("The Srukrypt key envelope is missing. Existing vault data cannot be safely recovered.")
+            }
+            val dataKey = ByteArray(32).also { SecureRandom().nextBytes(it) }
+            return try {
+                val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+                cipher.init(Cipher.ENCRYPT_MODE, masterKey)
+                cipher.updateAAD(wrapAad)
+                SrukryptUnlockChallenge(cipher, true, dataKey, null)
+            } catch (error: Exception) {
+                Arrays.fill(dataKey, 0)
+                throw error
+            }
+        }
+
+        val envelope = readEnvelope(wrappedFile, WRAP_MAGIC)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.DECRYPT_MODE, masterKey, GCMParameterSpec(TAG_BITS, envelope.first))
+        cipher.updateAAD(wrapAad)
+        return SrukryptUnlockChallenge(cipher, false, null, envelope.second)
+    }
+
+    @Throws(Exception::class)
+    fun finishUnlock(
+        context: Context,
+        challenge: SrukryptUnlockChallenge,
+        authenticatedCipher: Cipher
+    ): ByteArray {
+        if (challenge.isNewVault) {
+            val dataKey = challenge.pendingDataKey
+                ?: throw SecurityException("Missing initial vault key.")
+            val encryptedKey = authenticatedCipher.doFinal(dataKey)
+            val iv = authenticatedCipher.iv ?: throw SecurityException("Missing encryption nonce.")
+            writeEnvelopeAtomically(
+                File(SrukryptStorage.vaultDirectory(context), WRAPPED_KEY_FILE),
+                WRAP_MAGIC,
+                iv,
+                encryptedKey
+            )
+            return dataKey.copyOf()
+        }
+
+        val wrapped = challenge.wrappedDataKey
+            ?: throw SecurityException("Missing wrapped vault key.")
+        val dataKey = authenticatedCipher.doFinal(wrapped)
+        if (dataKey.size != 32) {
+            Arrays.fill(dataKey, 0)
+            throw SecurityException("The Srukrypt key envelope is invalid.")
+        }
+        return dataKey
+    }
+
+    fun discardChallenge(challenge: SrukryptUnlockChallenge) {
+        challenge.pendingDataKey?.let { Arrays.fill(it, 0) }
+        challenge.wrappedDataKey?.let { Arrays.fill(it, 0) }
+    }
+
+    @Throws(Exception::class)
+    fun storeImage(
+        context: Context,
+        dataKey: ByteArray,
+        title: String,
+        mimeType: String,
+        imageBytes: ByteArray
+    ): String {
+        require(dataKey.size == 32) { "Invalid vault session key." }
+        require(imageBytes.isNotEmpty() && imageBytes.size <= MAX_IMAGE_BYTES) {
+            "Choose an image smaller than 24 MB."
+        }
+        require(mimeType.startsWith("image/")) { "Only image files can be added to Srukrypt." }
+
+        val id = UUID.randomUUID().toString()
+        val plain = ByteArrayOutputStream().use { bytes ->
+            DataOutputStream(bytes).use { out ->
+                out.writeUTF(title.trim().take(72).ifBlank { "Private image" })
+                out.writeUTF(mimeType.take(64))
+                out.writeLong(System.currentTimeMillis())
+                out.writeInt(imageBytes.size)
+                out.write(imageBytes)
+            }
+            bytes.toByteArray()
+        }
+
+        try {
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(dataKey, "AES"))
+            cipher.updateAAD(entryAad(id))
+            val encrypted = cipher.doFinal(plain)
+            val iv = cipher.iv ?: throw SecurityException("Missing image encryption nonce.")
+            val target = File(SrukryptStorage.vaultDirectory(context), "$id.srk")
+            writeEnvelopeAtomically(target, ENTRY_MAGIC, iv, encrypted)
+            return id
+        } finally {
+            Arrays.fill(plain, 0)
+        }
+    }
+
+    @Throws(Exception::class)
+    fun loadPreviews(context: Context, dataKey: ByteArray): List<SrukryptEntryPreview> {
+        val dir = SrukryptStorage.vaultDirectory(context)
+        return entryFiles(dir).mapNotNull { file ->
+            val id = file.name.removeSuffix(".srk")
+            try {
+                val plain = decryptEntry(file, id, dataKey)
+                try {
+                    decodePreview(id, plain)
+                } finally {
+                    Arrays.fill(plain, 0)
+                }
+            } catch (_: Exception) {
+                null
+            }
+        }.sortedByDescending { it.createdAtMillis }
+    }
+
+    @Throws(Exception::class)
+    fun readImage(context: Context, dataKey: ByteArray, id: String): Pair<String, ByteArray> {
+        require(isValidId(id))
+        val file = File(SrukryptStorage.vaultDirectory(context), "$id.srk")
+        if (!file.isFile) throw FileNotFoundException("This vault item no longer exists.")
+        val plain = decryptEntry(file, id, dataKey)
+        try {
+            DataInputStream(ByteArrayInputStream(plain)).use { input ->
+                val title = input.readUTF()
+                input.readUTF()
+                input.readLong()
+                val length = input.readInt()
+                if (length <= 0 || length > MAX_IMAGE_BYTES || length > input.available()) {
+                    throw SecurityException("The encrypted image record is invalid.")
+                }
+                val image = ByteArray(length)
+                input.readFully(image)
+                return title to image
+            }
+        } finally {
+            Arrays.fill(plain, 0)
+        }
+    }
+
+    fun deleteEntry(context: Context, id: String): Boolean {
+        require(isValidId(id))
+        val file = File(SrukryptStorage.vaultDirectory(context), "$id.srk")
+        return !file.exists() || file.delete()
+    }
+
+    private fun decodePreview(id: String, plain: ByteArray): SrukryptEntryPreview {
+        DataInputStream(ByteArrayInputStream(plain)).use { input ->
+            val title = input.readUTF()
+            val mime = input.readUTF()
+            val created = input.readLong()
+            val length = input.readInt()
+            if (length <= 0 || length > MAX_IMAGE_BYTES || length > input.available()) {
+                throw SecurityException("Invalid image length.")
+            }
+            val image = ByteArray(length)
+            input.readFully(image)
+            try {
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeByteArray(image, 0, image.size, bounds)
+                var sample = 1
+                while (bounds.outWidth / sample > 512 || bounds.outHeight / sample > 512) sample *= 2
+                val bitmap = BitmapFactory.decodeByteArray(
+                    image, 0, image.size,
+                    BitmapFactory.Options().apply {
+                        inSampleSize = sample
+                        inPreferredConfig = Bitmap.Config.RGB_565
+                    }
+                ) ?: throw SecurityException("This image could not be previewed.")
+                return SrukryptEntryPreview(id, title, mime, created, length, bitmap)
+            } finally {
+                Arrays.fill(image, 0)
+            }
+        }
+    }
+
+    private fun decryptEntry(file: File, id: String, dataKey: ByteArray): ByteArray {
+        val envelope = readEnvelope(file, ENTRY_MAGIC)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(dataKey, "AES"), GCMParameterSpec(TAG_BITS, envelope.first))
+        cipher.updateAAD(entryAad(id))
+        return cipher.doFinal(envelope.second)
+    }
+
+    private fun entryAad(id: String) =
+        "Srukrypt:entry:v$FORMAT_VERSION:$id".toByteArray(Charsets.UTF_8)
+
+    private fun hasMasterKey(): Boolean {
+        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        return keyStore.containsAlias(SrukryptStorage.keyAlias(MASTER_ALIAS_ID))
+    }
+
+    private fun getMasterKey(): SecretKey {
+        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        return keyStore.getKey(SrukryptStorage.keyAlias(MASTER_ALIAS_ID), null) as? SecretKey
+            ?: throw SecurityException("The Srukrypt Keystore key is unavailable.")
+    }
+
+    private fun createMasterKey(): SecretKey {
+        val alias = SrukryptStorage.keyAlias(MASTER_ALIAS_ID)
+        val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+        val builder = KeyGenParameterSpec.Builder(
+            alias,
+            KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+        )
+            .setKeySize(256)
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setRandomizedEncryptionRequired(true)
+            .setUserAuthenticationRequired(true)
+            .setInvalidatedByBiometricEnrollment(true)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            builder.setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG)
+        } else {
+            @Suppress("DEPRECATION")
+            builder.setUserAuthenticationValidityDurationSeconds(-1)
+        }
+
+        generator.init(builder.build())
+        return generator.generateKey()
+    }
+
+    private fun entryFiles(directory: File): List<File> =
+        directory.listFiles { file ->
+            file.isFile && file.name.endsWith(".srk") && isValidId(file.name.removeSuffix(".srk"))
+        }?.toList().orEmpty()
+
+    private fun isValidId(id: String): Boolean =
+        id.matches(Regex("[0-9a-fA-F-]{36}"))
+
+    private fun readEnvelope(file: File, expectedMagic: Int): Pair<ByteArray, ByteArray> {
+        DataInputStream(BufferedInputStream(FileInputStream(file))).use { input ->
+            if (input.readInt() != expectedMagic) throw SecurityException("Unsupported Srukrypt file.")
+            val ivLength = input.readInt()
+            if (ivLength != IV_BYTES) throw SecurityException("Invalid encryption nonce.")
+            val iv = ByteArray(ivLength)
+            input.readFully(iv)
+            val encryptedLength = input.readInt()
+            if (encryptedLength < 16 || encryptedLength > MAX_IMAGE_BYTES + 4096 ||
+                encryptedLength > input.available()
+            ) throw SecurityException("Invalid encrypted payload.")
+            val encrypted = ByteArray(encryptedLength)
+            input.readFully(encrypted)
+            return iv to encrypted
+        }
+    }
+
+    private fun writeEnvelopeAtomically(file: File, magic: Int, iv: ByteArray, encrypted: ByteArray) {
+        val temp = File(file.parentFile, ".${file.name}.${UUID.randomUUID()}.tmp")
+        try {
+            val stream = FileOutputStream(temp)
+            val output = DataOutputStream(BufferedOutputStream(stream))
+            output.writeInt(magic)
+            output.writeInt(iv.size)
+            output.write(iv)
+            output.writeInt(encrypted.size)
+            output.write(encrypted)
+            output.flush()
+            stream.fd.sync()
+            output.close()
+            if (!temp.renameTo(file)) throw IOException("Unable to commit encrypted Srukrypt data.")
+        } finally {
+            if (temp.exists()) temp.delete()
+            Arrays.fill(encrypted, 0)
+        }
+    }
+}

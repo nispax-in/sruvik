@@ -5,7 +5,7 @@ import java.io.File
 import java.io.IOException
 
 /**
- * Storage boundary for the future Srukrypt encrypted vault.
+ * Private storage boundary for the active Srukrypt encrypted vault.
  *
  * Keep vault ciphertext, encrypted metadata and any encrypted previews under
  * [Context.noBackupFilesDir]. Never place vault content in MediaStore, shared
@@ -15,8 +15,8 @@ import java.io.IOException
  * package is uninstalled. Srukrypt is intentionally not recoverable after
  * uninstall; users must explicitly export anything they want to keep first.
  *
- * This class establishes the storage location only. It does not claim to
- * implement vault encryption or key management yet.
+ * Ciphertext and the wrapped data-key envelope are stored here. Encryption and
+ * biometric-gated key wrapping are implemented by SrukryptVault.
  */
 object SrukryptStorage {
     private const val DIRECTORY_NAME = "srukrypt"
