@@ -268,7 +268,7 @@ fun SettingsPage(
                                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Text("Device-only storage", style = MaterialTheme.typography.titleSmall,
                                         color = SruvikColors.TextPrimary)
-                                    Text("Sruvik disables Android backup and reserves a private no-backup storage area for the future vault. Uninstalling the app removes app data; export anything you want to keep.",
+                                    Text("Srukrypt stores encrypted image files and its wrapped key in app-private no-backup storage. Android backup is disabled. Uninstalling Sruvik removes the vault and its Keystore key; export anything you want to keep first.",
                                         style = MaterialTheme.typography.bodySmall, color = SruvikColors.TextSecondary)
                                 }
                             }
