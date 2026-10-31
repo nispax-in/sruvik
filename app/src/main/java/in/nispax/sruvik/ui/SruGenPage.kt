@@ -9,6 +9,13 @@ import android.net.Uri
 import android.os.Debug
 import android.os.Process
 import android.os.SystemClock
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -84,6 +91,16 @@ fun SruGenPage(memoryEnabled: Boolean) {
     var deleteTarget by remember { mutableStateOf<SruGenChat?>(null) }
     var monitorExpanded by remember { mutableStateOf(false) }
     var resourceStats by remember { mutableStateOf(SruGenResourceStats()) }
+    val animatedGenerationProgress by animateFloatAsState(
+        targetValue = progress.coerceIn(0, 100) / 100f,
+        animationSpec = tween(220),
+        label = "srugen-generation-progress"
+    )
+    val animatedDownloadProgress by animateFloatAsState(
+        targetValue = if (installing) 0.5f else downloadPercent.coerceIn(0, 100) / 100f,
+        animationSpec = tween(220),
+        label = "srugen-download-progress"
+    )
 
     val activeChat = chats.firstOrNull { it.id == activeId } ?: draftChat.takeIf { it.id == activeId }
 
@@ -513,7 +530,11 @@ fun SruGenPage(memoryEnabled: Boolean) {
                 )
             }
 
-            if (monitorExpanded) {
+            AnimatedVisibility(
+                visible = monitorExpanded,
+                enter = fadeIn(tween(180)) + expandVertically(tween(180)),
+                exit = fadeOut(tween(130)) + shrinkVertically(tween(130))
+            ) {
                 Row(
                     Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(14.dp)
@@ -540,7 +561,11 @@ fun SruGenPage(memoryEnabled: Boolean) {
                 Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF30392C)))
             }
 
-            if (downloadId >= 0L || installing) {
+            AnimatedVisibility(
+                visible = downloadId >= 0L || installing,
+                enter = fadeIn(tween(180)) + expandVertically(tween(180)),
+                exit = fadeOut(tween(130)) + shrinkVertically(tween(130))
+            ) {
                 Column(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
                         if (installing) installMessage else "DOWNLOADING MODEL  /  $downloadPercent%",
@@ -549,7 +574,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
                         letterSpacing = 1.sp
                     )
                     LinearProgressIndicator(
-                        progress = { if (installing) 0.5f else downloadPercent / 100f },
+                        progress = { animatedDownloadProgress },
                         modifier = Modifier.fillMaxWidth(),
                         color = Color(0xFFD5E58B),
                         trackColor = Color(0xFF30392C)
@@ -628,7 +653,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                     Text("RENDERING LOCALLY  /  $progress%", color = Color(0xFFD5E58B), style = MaterialTheme.typography.labelSmall, letterSpacing = .8.sp)
                                     LinearProgressIndicator(
-                                        progress = { progress / 100f },
+                                        progress = { animatedGenerationProgress },
                                         modifier = Modifier.fillMaxWidth(),
                                         color = Color(0xFFD5E58B),
                                         trackColor = Color(0xFF30392C)
@@ -641,20 +666,32 @@ fun SruGenPage(memoryEnabled: Boolean) {
                 }
             }
 
-            if (error.isNotBlank()) {
+            AnimatedVisibility(
+                visible = error.isNotBlank(),
+                enter = fadeIn(tween(180)) + expandVertically(tween(180)),
+                exit = fadeOut(tween(130)) + shrinkVertically(tween(130))
+            ) {
                 Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.Top) {
                     Box(Modifier.width(3.dp).height(24.dp).background(Color(0xFFD47C64)))
                     Spacer(Modifier.width(8.dp))
                     Text(error, color = Color(0xFFF0A28E), style = MaterialTheme.typography.bodySmall)
                 }
             }
-            if (info.isNotBlank()) {
-                Text(info, Modifier.fillMaxWidth().padding(vertical = 4.dp), color = Color(0xFFADB99A), style = MaterialTheme.typography.bodySmall)
+            AnimatedVisibility(
+                visible = info.isNotBlank(),
+                enter = fadeIn(tween(180)) + expandVertically(tween(180)),
+                exit = fadeOut(tween(130)) + shrinkVertically(tween(130))
+            ) {
+                if (info.isNotBlank()) {
+                    Text(info, Modifier.fillMaxWidth().padding(vertical = 4.dp), color = Color(0xFFADB99A), style = MaterialTheme.typography.bodySmall)
+                }
             }
 
             Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF45503A)))
             Column(
-                Modifier.fillMaxWidth().background(Color(0xFF1B2219)).padding(horizontal = 12.dp, vertical = 10.dp),
+                Modifier.fillMaxWidth().background(Color(0xFF1B2219))
+                    .animateContentSize()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(9.dp)
             ) {
                 Row(
@@ -783,7 +820,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
                     modelPicker.launch(arrayOf("application/zip", "application/x-zip-compressed"))
                 }) { Text("Import ZIP", color = SruvikColors.TextSecondary) }
             },
-            containerColor = Color(0xFF19192D),
+            containerColor = Color(0xFF171F19),
             shape = RoundedCornerShape(23.dp)
         )
     }
@@ -798,7 +835,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
                     items(chats.sortedByDescending { it.updatedAt }, key = { it.id }) { item ->
                         Row(
                             Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp))
-                                .background(if (item.id == activeId) Color(0xFF37305D) else Color.Transparent)
+                                .background(if (item.id == activeId) Color(0xFF354A34) else Color.Transparent)
                                 .clickable { activeId = item.id; selectedImage = null; historyOpen = false }
                                 .padding(start = 10.dp, end = 2.dp, top = 7.dp, bottom = 7.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -821,7 +858,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
             },
             confirmButton = { TextButton(onClick = { historyOpen = false }) { Text("Close", color = SruvikColors.Lime) } },
             dismissButton = { TextButton(onClick = { historyOpen = false; newChat() }) { Text("New chat", color = SruvikColors.TextSecondary) } },
-            containerColor = Color(0xFF19192D)
+            containerColor = Color(0xFF171F19)
         )
     }
 
@@ -846,7 +883,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
                 }) { Text("Save", color = SruvikColors.Lime) }
             },
             dismissButton = { TextButton(onClick = { renameTarget = null }) { Text("Cancel", color = SruvikColors.TextSecondary) } },
-            containerColor = Color(0xFF19192D)
+            containerColor = Color(0xFF171F19)
         )
     }
 
@@ -872,7 +909,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
                 }) { Text("Delete", color = Color(0xFFFF9999)) }
             },
             dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Cancel", color = SruvikColors.TextSecondary) } },
-            containerColor = Color(0xFF19192D)
+            containerColor = Color(0xFF171F19)
         )
     }
 }
@@ -921,6 +958,11 @@ private fun SruGenMessageBubble(message: SruGenMessage, image: Bitmap?) {
 
 @Composable
 private fun StudioModeControl(label: String, selected: Boolean, onClick: () -> Unit) {
+    val selectionProgress by animateFloatAsState(
+        targetValue = if (selected) 1f else 0f,
+        animationSpec = tween(180),
+        label = "studio-mode-selection"
+    )
     Column(
         Modifier.clickable(onClick = onClick).padding(vertical = 3.dp),
         verticalArrangement = Arrangement.spacedBy(5.dp)
@@ -932,7 +974,7 @@ private fun StudioModeControl(label: String, selected: Boolean, onClick: () -> U
             letterSpacing = 1.sp
         )
         Box(
-            Modifier.width(31.dp).height(2.dp)
+            Modifier.width(31.dp * selectionProgress).height(2.dp)
                 .background(if (selected) Color(0xFFD5E58B) else Color.Transparent)
         )
     }
@@ -964,7 +1006,7 @@ private fun ResourceMonitor(
         if (expanded) {
             Column(
                 Modifier.width(188.dp).clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xEE19192D))
+                    .background(Color(0xEE171F19))
                     .border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(18.dp))
                     .padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -986,7 +1028,7 @@ private fun ResourceMonitor(
         } else {
             Surface(onClick = onToggle,
                 shape = RoundedCornerShape(topStart = 15.dp, bottomStart = 15.dp),
-                color = Color(0xEE19192D),
+                color = Color(0xEE171F19),
                 border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .12f))) {
                 Row(Modifier.padding(horizontal = 9.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {

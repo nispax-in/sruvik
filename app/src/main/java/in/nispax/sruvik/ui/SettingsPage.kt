@@ -45,13 +45,13 @@ fun FirstRunProfileDialog(onContinue: (SruvikProfile) -> Unit) {
         Surface(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
             shape = RoundedCornerShape(30.dp),
-            color = Color(0xFF17172A),
+            color = Color(0xFF171F19),
             border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .13f))
         ) {
             Column(Modifier.padding(23.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Box(
                     Modifier.size(48.dp).clip(CircleShape)
-                        .background(Color(0xFF6255A5).copy(alpha = .26f)),
+                        .background(SruvikColors.Lime.copy(alpha = .14f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Rounded.WavingHand, null, tint = SruvikColors.Lime, modifier = Modifier.size(23.dp))
@@ -102,7 +102,7 @@ fun FirstRunProfileDialog(onContinue: (SruvikProfile) -> Unit) {
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF7764C9),
                         contentColor = Color.White,
-                        disabledContainerColor = Color(0xFF454258),
+                        disabledContainerColor = Color(0xFF46503D),
                         disabledContentColor = Color.White.copy(alpha = .45f)
                     )
                 ) {
@@ -175,8 +175,8 @@ fun SettingsPage(
                 focusedBorderColor = SruvikColors.LimeMuted,
                 unfocusedBorderColor = Color.White.copy(alpha = .13f),
                 cursorColor = SruvikColors.Lime,
-                focusedContainerColor = Color(0x66232842),
-                unfocusedContainerColor = Color(0x55232842)
+                focusedContainerColor = Color(0x66212D22),
+                unfocusedContainerColor = Color(0x55212D22)
             )
         )
 
@@ -389,7 +389,7 @@ private fun SettingsSection(
 private fun SettingsPanel(content: @Composable ColumnScope.() -> Unit) {
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(23.dp))
-            .background(Brush.linearGradient(listOf(Color(0xAA30304B), Color(0xB8181A2B))))
+            .background(Brush.linearGradient(listOf(Color(0xAA303D32), Color(0xB8182019))))
             .border(1.dp, Color.White.copy(alpha = .11f), RoundedCornerShape(23.dp))
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -465,7 +465,7 @@ private fun EditProfileDialog(
             }) { Text("Save", color = SruvikColors.Lime) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = SruvikColors.TextSecondary) } },
-        containerColor = Color(0xFF19192D),
+        containerColor = Color(0xFF171F19),
         shape = RoundedCornerShape(25.dp)
     )
 }

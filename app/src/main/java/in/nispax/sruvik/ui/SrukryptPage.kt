@@ -444,7 +444,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
 
         Row(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp))
-                .background(Color(0xFF282544).copy(alpha = .7f))
+                .background(Color(0xFF1E2A21).copy(alpha = .7f))
                 .border(1.dp, Color.White.copy(alpha = .10f), RoundedCornerShape(17.dp))
                 .padding(13.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -467,14 +467,14 @@ fun SrukryptPage(autoLockMinutes: Int) {
             Spacer(Modifier.height(12.dp))
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp))
-                    .background(Brush.linearGradient(listOf(Color(0xFF352D62), Color(0xFF1D2746), Color(0xFF17182C))))
+                    .background(Brush.linearGradient(listOf(Color(0xFF33472D), Color(0xFF243124), Color(0xFF171F19))))
                     .border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(28.dp))
                     .padding(22.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(13.dp)
             ) {
                 Box(Modifier.size(76.dp).clip(CircleShape)
-                    .background(Color(0xFF8876D9).copy(alpha = .18f)),
+                    .background(Color(0xFFC8E667).copy(alpha = .18f)),
                     contentAlignment = Alignment.Center) {
                     Icon(Icons.Rounded.Lock, null, tint = SruvikColors.Lime, modifier = Modifier.size(36.dp))
                 }
@@ -491,7 +491,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                     enabled = !busy,
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     shape = RoundedCornerShape(17.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7865C8))
+                    colors = ButtonDefaults.buttonColors(containerColor = SruvikColors.Lime)
                 ) {
                     if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                     else Icon(Icons.Rounded.Fingerprint, null)
@@ -532,7 +532,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                 Button(
                     onClick = { beginImport() },
                     shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7865C8))
+                    colors = ButtonDefaults.buttonColors(containerColor = SruvikColors.Lime)
                 ) {
                     Icon(Icons.Rounded.Add, null)
                     Text("Add")
@@ -542,7 +542,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
             if (entries.isEmpty()) {
                 Column(
                     Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(24.dp))
-                        .background(Color(0x991B1D32))
+                        .background(Color(0x991A241C))
                         .border(1.dp, Color.White.copy(alpha = .09f), RoundedCornerShape(24.dp))
                         .padding(22.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -565,7 +565,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                     items(entries, key = { it.id }) { entry ->
                         Column(
                             Modifier.clip(RoundedCornerShape(19.dp))
-                                .background(Color(0xAA20213A))
+                                .background(Color(0xAA1D2A21))
                                 .border(1.dp, Color.White.copy(alpha = .10f), RoundedCornerShape(19.dp))
                                 .padding(9.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -624,7 +624,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                 }) { Text("Delete", color = Color(0xFFFF9B9B)) }
             },
             dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text("Cancel") } },
-            containerColor = Color(0xFF19192D),
+            containerColor = Color(0xFF171F19),
             shape = RoundedCornerShape(23.dp)
         )
     }    
@@ -686,7 +686,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                     Text("Cancel", color = SruvikColors.TextSecondary)
                 }
             },
-            containerColor = Color(0xFF19192D),
+            containerColor = Color(0xFF171F19),
             shape = RoundedCornerShape(23.dp)
         )
     }
