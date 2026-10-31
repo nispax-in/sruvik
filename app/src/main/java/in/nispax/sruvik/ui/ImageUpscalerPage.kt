@@ -612,7 +612,7 @@ private fun decodeImage(context: Context, uri: Uri): Bitmap {
             val source = ImageDecoder.createSource(context.contentResolver, uri)
             return ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
                 decoder.setTargetSampleSize(previewSampleSize(info.size.width, info.size.height))
-                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE)
             }
         } catch (error: Exception) {
             modernDecodeError = error
