@@ -24,6 +24,7 @@ data class SruGenResult(
 interface SruGenEngine {
     val displayName: String
     val isOffline: Boolean
+    val isClosed: Boolean get() = false
     suspend fun generate(
         request: SruGenRequest,
         onProgress: (Int, String) -> Unit
@@ -32,6 +33,30 @@ interface SruGenEngine {
 
 /** Null until a real engine is installed/configured: no fake image results. */
 object SruGenEngineRegistry {
+    private val lock = Any()
+
     @Volatile
-    var engine: SruGenEngine? = null
+    private var current: SruGenEngine? = null
+
+    var engine: SruGenEngine?
+        get() = current
+        set(value) {
+            synchronized(lock) { current = value }
+        }
+
+    fun getOrCreate(factory: () -> SruGenEngine): SruGenEngine =
+        synchronized(lock) {
+            current?.takeIf { !it.isClosed } ?: factory().also { current = it }
+        }
+
+    /** Remove only the instance being disposed, so a stale closed engine is never reused. */
+    fun detach(expected: SruGenEngine?): SruGenEngine? =
+        synchronized(lock) {
+            if (expected != null && current === expected) {
+                current = null
+                expected
+            } else {
+                null
+            }
+        }
 }
