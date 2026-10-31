@@ -66,7 +66,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val session by UpscaleSession.state.collectAsState()
-    var selectedUri by remember { mutableStateOf(session.sourceUri?.let(Uri::parse)) }
+    var selectedUri by remember { mutableStateOf(session.sourceUri?.let { Uri.parse(it) }) }
     var imageLoadRequest by remember { mutableIntStateOf(0) }
     var original by remember { mutableStateOf<Bitmap?>(null) }
     var result by remember { mutableStateOf<Bitmap?>(null) }
@@ -86,6 +86,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
         result = null
         optimizedSource = false
         showQuickResize = false
+        UpscaleSession.clearResult()
     }
 
     // Drop the old preview immediately so a replacement image cannot be mistaken
@@ -206,7 +207,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
         }
     }
 
-    LaunchedEffect(session.resultPath, session.status) {
+    LaunchedEffect(session.resultPath, session.status, original) {
         if (session.status == UpscaleStatus.COMPLETED && !session.resultPath.isNullOrBlank()) {
             val path = session.resultPath
             val restored = withContext(Dispatchers.IO) { BitmapFactory.decodeFile(path) }
