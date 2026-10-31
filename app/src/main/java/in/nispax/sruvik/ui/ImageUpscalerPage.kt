@@ -5,9 +5,12 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
 import android.graphics.Matrix
 import android.media.ExifInterface
 import android.net.Uri
+import android.os.Build
+import android.os.ParcelFileDescriptor
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -43,6 +46,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.FileInputStream
+import java.io.IOException
+import java.io.InputStream
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -96,6 +102,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
         ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null && !isProcessing && !isSaving) {
+            retainSelectedImageAccess(context, uri)
             beginImageLoad(uri, "Loading photo…")
         } else if (uri == null) {
             message = "No photo selected. Try again or browse files."
@@ -106,9 +113,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
     ) { uri ->
         if (uri != null && !isProcessing && !isSaving) {
             runCatching {
-                context.contentResolver.takePersistableUriPermission(
-                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
+                retainSelectedImageAccess(context, uri)
             }
             beginImageLoad(uri, "Loading image from files…")
         } else if (uri == null) {
@@ -314,13 +319,37 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                 }
                 if (isLoading || original == null || message.startsWith("Couldn't") ||
                     message.startsWith("This photo") || message.startsWith("No ")) {
-                    Text(
-                        message,
-                        color = if (message.startsWith("Couldn't") || message.startsWith("This photo"))
-                            LabCoral else LabMuted,
-                        style = MaterialTheme.typography.bodySmall
-                    )
+                    val isLoadError = !isLoading &&
+                        (message.startsWith("Couldn't") || message.startsWith("This photo"))
+                    Surface(
+                        color = if (isLoadError) LabCoral.copy(alpha = .10f)
+                            else Color.White.copy(alpha = .045f),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                if (isLoadError) Icons.Rounded.ErrorOutline else Icons.Rounded.Info,
+                                contentDescription = null,
+                                tint = if (isLoadError) LabCoral else LabMuted,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                message,
+                                modifier = Modifier.padding(start = 9.dp),
+                                color = if (isLoadError) LabCoral else LabMuted,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
                 }
+                Text(
+                    "Access is limited to the image you choose. No full-library storage permission is needed.",
+                    color = LabMuted.copy(alpha = .85f),
+                    style = MaterialTheme.typography.labelSmall
+                )
             }
         }
 
@@ -556,26 +585,114 @@ private fun ImagePreview(bitmap: Bitmap, modifier: Modifier = Modifier) {
     }
 }
 
-private fun decodeImage(context: Context, uri: Uri): Bitmap {
-    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    context.contentResolver.openInputStream(uri)?.use {
-        BitmapFactory.decodeStream(it, null, bounds)
-    } ?: error("Couldn't open the selected image.")
-    require(bounds.outWidth > 0 && bounds.outHeight > 0) { "This image format isn't supported." }
+/**
+ * Keep the URI returned by either Android picker readable for the current processing
+ * session, and across a process restart when the provider supports persistable grants.
+ * Photo Picker and Storage Access Framework grants are item-scoped; broad storage
+ * permissions are intentionally not requested.
+ */
+private fun retainSelectedImageAccess(context: Context, uri: Uri) {
+    runCatching {
+        context.contentResolver.takePersistableUriPermission(
+            uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+        )
+    }
+}
 
+/**
+ * Decode picker URIs through Android's URI-aware decoder where available. Some
+ * document providers expose typed assets or file descriptors instead of a normal
+ * InputStream, so the legacy path tries all supported resolver access methods.
+ */
+private fun decodeImage(context: Context, uri: Uri): Bitmap {
+    var modernDecodeError: Exception? = null
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        try {
+            val source = ImageDecoder.createSource(context.contentResolver, uri)
+            return ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                decoder.setTargetSampleSize(previewSampleSize(info.size.width, info.size.height))
+                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+            }
+        } catch (error: Exception) {
+            modernDecodeError = error
+        }
+    }
+
+    return try {
+        decodeWithBitmapFactory(context, uri)
+    } catch (error: Exception) {
+        modernDecodeError?.let(error::addSuppressed)
+        throw error
+    }
+}
+
+private fun previewSampleSize(width: Int, height: Int): Int {
     var sample = 1
     while (
-        (bounds.outWidth.toLong() / sample.toLong()) *
-            (bounds.outHeight.toLong() / sample.toLong()) > MAX_PREVIEW_PIXELS ||
-        maxOf(bounds.outWidth / sample, bounds.outHeight / sample) > MAX_PREVIEW_DIMENSION
+        (width.toLong() / sample.toLong()) *
+            (height.toLong() / sample.toLong()) > MAX_PREVIEW_PIXELS ||
+        maxOf(width / sample, height / sample) > MAX_PREVIEW_DIMENSION
     ) sample *= 2
+    return sample
+}
 
-    val decoded = context.contentResolver.openInputStream(uri)?.use {
-        BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply {
-            inSampleSize = sample
-            inPreferredConfig = Bitmap.Config.ARGB_8888
-        })
-    } ?: error("Couldn't decode this image.")
+private fun openSelectedImageStream(context: Context, uri: Uri): InputStream {
+    val resolver = context.contentResolver
+    var lastError: Exception? = null
+
+    fun attempt(open: () -> InputStream?): InputStream? = try {
+        open()
+    } catch (error: Exception) {
+        lastError = error
+        null
+    }
+
+    attempt { resolver.openInputStream(uri) }?.let { return it }
+    attempt {
+        resolver.openTypedAssetFileDescriptor(uri, "image/*", null)?.createInputStream()
+    }?.let { return it }
+    attempt { resolver.openAssetFileDescriptor(uri, "r")?.createInputStream() }
+        ?.let { return it }
+    attempt {
+        resolver.openFileDescriptor(uri, "r")?.let { descriptor ->
+            ParcelFileDescriptor.AutoCloseInputStream(descriptor)
+        }
+    }?.let { return it }
+
+    if (uri.scheme == "file" && !uri.path.isNullOrBlank()) {
+        attempt { FileInputStream(uri.path!!) }?.let { return it }
+    }
+
+    val explanation = when (lastError) {
+        is SecurityException ->
+            "Android denied access to this image. Select it again, or use Browse files."
+        else ->
+            "The selected provider did not return a readable image. Download the photo to this device, then use Browse files."
+    }
+    throw IOException("Couldn't read this photo. $explanation", lastError)
+}
+
+private fun decodeWithBitmapFactory(context: Context, uri: Uri): Bitmap {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    openSelectedImageStream(context, uri).use {
+        BitmapFactory.decodeStream(it, null, bounds)
+    }
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+        throw IOException("Couldn't decode this image. Choose a JPG, PNG, or WebP photo.")
+    }
+
+    val decoded = openSelectedImageStream(context, uri).use { stream ->
+        BitmapFactory.decodeStream(
+            stream,
+            null,
+            BitmapFactory.Options().apply {
+                inSampleSize = previewSampleSize(bounds.outWidth, bounds.outHeight)
+                inPreferredConfig = Bitmap.Config.ARGB_8888
+            }
+        )
+    } ?: throw IOException("Couldn't decode this image. Try another JPG, PNG, or WebP file.")
+
     val oriented = applyExifOrientation(context, uri, decoded)
     if (oriented !== decoded) decoded.recycle()
     return oriented
