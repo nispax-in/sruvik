@@ -28,19 +28,29 @@ jobs:
       - name: Restore debug signing key
         uses: actions/cache@v4
         with:
-          path: ~/.android/debug.keystore
-          key: sruvik-debug-keystore-v1
+          path: .ci/sruvik-debug.keystore
+          key: sruvik-debug-keystore-v2
       - name: Ensure stable debug signing key
         run: |
-          mkdir -p ~/.android
-          if [ ! -s ~/.android/debug.keystore ]; then
-            keytool -genkeypair -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 10000
+          mkdir -p .ci
+          if [ ! -s .ci/sruvik-debug.keystore ]; then
+            keytool -genkeypair -v -keystore .ci/sruvik-debug.keystore -storepass android -alias androiddebugkey -keypass android -dname "CN=Sruvik Debug,O=Nispax,C=IN" -keyalg RSA -keysize 2048 -validity 10000
           fi
-          keytool -list -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey | grep "SHA256:"
+          keytool -list -v -keystore .ci/sruvik-debug.keystore -storepass android -alias androiddebugkey | grep "SHA256:"
       - name: Build debug APK
         env:
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
         run: gradle --no-daemon :app:assembleDebug
+      - name: Verify APK signer matches persistent key
+        shell: bash
+        run: |
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          EXPECTED="$(keytool -list -v -keystore .ci/sruvik-debug.keystore -storepass android -alias androiddebugkey | awk -F': ' '/SHA256:/ { gsub(":", "", $2); print tolower($2) }')"
+          ACTUAL="$("$APKSIGNER" verify --print-certs "$APK" | awk -F': ' '/Signer #1 certificate SHA-256 digest:/ { print tolower($2) }')"
+          echo "Keystore SHA-256: $EXPECTED"
+          echo "APK signer SHA-256: $ACTUAL"
+          test -n "$EXPECTED" && test "$ACTUAL" = "$EXPECTED"
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
