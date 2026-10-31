@@ -81,14 +81,22 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
         showQuickResize = false
     }
 
+    // Drop the old preview immediately so a replacement image cannot be mistaken
+    // for the newly selected file while its content URI is being decoded.
+    fun beginImageLoad(uri: Uri, loadingMessage: String) {
+        original?.recycle()
+        original = null
+        selectedUri = uri
+        imageLoadRequest++
+        resetResult()
+        message = loadingMessage
+    }
+
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null && !isProcessing && !isSaving) {
-            selectedUri = uri
-            imageLoadRequest++
-            resetResult()
-            message = "Loading photo…"
+            beginImageLoad(uri, "Loading photo…")
         } else if (uri == null) {
             message = "No photo selected. Try again or browse files."
         }
@@ -102,10 +110,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                     uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
             }
-            selectedUri = uri
-            imageLoadRequest++
-            resetResult()
-            message = "Loading image from files…"
+            beginImageLoad(uri, "Loading image from files…")
         } else if (uri == null) {
             message = "No file selected."
         }
@@ -266,11 +271,22 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                            Icon(Icons.Rounded.AddPhotoAlternate, null, tint = LabCyan,
-                                modifier = Modifier.size(37.dp))
-                            Text("Choose an image", color = LabText, fontWeight = FontWeight.SemiBold)
-                            Text("JPG  ·  PNG  ·  WebP", color = LabMuted,
-                                style = MaterialTheme.typography.labelSmall)
+                            if (isLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(34.dp),
+                                    color = LabCyan,
+                                    strokeWidth = 3.dp
+                                )
+                                Text("Loading selected image…", color = LabText,
+                                    fontWeight = FontWeight.SemiBold)
+                            } else {
+                                Icon(Icons.Rounded.AddPhotoAlternate, null, tint = LabCyan,
+                                    modifier = Modifier.size(37.dp))
+                                Text("Choose an image", color = LabText,
+                                    fontWeight = FontWeight.SemiBold)
+                                Text("JPG  ·  PNG  ·  WebP", color = LabMuted,
+                                    style = MaterialTheme.typography.labelSmall)
+                            }
                         }
                     }
                 }
@@ -296,7 +312,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                         Text("Browse files")
                     }
                 }
-                if (original == null || message.startsWith("Couldn't") ||
+                if (isLoading || original == null || message.startsWith("Couldn't") ||
                     message.startsWith("This photo") || message.startsWith("No ")) {
                     Text(
                         message,
