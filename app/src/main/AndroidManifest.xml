@@ -15,6 +15,7 @@
             android:name=".ui.ImageUpscaleService"
             android:enabled="true"
             android:exported="false"
+            android:stopWithTask="false"
             android:foregroundServiceType="specialUse|mediaProcessing">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
