@@ -1,8 +1,11 @@
 package `in`.nispax.sruvik.ui
 
+import android.Manifest
 import android.app.ActivityManager
+import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
@@ -39,11 +42,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import `in`.nispax.sruvik.ai.DeviceThermalLimitException
-import `in`.nispax.sruvik.ai.RealEsrganUpscaler
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.FileInputStream
@@ -65,25 +65,26 @@ private val LabMuted = Color(0xFFAEB9C9)
 fun ImageUpscalerPage(onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var selectedUri by remember { mutableStateOf<Uri?>(null) }
+    val session by UpscaleSession.state.collectAsState()
+    var selectedUri by remember { mutableStateOf(session.sourceUri?.let(Uri::parse)) }
     var imageLoadRequest by remember { mutableIntStateOf(0) }
     var original by remember { mutableStateOf<Bitmap?>(null) }
     var result by remember { mutableStateOf<Bitmap?>(null) }
-    var scale by remember { mutableIntStateOf(4) }
+    var scale by remember { mutableIntStateOf(session.scale) }
     var isLoading by remember { mutableStateOf(false) }
-    var isProcessing by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
-    var progress by remember { mutableFloatStateOf(0f) }
-    var progressLabel by remember { mutableStateOf("") }
+    var isQuickResizing by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("Choose a photo to start enhancing it.") }
     var optimizedSource by remember { mutableStateOf(false) }
-    var processingJob by remember { mutableStateOf<Job?>(null) }
     var showQuickResize by remember { mutableStateOf(false) }
+    val isProcessing = session.status == UpscaleStatus.RUNNING || isQuickResizing
+    val progress = session.progress
+    val progressLabel = session.progressLabel
 
     fun resetResult() {
+        result?.recycle()
         result = null
         optimizedSource = false
-        progress = 0f
         showQuickResize = false
     }
 
@@ -95,6 +96,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
         selectedUri = uri
         imageLoadRequest++
         resetResult()
+        UpscaleSession.selectSource(uri.toString())
         message = loadingMessage
     }
 
@@ -148,6 +150,83 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
         }
     }
 
+    var pendingUpscale by remember { mutableStateOf<Pair<Uri, Int>?>(null) }
+
+    fun launchUpscale(uri: Uri, requestedScale: Int, notificationsEnabled: Boolean) {
+        resetResult()
+        showQuickResize = false
+        val startIntent = Intent(context, ImageUpscaleService::class.java).apply {
+            action = ImageUpscaleService.ACTION_START
+            putExtra(ImageUpscaleService.EXTRA_URI, uri.toString())
+            putExtra(ImageUpscaleService.EXTRA_SCALE, requestedScale)
+            putExtra(ImageUpscaleService.EXTRA_NOTIFICATIONS_ENABLED, notificationsEnabled)
+        }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(startIntent)
+            } else {
+                context.startService(startIntent)
+            }
+            if (!notificationsEnabled) {
+                message = "Upscaling has started. Notifications are off, so Android may show this task only under Active apps."
+            }
+        } catch (error: Exception) {
+            UpscaleSession.failed(error.message ?: "Android couldn't start the background image task.")
+            message = error.message ?: "Android couldn't start the background image task."
+        }
+    }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val pending = pendingUpscale
+        pendingUpscale = null
+        if (pending != null) {
+            launchUpscale(
+                pending.first,
+                pending.second,
+                granted && (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).areNotificationsEnabled()
+            )
+        }
+    }
+
+    fun requestUpscale(uri: Uri, requestedScale: Int) {
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            pendingUpscale = uri to requestedScale
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            launchUpscale(
+                uri,
+                requestedScale,
+                notificationManager.areNotificationsEnabled()
+            )
+        }
+    }
+
+    LaunchedEffect(session.resultPath, session.status) {
+        if (session.status == UpscaleStatus.COMPLETED && !session.resultPath.isNullOrBlank()) {
+            val path = session.resultPath
+            val restored = withContext(Dispatchers.IO) { BitmapFactory.decodeFile(path) }
+            if (restored != null) {
+                result?.recycle()
+                result = restored
+                optimizedSource = session.sourceWasOptimized
+                showQuickResize = false
+                message = session.message
+            } else {
+                message = "The enhanced image file couldn't be reopened. Try enhancing the photo again."
+            }
+        } else if (session.status == UpscaleStatus.FAILED) {
+            showQuickResize = original != null
+            message = session.message
+        } else if (session.status == UpscaleStatus.CANCELLED) {
+            message = session.message
+        }
+    }
+
     LaunchedEffect(selectedUri, imageLoadRequest) {
         val uri = selectedUri ?: return@LaunchedEffect
         isLoading = true
@@ -180,7 +259,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
             Modifier.fillMaxWidth().padding(top = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TextButton(onClick = onBack, enabled = !isProcessing && !isSaving) {
+            TextButton(onClick = onBack, enabled = !isSaving) {
                 Icon(Icons.Rounded.ArrowBack, null, tint = LabMuted)
                 Text("  STUDIO", color = LabMuted, style = MaterialTheme.typography.labelLarge,
                     letterSpacing = 1.4.sp)
@@ -399,42 +478,8 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                 }
                 Button(
                     onClick = {
-                        val source = original ?: return@Button
-                        processingJob = scope.launch {
-                            isProcessing = true
-                            progress = 0f
-                            progressLabel = "Preparing on-device model…"
-                            message = "Starting local AI…"
-                            result = null
-                            showQuickResize = false
-                            try {
-                                val processed = RealEsrganUpscaler.upscale(context, source, scale) { done, total ->
-                                    progress = done.toFloat() / total.toFloat()
-                                    progressLabel = "Reconstructing tile $done of $total"
-                                }
-                                result = processed.bitmap
-                                optimizedSource = processed.sourceWasOptimized
-                                message = if (processed.sourceWasOptimized) {
-                                    "AI complete. Source resolution was reduced to stay within this phone's memory budget."
-                                } else {
-                                    "AI enhancement complete. Your image stayed on this device."
-                                }
-                            } catch (cancelled: CancellationException) {
-                                message = "Processing cancelled. No file was saved."
-                                throw cancelled
-                            } catch (error: OutOfMemoryError) {
-                                message = "The phone ran out of memory. Try a smaller source image."
-                                showQuickResize = true
-                            } catch (error: Exception) {
-                                message = if (error is DeviceThermalLimitException) {
-                                    error.message ?: "Phone is too warm."
-                                } else error.message ?: "AI enhancement couldn't start on this device."
-                                showQuickResize = true
-                            } finally {
-                                isProcessing = false
-                                processingJob = null
-                            }
-                        }
+                        val uri = selectedUri ?: return@Button
+                        requestUpscale(uri, scale)
                     },
                     modifier = Modifier.fillMaxWidth().height(55.dp),
                     enabled = original != null && !isLoading && !isProcessing && !isSaving,
@@ -466,12 +511,34 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                         Text("${(progress * 100).roundToInt()}%", color = LabCyan,
                             style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                     }
-                    TextButton(onClick = { processingJob?.cancel() }, modifier = Modifier.align(Alignment.End)) {
+                    if (session.notificationsEnabled) {
+                        Text(
+                            "This task keeps running when you switch tabs or leave Sruvik in Recents.",
+                            color = LabMuted,
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    } else {
+                        Text(
+                            "Notifications are off. Android may show this task under Active apps, but hide progress from the notification shade.",
+                            color = LabGold,
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                    TextButton(
+                        onClick = {
+                            context.startService(
+                                Intent(context, ImageUpscaleService::class.java)
+                                    .setAction(ImageUpscaleService.ACTION_CANCEL)
+                            )
+                        },
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
                         Icon(Icons.Rounded.Close, null, tint = LabCoral)
                         Text("  Cancel", color = LabCoral)
                     }
                 } else {
-                    Text(message, color = if (result != null) LabCyan else LabMuted,
+                    val currentMessage = if (session.status == UpscaleStatus.IDLE) message else session.message
+                    Text(currentMessage, color = if (result != null) LabCyan else LabMuted,
                         style = MaterialTheme.typography.bodySmall)
                 }
 
@@ -480,7 +547,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                         onClick = {
                             val source = original ?: return@OutlinedButton
                             scope.launch {
-                                isProcessing = true
+                                isQuickResizing = true
                                 try {
                                     result = withContext(Dispatchers.Default) {
                                         quickResize(source, scale, context)
@@ -491,7 +558,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                                 } catch (error: Exception) {
                                     message = error.message ?: "Quick resize failed."
                                 } finally {
-                                    isProcessing = false
+                                    isQuickResizing = false
                                 }
                             }
                         },
@@ -604,7 +671,7 @@ private fun retainSelectedImageAccess(context: Context, uri: Uri) {
  * document providers expose typed assets or file descriptors instead of a normal
  * InputStream, so the legacy path tries all supported resolver access methods.
  */
-private fun decodeImage(context: Context, uri: Uri): Bitmap {
+internal fun decodeImage(context: Context, uri: Uri): Bitmap {
     var modernDecodeError: Exception? = null
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
