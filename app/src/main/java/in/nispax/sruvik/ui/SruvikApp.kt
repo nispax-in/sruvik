@@ -178,9 +178,15 @@ private fun DrawScope.drawAtmosphere() {
 }
 
 @Composable
-private fun HomeScreen(name: String, showDailyTip: Boolean, onModels: () -> Unit, onSettings: () -> Unit, onUpscale: () -> Unit, onSruGen: () -> Unit, onSrukrypt: () -> Unit) {
-    val state = rememberLazyListState()
-    val scope = rememberCoroutineScope()
+private fun HomeScreen(
+    name: String,
+    showDailyTip: Boolean,
+    onModels: () -> Unit,
+    onSettings: () -> Unit,
+    onUpscale: () -> Unit,
+    onSruGen: () -> Unit,
+    onSrukrypt: () -> Unit
+) {
     var greeting by remember { mutableStateOf(greetingForNow()) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -190,131 +196,237 @@ private fun HomeScreen(name: String, showDailyTip: Boolean, onModels: () -> Unit
     }
     val dailyTip = remember {
         val tips = listOf(
-            "Tiny steps count. A good idea becomes great when you keep iterating.",
-            "Fun fact: the first digital photograph was made in 1957 — long before modern cameras.",
-            "A clean original is the best starting point for a great upscale.",
-            "Try changing one creative detail at a time. It makes results easier to compare.",
-            "Fun fact: the word pixel blends “picture” and “element”.",
-            "Your device can do useful creative work without sending files to the cloud.",
-            "Save a copy before experimenting. Curiosity works best with an undo plan."
+            "Start with the feeling of an image. The details can come later.",
+            "A clean original is the best starting point for a good restoration.",
+            "Keep one version untouched. Experiments are easier when you can return.",
+            "A useful tool should get out of the way once the work begins.",
+            "Try changing one variable at a time. It makes the result easier to read."
         )
         tips[java.time.LocalDate.now().dayOfYear % tips.size]
     }
-    LazyColumn(Modifier.fillMaxSize(), state = state,
-        contentPadding = PaddingValues(start = 22.dp, end = 22.dp, top = 22.dp, bottom = 112.dp),
-        verticalArrangement = Arrangement.spacedBy(25.dp)) {
+
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 22.dp, end = 22.dp, top = 22.dp, bottom = 118.dp),
+        verticalArrangement = Arrangement.spacedBy(22.dp)
+    ) {
         item {
-            AnimatedVisibility(
-                visible = true,
-                enter = fadeIn(tween(420)) + slideInVertically(tween(420)) { it / 12 }
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-            Column(verticalArrangement = Arrangement.spacedBy(21.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Image(
-                        painter = painterResource(id = R.drawable.sruvik_logo),
-                        contentDescription = "Sruvik logo",
-                        modifier = Modifier.size(44.dp)
+                Image(
+                    painter = painterResource(R.drawable.sruvik_logo),
+                    contentDescription = "Sruvik",
+                    modifier = Modifier.size(38.dp)
+                )
+                Spacer(Modifier.width(11.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Text(
+                        "SRUVIK",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Color(0xFFE8E5D8),
+                        letterSpacing = 2.2.sp
                     )
-                    Spacer(Modifier.width(12.dp))
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("SRUVIK", style = MaterialTheme.typography.labelLarge,
-                            color = SruvikColors.TextSecondary, letterSpacing = 2.1.sp)
-                        Text("IDEAS INTO REALITY", style = MaterialTheme.typography.labelSmall,
-                            color = SruvikColors.TextMuted, letterSpacing = 1.1.sp)
-                    }
-                    Spacer(Modifier.weight(1f))
-                    SruvikAvatar(name, Modifier.size(42.dp))
+                    Text(
+                        "A FIELD STUDIO FOR IDEAS",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF9BA58B),
+                        letterSpacing = .8.sp
+                    )
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("$greeting, $name!", style = MaterialTheme.typography.displayLarge,
-                        color = SruvikColors.TextPrimary)
-                    if (showDailyTip) {
-                        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                            Icon(Icons.Rounded.AutoAwesome, null, tint = SruvikColors.LimeMuted,
-                                modifier = Modifier.padding(top = 2.dp).size(14.dp))
-                            Text(dailyTip, style = MaterialTheme.typography.bodySmall,
-                                color = SruvikColors.TextSecondary, lineHeight = 17.sp)
-                        }
-                    }
-                }
-            }
+                Spacer(Modifier.weight(1f))
+                SruvikAvatar(name, Modifier.size(39.dp))
             }
         }
+
         item {
-            AnimatedVisibility(
-                visible = true,
-                enter = fadeIn(tween(460, delayMillis = 70)) +
-                    slideInVertically(tween(460, delayMillis = 70)) { it / 14 }
-            ) {
-                HeroCard { scope.launch { state.animateScrollToItem(2) } }
-            }
-        }
-        item { SectionTitle("WORKSPACE", "02 TOOLS") }
-        item {
-            AnimatedVisibility(
-                visible = true,
-                enter = fadeIn(tween(440, delayMillis = 120)) +
-                    slideInVertically(tween(440, delayMillis = 120)) { it / 16 }
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    WorkspaceTile(Modifier.weight(1f), "01", "Video\nnarration", Icons.Rounded.RecordVoiceOver,
-                        Color(0xFF9A9863))
-                    WorkspaceTile(Modifier.weight(1f), "02", "Image\nenhancement", Icons.Rounded.AutoFixHigh,
-                        Color(0xFF7D75D8), "OPEN", onUpscale, artRes = R.drawable.sruvik_glass_art)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    greeting.uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFFC77B5D),
+                    letterSpacing = 1.6.sp
+                )
+                Text(
+                    "Make room\nfor the unexpected.",
+                    style = MaterialTheme.typography.displayLarge.copy(
+                        fontSize = 39.sp,
+                        lineHeight = 43.sp,
+                        letterSpacing = (-1.2).sp
+                    ),
+                    color = Color(0xFFE8E5D8)
+                )
+                if (showDailyTip) {
+                    Text(
+                        dailyTip,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFFAEB49F),
+                        lineHeight = 18.sp
+                    )
                 }
             }
         }
-        item { SectionTitle("CREATE & PROTECT", "SRUVIK TOOLS") }
+
         item {
-            AnimatedVisibility(
-                visible = true,
-                enter = fadeIn(tween(440, delayMillis = 170)) +
-                    slideInVertically(tween(440, delayMillis = 170)) { it / 16 }
+            Box(
+                Modifier.fillMaxWidth()
+                    .height(218.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .clickable(onClick = onSruGen)
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    WorkspaceTile(Modifier.weight(1f), "03", "SruGen\nimage studio", Icons.Rounded.AutoAwesome,
-                        Color(0xFF8A72D9), "OPEN STUDIO", onSruGen, artRes = R.drawable.sruvik_glass_art)
-                    WorkspaceTile(Modifier.weight(1f), "04", "Srukrypt\nprivate vault", Icons.Rounded.Security,
-                        Color(0xFF4A9BBD), "OPEN VAULT", onSrukrypt, artRes = R.drawable.sruvik_alpine_art)
+                Image(
+                    painter = painterResource(R.drawable.sruvik_city_art),
+                    contentDescription = "Sruvik original artwork",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+                Box(
+                    Modifier.fillMaxSize().background(
+                        Brush.verticalGradient(
+                            listOf(Color(0x080D120D), Color(0x5510150F), Color(0xE90D120D))
+                        )
+                    )
+                )
+                Column(
+                    Modifier.align(Alignment.BottomStart).padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    Text(
+                        "01  /  IMAGE WORKSHOP",
+                        color = Color(0xFFD5E58B),
+                        style = MaterialTheme.typography.labelSmall,
+                        letterSpacing = 1.6.sp
+                    )
+                    Text(
+                        "SruGen",
+                        color = Color(0xFFF0EDDF),
+                        style = MaterialTheme.typography.displayMedium.copy(fontSize = 34.sp)
+                    )
+                    Text(
+                        "Make an image from an idea   ↗",
+                        color = Color(0xFFD5D8C9),
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
             }
         }
-        item { SectionTitle("VISUAL INSPIRATION", "SRUVIK ORIGINALS") }
+
         item {
-            AnimatedVisibility(
-                visible = true,
-                enter = fadeIn(tween(420, delayMillis = 220)) +
-                    slideInVertically(tween(420, delayMillis = 220)) { it / 18 }
-            ) {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    item {
-                        ArtCard(Modifier.width(198.dp).height(224.dp), R.drawable.sruvik_city_art,
-                            "Dreamscapes", "Worlds without limits")
-                    }
-                    item {
-                        ArtCard(Modifier.width(178.dp).height(224.dp), R.drawable.sruvik_glass_art,
-                            "Fluid forms", "Light, colour and motion")
-                    }
-                    item {
-                        ArtCard(Modifier.width(178.dp).height(224.dp), R.drawable.sruvik_alpine_art,
-                            "Cinematic nature", "Atmosphere in every frame")
-                    }
-                }
+            HomeSectionHeading("THE WORKBENCH", "TOOLS  /  01—03")
+            Column {
+                HomeToolRow(
+                    "01",
+                    "Image enhancement",
+                    "Restore detail and enlarge an image",
+                    "OPEN",
+                    onUpscale
+                )
+                HomeToolRow(
+                    "02",
+                    "SruGen image studio",
+                    "Build scenes with the local image engine",
+                    "OPEN",
+                    onSruGen
+                )
+                HomeToolRow(
+                    "03",
+                    "Srukrypt private vault",
+                    "Keep your files behind device security",
+                    "OPEN",
+                    onSrukrypt
+                )
             }
         }
-        item { SectionTitle("APP", "FOUNDATION") }
+
         item {
-            AnimatedVisibility(
-                visible = true,
-                enter = fadeIn(tween(420, delayMillis = 260)) +
-                    slideInVertically(tween(420, delayMillis = 260)) { it / 18 }
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    AppRow(Icons.Rounded.Memory, "Model manager", "Models for your device", "FOUNDATION", onModels)
-                    AppRow(Icons.Rounded.Security, "Device & privacy", "Local-first controls and safety", "IN DEVELOPMENT", onSettings)
-                }
+            HomeSectionHeading("YOUR DEVICE", "LIBRARY  /  SETTINGS")
+            Column {
+                HomeToolRow(
+                    "04",
+                    "Model library",
+                    "See the models stored on this phone",
+                    "VIEW",
+                    onModels
+                )
+                HomeToolRow(
+                    "05",
+                    "Preferences",
+                    "Memory, privacy and personal settings",
+                    "OPEN",
+                    onSettings
+                )
             }
         }
+
+        item {
+            Row(
+                Modifier.fillMaxWidth().padding(top = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(Modifier.width(18.dp).height(2.dp).background(Color(0xFFC77B5D)))
+                Spacer(Modifier.width(9.dp))
+                Text(
+                    "DESIGNED TO STAY OUT OF YOUR WAY.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFF89947C),
+                    letterSpacing = 1.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeSectionHeading(title: String, meta: String) {
+    Row(
+        Modifier.fillMaxWidth().padding(bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            title,
+            color = Color(0xFFD5E58B),
+            style = MaterialTheme.typography.labelSmall,
+            letterSpacing = 1.4.sp
+        )
+        Spacer(Modifier.weight(1f))
+        Text(meta, color = Color(0xFF7F8973), style = MaterialTheme.typography.labelSmall, letterSpacing = .7.sp)
+    }
+}
+
+@Composable
+private fun HomeToolRow(
+    number: String,
+    title: String,
+    detail: String,
+    action: String,
+    onClick: () -> Unit
+) {
+    Column {
+        Row(
+            Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 15.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                number,
+                color = Color(0xFFC77B5D),
+                style = MaterialTheme.typography.labelMedium,
+                letterSpacing = 1.sp
+            )
+            Spacer(Modifier.width(15.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(title, color = Color(0xFFE8E5D8), style = MaterialTheme.typography.titleMedium)
+                Text(detail, color = Color(0xFF9BA58B), style = MaterialTheme.typography.bodySmall)
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "$action  ↗",
+                color = Color(0xFFD5E58B),
+                style = MaterialTheme.typography.labelSmall,
+                letterSpacing = .8.sp
+            )
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF30392C)))
     }
 }
 
