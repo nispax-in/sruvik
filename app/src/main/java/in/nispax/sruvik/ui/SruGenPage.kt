@@ -584,7 +584,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
                     Text("FREE ${resourceStats.available} MB", color = Color(0xFFB7BDA8), style = MaterialTheme.typography.labelSmall)
                 }
             }
-            Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF30392C)))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(SruvikColors.Border))
             AnimatedVisibility(
                 visible = !modelReady,
                 enter = fadeIn(tween(220)) + expandVertically(tween(220)),
@@ -736,16 +736,16 @@ fun SruGenPage(memoryEnabled: Boolean) {
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Color(0xFFD5E58B))
+                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = SruvikColors.Lime)
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                                    Text("RENDERING LOCALLY  /  $progress%", color = Color(0xFFD5E58B), style = MaterialTheme.typography.labelSmall, letterSpacing = .8.sp)
+                                    Text("RENDERING LOCALLY  /  $progress%", color = SruvikColors.Lime, style = MaterialTheme.typography.labelSmall, letterSpacing = .8.sp)
                                     LinearProgressIndicator(
                                         progress = { animatedGenerationProgress },
                                         modifier = Modifier.fillMaxWidth(),
-                                        color = Color(0xFFD5E58B),
-                                        trackColor = Color(0xFF30392C)
+                                        color = SruvikColors.Lime,
+                                        trackColor = SruvikColors.Border
                                     )
-                                    Text(progressLabel, color = Color(0xFF9AA18B), style = MaterialTheme.typography.labelSmall)
+                                    Text(progressLabel, color = SruvikColors.TextSecondary, style = MaterialTheme.typography.labelSmall)
                                 }
                             }
                         }
@@ -806,8 +806,8 @@ fun SruGenPage(memoryEnabled: Boolean) {
                         }
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text("REFERENCE / ENCRYPTED", color = Color(0xFFD5E58B), style = MaterialTheme.typography.labelSmall, letterSpacing = .7.sp)
-                            Text("Stored locally with this draft until sent", color = Color(0xFF9AA18B), style = MaterialTheme.typography.labelSmall)
+                            Text("REFERENCE / ENCRYPTED", color = SruvikColors.Lime, style = MaterialTheme.typography.labelSmall, letterSpacing = .7.sp)
+                            Text("Stored locally with this draft until sent", color = SruvikColors.TextSecondary, style = MaterialTheme.typography.labelSmall)
                         }
                         IconButton(onClick = {
                             selectedImage = null
@@ -815,7 +815,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
                             thumbnails[id]?.takeIf { !it.isRecycled }?.recycle()
                             thumbnails = thumbnails - id
                         }, modifier = Modifier.size(34.dp)) {
-                            Icon(Icons.Rounded.Close, "Remove image", tint = Color(0xFFB5BDA7))
+                            Icon(Icons.Rounded.Close, "Remove image", tint = SruvikColors.TextSecondary)
                         }
                     }
                 }
@@ -823,14 +823,14 @@ fun SruGenPage(memoryEnabled: Boolean) {
                     value = prompt,
                     onValueChange = { prompt = it.take(1800) },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 66.dp, max = 126.dp).padding(vertical = 5.dp),
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = Color(0xFFE8E5D8), lineHeight = 23.sp),
-                    cursorBrush = SolidColor(Color(0xFFD5E58B)),
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = SruvikColors.TextPrimary, lineHeight = 23.sp),
+                    cursorBrush = SolidColor(SruvikColors.Lime),
                     decorationBox = { innerTextField ->
                         Box(Modifier.fillMaxWidth()) {
                             if (prompt.isBlank()) {
                                 Text(
                                     "Describe what you can see in your head…",
-                                    color = Color(0xFF8F9981),
+                                    color = SruvikColors.TextMuted,
                                     style = MaterialTheme.typography.bodyLarge
                                 )
                             }
@@ -838,7 +838,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
                         }
                     }
                 )
-                Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF30392C)))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(SruvikColors.Border))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(
                         onClick = {
@@ -846,14 +846,14 @@ fun SruGenPage(memoryEnabled: Boolean) {
                         },
                         contentPadding = PaddingValues(horizontal = 2.dp, vertical = 4.dp)
                     ) {
-                        Icon(Icons.Rounded.AddPhotoAlternate, null, tint = Color(0xFFCAD2B7), modifier = Modifier.size(18.dp))
+                        Icon(Icons.Rounded.AddPhotoAlternate, null, tint = SruvikColors.TextSecondary, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("ADD IMAGE", color = Color(0xFFCAD2B7), fontSize = 10.sp, letterSpacing = .8.sp)
+                        Text("ADD IMAGE", color = SruvikColors.TextSecondary, fontSize = 10.sp, letterSpacing = .8.sp)
                     }
                     Spacer(Modifier.weight(1f))
                     Text(
                         if (memoryEnabled) "MEMORY / ON" else "MEMORY / OFF",
-                        color = Color(0xFF96A181),
+                        color = SruvikColors.LimeMuted,
                         style = MaterialTheme.typography.labelSmall,
                         letterSpacing = .6.sp
                     )
@@ -864,10 +864,10 @@ fun SruGenPage(memoryEnabled: Boolean) {
                         modifier = Modifier.height(44.dp),
                         shape = RoundedCornerShape(4.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFD5E58B),
+                            containerColor = SruvikColors.Lime,
                             contentColor = Color(0xFF182015),
-                            disabledContainerColor = Color(0xFF46503D),
-                            disabledContentColor = Color(0xFF8A927E)
+                            disabledContainerColor = SruvikColors.SurfaceSoft,
+                            disabledContentColor = SruvikColors.TextMuted
                         ),
                         contentPadding = PaddingValues(horizontal = 17.dp, vertical = 8.dp)
                     ) {
@@ -1192,9 +1192,9 @@ private fun StudioSuggestion(number: String, label: String, onClick: () -> Unit)
         Spacer(Modifier.width(13.dp))
         Text(label, color = Color(0xFFD7D8C9), style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.weight(1f))
-        Text("↗", color = Color(0xFF8F9981), style = MaterialTheme.typography.bodyMedium)
+        Text("↗", color = SruvikColors.TextMuted, style = MaterialTheme.typography.bodyMedium)
     }
-    Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF30392C)))
+    Box(Modifier.fillMaxWidth().height(1.dp).background(SruvikColors.Border))
 }
 
 @Composable
