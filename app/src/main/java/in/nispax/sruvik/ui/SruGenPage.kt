@@ -242,7 +242,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
             (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(memory)
             resourceStats = SruGenResourceStats(
                 cpu = cpu,
-                pss = Debug.getPss() / 1024,
+                pss = (Debug.getPss() / 1024L).toInt(),
                 heap = ((Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024 * 1024)).toInt(),
                 available = (memory.availMem / (1024 * 1024)).toInt()
             )
