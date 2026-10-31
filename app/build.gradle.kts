@@ -13,6 +13,24 @@ android {
         versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
         versionName = "0.1.${System.getenv("GITHUB_RUN_NUMBER") ?: "0"}"
     }
+    signingConfigs {
+        getByName("debug") {
+            // CI creates and restores this exact file before assembling the APK.
+            // Local builds keep Android's normal per-user debug-key behavior.
+            val stableKey = rootProject.file(".ci/sruvik-debug.keystore")
+            if (stableKey.isFile) {
+                storeFile = stableKey
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
+    }
+    buildTypes {
+        getByName("debug") {
+            signingConfig = signingConfigs.getByName("debug")
+        }
+    }
     buildFeatures { compose = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
