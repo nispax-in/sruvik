@@ -38,6 +38,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -276,13 +277,29 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
             }
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("IMAGE RESTORATION", color = LabCoral,
-                style = MaterialTheme.typography.labelLarge, letterSpacing = 2.3.sp)
-            Text("Bring back the\ndetail.", color = LabText,
-                style = MaterialTheme.typography.displayMedium, lineHeight = 40.sp)
-            Text("Reconstruct fine detail and enlarge your photo with a local AI model.",
-                color = LabMuted, style = MaterialTheme.typography.bodyMedium)
+        Box(
+            Modifier.fillMaxWidth().height(194.dp).clip(RoundedCornerShape(27.dp))
+        ) {
+            Image(
+                painter = painterResource(R.drawable.sruvik_alpine_art),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+            Box(Modifier.fillMaxSize().background(
+                Brush.verticalGradient(listOf(Color(0x16212D4A), Color(0x8C101727), Color(0xF20C1421)))
+            ))
+            Column(
+                Modifier.fillMaxSize().padding(19.dp),
+                verticalArrangement = Arrangement.Bottom
+            ) {
+                Text("IMAGE RESTORATION", color = LabCoral,
+                    style = MaterialTheme.typography.labelLarge, letterSpacing = 2.3.sp)
+                Text("Bring back the\ndetail.", color = LabText,
+                    style = MaterialTheme.typography.displayMedium, lineHeight = 40.sp)
+                Text("Reconstruct fine detail and enlarge your photo with a local AI model.",
+                    color = LabMuted, style = MaterialTheme.typography.bodySmall)
+            }
         }
 
         Surface(
