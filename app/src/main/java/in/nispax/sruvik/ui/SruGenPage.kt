@@ -132,16 +132,12 @@ fun SruGenPage(memoryEnabled: Boolean) {
     }
 
     fun activateInstalledModel() {
-        if (SruGenEngineRegistry.engine is MediaPipeSruGenEngine) {
-            // Reuse the process-local engine. A screen-exit close may be waiting
-            // for an in-flight native inference step; the engine lock serializes it.
-            modelReady = true
-            return
+        SruGenEngineRegistry.getOrCreate {
+            MediaPipeSruGenEngine(
+                context.applicationContext,
+                File(SruGenModelInstaller.modelDirectory(context), "sd15_bins").absolutePath
+            )
         }
-        SruGenEngineRegistry.engine = MediaPipeSruGenEngine(
-            context.applicationContext,
-            File(SruGenModelInstaller.modelDirectory(context), "sd15_bins").absolutePath
-        )
         modelReady = true
     }
 
@@ -277,12 +273,19 @@ fun SruGenPage(memoryEnabled: Boolean) {
         }
     }
 
+    val generationInFlight = rememberUpdatedState(generating)
     DisposableEffect(Unit) {
         onDispose {
             thumbnails.values.forEach { if (!it.isRecycled) it.recycle() }
-            val engineToClose = SruGenEngineRegistry.engine as? AutoCloseable
+            // Keep an active inference alive if navigation disposes this screen.
+            // Otherwise detach before async close so a later visit cannot reuse
+            // an engine instance whose native task has already been released.
+            val engineToClose = if (generationInFlight.value) {
+                null
+            } else {
+                SruGenEngineRegistry.detach(SruGenEngineRegistry.engine) as? AutoCloseable
+            }
             if (engineToClose != null) {
-                // Don't block Compose or close the native task during an execute() call.
                 kotlinx.coroutines.CoroutineScope(
                     kotlinx.coroutines.SupervisorJob() + Dispatchers.IO
                 ).launch {
@@ -367,6 +370,27 @@ fun SruGenPage(memoryEnabled: Boolean) {
         selectedImage = null
         error = ""
         info = ""
+
+        val normalizedText = text.lowercase()
+            .replace(Regex("[^a-z0-9 ]"), " ")
+            .trim()
+            .replace(Regex("\\s+"), " ")
+        val quickReply = if (attachment == null) {
+            when (normalizedText) {
+                "hi", "hii", "hello", "hey", "heyy", "yo", "sup",
+                "good morning", "good afternoon", "good evening" ->
+                    "Hey! I'm here. SruGen is currently your on-device image studio. Describe an image you want to create, or attach a photo and choose an editing mode. Stable Diffusion 1.5 creates images; general conversation needs a separate local language model."
+                "help", "what can you do", "what can you do here" ->
+                    "I can create images from visual prompts using the installed local Stable Diffusion model. You can also attach an image to a chat. Photo editing, background removal and object erasing still need their separate on-device models."
+                else -> null
+            }
+        } else null
+        if (quickReply != null) {
+            persist(updatedChat.copy(
+                messages = updatedChat.messages + SruGenMessage(role = "assistant", text = quickReply)
+            ))
+            return
+        }
 
         if (text.isBlank() && attachment != null) {
             persist(updatedChat.copy(
@@ -461,6 +485,23 @@ fun SruGenPage(memoryEnabled: Boolean) {
                         modelName = result.modelName
                     )
                 ))
+            } catch (failure: OutOfMemoryError) {
+                val failedEngine = SruGenEngineRegistry.detach(SruGenEngineRegistry.engine)
+                if (failedEngine is AutoCloseable) {
+                    kotlinx.coroutines.CoroutineScope(
+                        kotlinx.coroutines.SupervisorJob() + Dispatchers.IO
+                    ).launch { runCatching { failedEngine.close() } }
+                }
+                System.gc()
+                val newest = chats.firstOrNull { it.id == activeId } ?: updatedChat
+                persist(newest.copy(
+                    updatedAt = System.currentTimeMillis(),
+                    messages = newest.messages + SruGenMessage(
+                        role = "assistant",
+                        text = "Android ran out of memory while loading Stable Diffusion. SruGen released the failed engine. Close other apps and retry; if this keeps happening, this phone may not have enough RAM for this model."
+                    )
+                ))
+                modelReady = SruGenModelInstaller.isInstalled(context)
             } catch (failure: Exception) {
                 val newest = chats.firstOrNull { it.id == activeId } ?: updatedChat
                 persist(newest.copy(
