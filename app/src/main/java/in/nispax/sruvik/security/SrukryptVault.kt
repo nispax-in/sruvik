@@ -192,8 +192,10 @@ object SrukryptVault {
             return BiometricManagerFlags.BIOMETRIC_STRONG
         }
         // KeyInfo uses KeyProperties bit values, not BiometricPrompt authenticator flags.
-        val keyAuth = SecretKeyFactory.getInstance("AES", "AndroidKeyStore")
-            .getKeySpec(key, KeyInfo::class.java).userAuthenticationType
+        val keyInfo = SecretKeyFactory.getInstance("AES", "AndroidKeyStore")
+            .getKeySpec(key, KeyInfo::class.java) as KeyInfo
+        // Normalize the platform value to Int before applying the AUTH_* bit flags.
+        val keyAuth = keyInfo.userAuthenticationType.toInt()
         var flags = 0
         if ((keyAuth and KeyProperties.AUTH_BIOMETRIC_STRONG) != 0) {
             flags = flags or BiometricManagerFlags.BIOMETRIC_STRONG
