@@ -65,6 +65,7 @@ fun SruvikApp() {
     val context = LocalContext.current
     var profile by remember { mutableStateOf(SruvikPreferences.loadProfile(context)) }
     var showDailyTip by remember { mutableStateOf(SruvikPreferences.showDailyTip(context)) }
+    var sruGenMemoryEnabled by remember { mutableStateOf(SruvikPreferences.sruGenMemoryEnabled(context)) }
     var selected by remember { mutableStateOf(Destination.Home) }
     Box(Modifier.fillMaxSize().background(SruvikColors.Background)
         .drawBehind { drawAtmosphere() }
@@ -88,6 +89,11 @@ fun SruvikApp() {
                 Destination.Settings -> SettingsPage(
                     profile = profile,
                     showDailyTip = showDailyTip,
+                    sruGenMemoryEnabled = sruGenMemoryEnabled,
+                    onSruGenMemoryChange = {
+                        sruGenMemoryEnabled = it
+                        SruvikPreferences.setSruGenMemoryEnabled(context, it)
+                    },
                     onShowDailyTipChange = {
                         showDailyTip = it
                         SruvikPreferences.setShowDailyTip(context, it)
@@ -98,7 +104,7 @@ fun SruvikApp() {
                     }
                 )
                 Destination.Upscaler -> ImageUpscalerPage(onBack = { selected = Destination.Home })
-                Destination.SruGen -> SruGenPage()
+                Destination.SruGen -> SruGenPage(memoryEnabled = sruGenMemoryEnabled)
                 Destination.Srukrypt -> SrukryptPage(SruvikPreferences.vaultAutoLockMinutes(context))
             }
         }

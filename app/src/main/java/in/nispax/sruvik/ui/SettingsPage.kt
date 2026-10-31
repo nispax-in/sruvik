@@ -119,6 +119,8 @@ fun FirstRunProfileDialog(onContinue: (SruvikProfile) -> Unit) {
 fun SettingsPage(
     profile: SruvikProfile,
     showDailyTip: Boolean,
+    sruGenMemoryEnabled: Boolean,
+    onSruGenMemoryChange: (Boolean) -> Unit,
     onShowDailyTipChange: (Boolean) -> Unit,
     onProfileSaved: (SruvikProfile) -> Unit
 ) {
@@ -137,6 +139,7 @@ fun SettingsPage(
     val lockVisible = matches("srukrypt", "vault", "auto lock", "timeout", "lock duration")
     val storageVisible = matches("srukrypt", "vault", "device only", "storage", "backup", "uninstall")
     val tipsVisible = matches("home", "daily tip", "fun fact", "tip", "personalisation")
+    val sruGenMemoryVisible = matches("srugen", "sru gen", "memory", "chat memory", "prompt history", "creative context")
     val offlineVisible = matches("offline", "internet", "privacy", "on device", "local", "network")
 
     Column(
@@ -276,6 +279,25 @@ fun SettingsPage(
                     }
                     Text(
                         "Srukrypt encrypts images and their metadata with AES-256-GCM. The data key is wrapped by a per-use biometric-authenticated Android Keystore key. Enrolling new biometrics may invalidate the key; export important items before changing device security.",
+                        style = MaterialTheme.typography.bodySmall, color = SruvikColors.TextMuted
+                    )
+                }
+            }
+
+            if (sruGenMemoryVisible) {
+                hasResults = true
+                SettingsSection("SRUGEN CREATIVE MEMORY", "Optional continuity across your local image conversations.") {
+                    SettingsPanel {
+                        SettingsSwitchRow(
+                            icon = Icons.Rounded.Psychology,
+                            title = "Creative memory",
+                            description = "When enabled, recent prompts from other SruGen chats may guide style continuity in future image prompts. Chats remain encrypted either way.",
+                            checked = sruGenMemoryEnabled,
+                            onCheckedChange = onSruGenMemoryChange
+                        )
+                    }
+                    Text(
+                        "This version uses recent prompt history as lightweight local context. It does not run a separate language model to infer personal facts or create AI-written memory summaries. Nothing is sent to a server.",
                         style = MaterialTheme.typography.bodySmall, color = SruvikColors.TextMuted
                     )
                 }
