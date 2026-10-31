@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
@@ -60,6 +61,9 @@ fun SruvikApp() {
         return
     }
 
+    val context = LocalContext.current
+    var profile by remember { mutableStateOf(SruvikPreferences.loadProfile(context)) }
+    var showDailyTip by remember { mutableStateOf(SruvikPreferences.showDailyTip(context)) }
     var selected by remember { mutableStateOf(Destination.Home) }
     Box(Modifier.fillMaxSize().background(SruvikColors.Background)
         .drawBehind { drawAtmosphere() }
@@ -70,7 +74,7 @@ fun SruvikApp() {
             label = "screen"
         ) { page ->
             when (page) {
-                Destination.Home -> HomeScreen({ selected = Destination.Models }, { selected = Destination.Settings }, { selected = Destination.Upscaler })
+                Destination.Home -> HomeScreen(profile.name, showDailyTip, { selected = Destination.Models }, { selected = Destination.Settings }, { selected = Destination.Upscaler })
                 Destination.Models -> EmptyPage("YOUR DEVICE", "Model library",
                     "Choose on-device models that fit your phone and the work you want to do.",
                     Icons.Rounded.Memory, "No models installed",
@@ -80,7 +84,18 @@ fun SruvikApp() {
                     Icons.Rounded.History, "Nothing here yet",
                     "Completed and in-progress tasks will appear here.")
                 Destination.Device -> DeviceMonitorPage()
-                Destination.Settings -> SettingsPage()
+                Destination.Settings -> SettingsPage(
+                    profile = profile,
+                    showDailyTip = showDailyTip,
+                    onShowDailyTipChange = {
+                        showDailyTip = it
+                        SruvikPreferences.setShowDailyTip(context, it)
+                    },
+                    onProfileSaved = {
+                        SruvikPreferences.saveProfile(context, it)
+                        profile = it
+                    }
+                )
                 Destination.Upscaler -> ImageUpscalerPage(onBack = { selected = Destination.Home })
             }
         }
@@ -94,6 +109,12 @@ fun SruvikApp() {
         )
         FloatingDock(selected, { selected = it },
             Modifier.align(Alignment.BottomCenter).padding(horizontal = 20.dp, vertical = 12.dp))
+    }
+    if (!profile.isComplete) {
+        FirstRunProfileDialog { completed ->
+            SruvikPreferences.saveProfile(context, completed)
+            profile = completed
+        }
     }
 }
 
@@ -151,9 +172,28 @@ private fun DrawScope.drawAtmosphere() {
 }
 
 @Composable
-private fun HomeScreen(onModels: () -> Unit, onSettings: () -> Unit, onUpscale: () -> Unit) {
+private fun HomeScreen(name: String, showDailyTip: Boolean, onModels: () -> Unit, onSettings: () -> Unit, onUpscale: () -> Unit) {
     val state = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    var greeting by remember { mutableStateOf(greetingForNow()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(60_000)
+            greeting = greetingForNow()
+        }
+    }
+    val dailyTip = remember {
+        val tips = listOf(
+            "Tiny steps count. A good idea becomes great when you keep iterating.",
+            "Fun fact: the first digital photograph was made in 1957 — long before modern cameras.",
+            "A clean original is the best starting point for a great upscale.",
+            "Try changing one creative detail at a time. It makes results easier to compare.",
+            "Fun fact: the word pixel blends “picture” and “element”.",
+            "Your device can do useful creative work without sending files to the cloud.",
+            "Save a copy before experimenting. Curiosity works best with an undo plan."
+        )
+        tips[java.time.LocalDate.now().dayOfYear % tips.size]
+    }
     LazyColumn(Modifier.fillMaxSize(), state = state,
         contentPadding = PaddingValues(start = 22.dp, end = 22.dp, top = 22.dp, bottom = 112.dp),
         verticalArrangement = Arrangement.spacedBy(25.dp)) {
@@ -176,12 +216,17 @@ private fun HomeScreen(onModels: () -> Unit, onSettings: () -> Unit, onUpscale: 
                     Text("01", style = MaterialTheme.typography.labelSmall,
                         color = SruvikColors.TextMuted, letterSpacing = 1.sp)
                 }
-                Column {
-                    Text("Good to see", style = MaterialTheme.typography.displayLarge, color = SruvikColors.TextPrimary)
-                    Text("you.", style = MaterialTheme.typography.displayLarge.copy(fontStyle = FontStyle.Italic),
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("$greeting, $name!", style = MaterialTheme.typography.displayLarge,
                         color = SruvikColors.TextPrimary)
-                    Text("Your creative workspace", style = MaterialTheme.typography.bodyLarge,
-                        color = SruvikColors.TextSecondary, modifier = Modifier.padding(top = 8.dp))
+                    if (showDailyTip) {
+                        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                            Icon(Icons.Rounded.AutoAwesome, null, tint = SruvikColors.LimeMuted,
+                                modifier = Modifier.padding(top = 2.dp).size(14.dp))
+                            Text(dailyTip, style = MaterialTheme.typography.bodySmall,
+                                color = SruvikColors.TextSecondary, lineHeight = 17.sp)
+                        }
+                    }
                 }
             }
         }
@@ -439,48 +484,13 @@ private fun EmptyPage(eyebrow: String, title: String, description: String, icon:
     }
 }
 
-@Composable
-private fun SettingsPage() {
-    Column(Modifier.fillMaxSize().padding(horizontal = 22.dp).padding(top = 30.dp, bottom = 112.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        Text("PREFERENCES", style = MaterialTheme.typography.labelLarge, color = SruvikColors.LimeMuted, letterSpacing = 2.sp)
-        Text("Settings", style = MaterialTheme.typography.displayLarge, color = SruvikColors.TextPrimary)
-        Text("The essentials for how Sruvik works on your device.",
-            style = MaterialTheme.typography.bodyLarge, color = SruvikColors.TextSecondary)
-        Spacer(Modifier.height(8.dp))
-        listOf(
-            Triple(Icons.Rounded.Security, "Privacy & permissions", "Local-first processing principles"),
-            Triple(Icons.Rounded.Tune, "Appearance", "A considered, low-distraction interface"),
-            Triple(Icons.Rounded.Memory, "Device safety", "Performance and thermal safeguards")
-        ).forEach { (icon, title, subtitle) ->
-            GlassCard(Modifier.fillMaxWidth(), RoundedCornerShape(20.dp),
-                Brush.linearGradient(listOf(Color(0x5530473A), Color(0xAA111B16)))) {
-                Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(13.dp)) {
-                    Icon(icon, null, tint = SruvikColors.TextSecondary, modifier = Modifier.size(23.dp))
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(title, style = MaterialTheme.typography.titleMedium, color = SruvikColors.TextPrimary)
-                        Text(subtitle, style = MaterialTheme.typography.bodySmall, color = SruvikColors.TextSecondary)
-                    }
-                    Text("SOON", style = MaterialTheme.typography.labelSmall, color = SruvikColors.LimeMuted)
-                }
-            }
-        }
-        GlassCard(Modifier.fillMaxWidth(), RoundedCornerShape(22.dp),
-            Brush.linearGradient(listOf(Color(0x66483C78), Color(0xAA141326)))) {
-            Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Icon(Icons.Rounded.Lock, null, tint = SruvikColors.Lime, modifier = Modifier.size(21.dp))
-                    Text("SRUKRYPT STORAGE PROMISE", style = MaterialTheme.typography.labelLarge,
-                        color = SruvikColors.Lime, letterSpacing = 1.1.sp)
-                }
-                Text("App-bound. Not recoverable after uninstall.",
-                    style = MaterialTheme.typography.titleMedium, color = SruvikColors.TextPrimary)
-                Text("When Srukrypt is introduced, its encrypted files will stay in Sruvik's private, no-backup storage and its key in Android Keystore. Uninstalling Sruvik permanently deletes the vault. Export anything you want to keep before uninstalling.",
-                    style = MaterialTheme.typography.bodySmall, color = SruvikColors.TextSecondary)
-                Text("PLANNED SECURITY BEHAVIOUR", style = MaterialTheme.typography.labelSmall,
-                    color = SruvikColors.TextMuted, letterSpacing = 1.sp)
-            }
-        }
+
+private fun greetingForNow(): String {
+    val hour = java.time.LocalTime.now().hour
+    return when (hour) {
+        in 5..11 -> "Good morning"
+        in 12..16 -> "Good afternoon"
+        in 17..20 -> "Good evening"
+        else -> "Good night"
     }
 }
