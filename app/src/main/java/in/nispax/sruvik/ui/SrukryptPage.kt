@@ -350,6 +350,11 @@ fun SrukryptPage(autoLockMinutes: Int) {
         passphraseDialog = false
         busy = true
         errorText = ""
+        infoText = when (operation) {
+            "create" -> "Creating your encrypted Srukrypt vault…"
+            "add" -> "Saving your passphrase fallback…"
+            else -> "Unlocking your encrypted vault…"
+        }
         scope.launch {
             var unlocked: ByteArray? = null
             try {
@@ -381,7 +386,9 @@ fun SrukryptPage(autoLockMinutes: Int) {
                 }
                 lastInteraction = SystemClock.elapsedRealtime()
             } catch (error: Exception) {
+                android.util.Log.e("Srukrypt", "Passphrase operation '$operation' failed.", error)
                 unlocked?.let { Arrays.fill(it, 0) }
+                infoText = ""
                 errorText = error.message ?: "Passphrase operation failed."
             } finally {
                 Arrays.fill(typed, '\u0000')
@@ -464,6 +471,32 @@ fun SrukryptPage(autoLockMinutes: Int) {
             }
         }
 
+        if (busy || errorText.isNotBlank() || infoText.isNotBlank()) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = if (errorText.isNotBlank()) Color(0xFF3A2020) else Color(0xFF242424),
+                shape = RoundedCornerShape(16.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .12f))
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (busy) CircularProgressIndicator(Modifier.size(19.dp), strokeWidth = 2.dp, color = SruvikColors.Lime)
+                    else Icon(
+                        if (errorText.isNotBlank()) Icons.Rounded.ErrorOutline else Icons.Rounded.CheckCircle,
+                        null, tint = if (errorText.isNotBlank()) Color(0xFFFFA6A6) else SruvikColors.Lime,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        when { busy && infoText.isNotBlank() -> infoText; errorText.isNotBlank() -> errorText; else -> infoText },
+                        color = if (errorText.isNotBlank()) Color(0xFFFFB0A8) else SruvikColors.TextPrimary,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+        }
         if (sessionKey == null) {
             Spacer(Modifier.height(12.dp))
             Column(
@@ -597,9 +630,6 @@ fun SrukryptPage(autoLockMinutes: Int) {
             }
         }
 
-        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        if (errorText.isNotBlank()) Text(errorText, color = Color(0xFFFFA6A6), style = MaterialTheme.typography.bodySmall)
-        if (infoText.isNotBlank()) Text(infoText, color = SruvikColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
     }
 
     if (confirmDelete != null) {
