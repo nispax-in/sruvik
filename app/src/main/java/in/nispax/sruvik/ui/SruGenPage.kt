@@ -1003,6 +1003,11 @@ fun SruGenPage(memoryEnabled: Boolean) {
                     showInstallDialog = false
                     scope.launch {
                         try {
+                            val model = requireNotNull(SruGenGalleryCatalog.find("sd15-mediapipe"))
+                            val deviceCheck = withContext(Dispatchers.IO) {
+                                SruGenModelCompatibility.assess(context, model)
+                            }
+                            require(deviceCheck.canDownload) { deviceCheck.reasons.joinToString("\n") }
                             downloadId = SruGenModelInstaller.startDownload(context)
                             error = ""
                             info = "Model download started. You can cancel it at any time."
