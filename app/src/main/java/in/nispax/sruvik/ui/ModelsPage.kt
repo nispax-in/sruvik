@@ -250,9 +250,9 @@ private fun ModelGalleryCard(
     onClick: () -> Unit
 ) {
     val accent = when {
-        active -> Color(0xFF9FE2C1)
-        model.engine == `in`.nispax.sruvik.srugen.SruGenGalleryEngine.NEZUMI_MNN_SD15 -> Color(0xFF9BC5E8)
-        else -> Color(0xFFD0C2F0)
+        active -> Color(0xFFE98261)
+        model.engine == `in`.nispax.sruvik.srugen.SruGenGalleryEngine.NEZUMI_MNN_SD15 -> Color(0xFFBDB9B5)
+        else -> Color(0xFFBDB9B5)
     }
     Card(
         onClick = onClick,
@@ -284,9 +284,9 @@ private fun ModelGalleryCard(
                             else -> "COMING SOON"
                         },
                         tint = when {
-                            active || installed -> Color(0xFF9FE2C1)
+                            active || installed -> Color(0xFFE98261)
                             model.canInstall && assessment?.canDownload == true -> SruvikColors.Lime
-                            model.canInstall -> Color(0xFFE8B67B)
+                            model.canInstall -> Color(0xFFF0B58F)
                             else -> SruvikColors.TextMuted
                         }
                     )
@@ -323,7 +323,7 @@ private fun ModelGalleryCard(
                 if (model.canInstall && assessment != null && !assessment.canDownload && !installed) {
                     Text(
                         assessment.reasons.firstOrNull() ?: "This model is currently blocked by the device check.",
-                        color = Color(0xFFE8B67B),
+                        color = Color(0xFFF0B58F),
                         style = MaterialTheme.typography.labelSmall,
                         lineHeight = 16.sp
                     )
