@@ -523,11 +523,12 @@ fun SruGenPage(memoryEnabled: Boolean) {
                     "MediaPipe could not link a runtime dependency during image generation.",
                     failure
                 )
-                val failedEngine = SruGenEngineRegistry.detach(SruGenEngineRegistry.engine)
-                if (failedEngine is AutoCloseable) {
+                val failedEngine = SruGenEngineRegistry.engine
+                if (failedEngine != null) {
+                    failedEngine.requestStop()
                     kotlinx.coroutines.CoroutineScope(
                         kotlinx.coroutines.SupervisorJob() + Dispatchers.IO
-                    ).launch { runCatching { failedEngine.close() } }
+                    ).launch { runCatching { SruGenEngineRegistry.closeAndDetach(failedEngine) } }
                 }
                 val newest = chats.firstOrNull { it.id == activeId } ?: updatedChat
                 persist(newest.copy(
@@ -538,11 +539,12 @@ fun SruGenPage(memoryEnabled: Boolean) {
                     )
                 ))
             } catch (failure: OutOfMemoryError) {
-                val failedEngine = SruGenEngineRegistry.detach(SruGenEngineRegistry.engine)
-                if (failedEngine is AutoCloseable) {
+                val failedEngine = SruGenEngineRegistry.engine
+                if (failedEngine != null) {
+                    failedEngine.requestStop()
                     kotlinx.coroutines.CoroutineScope(
                         kotlinx.coroutines.SupervisorJob() + Dispatchers.IO
-                    ).launch { runCatching { failedEngine.close() } }
+                    ).launch { runCatching { SruGenEngineRegistry.closeAndDetach(failedEngine) } }
                 }
                 System.gc()
                 val newest = chats.firstOrNull { it.id == activeId } ?: updatedChat
