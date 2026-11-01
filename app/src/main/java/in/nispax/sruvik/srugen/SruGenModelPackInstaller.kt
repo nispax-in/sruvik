@@ -50,7 +50,7 @@ object SruGenModelPackInstaller {
     fun installed(context: Context, model: SruGenGalleryModel): Boolean {
         if (model.engine != SruGenGalleryEngine.NEZUMI_MNN_SD15) return false
         recoverInterruptedInstall(context, model.id)
-        return validatePack(modelDirectory(context, model.id))
+        return validatePack(File(modelDirectory(context, model.id), "pack"))
     }
 
     fun installedBytes(context: Context, modelId: String): Long =
