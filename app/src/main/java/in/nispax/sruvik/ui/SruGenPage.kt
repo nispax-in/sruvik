@@ -367,9 +367,10 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
     }
 
     val generationInFlight = rememberUpdatedState(generating)
+    val latestThumbnails = rememberUpdatedState(thumbnails)
     DisposableEffect(Unit) {
         onDispose {
-            thumbnails.values.forEach { if (!it.isRecycled) it.recycle() }
+            latestThumbnails.value.values.forEach { if (!it.isRecycled) it.recycle() }
             // Keep an active inference alive if navigation disposes this screen.
             // Otherwise detach before async close so a later visit cannot reuse
             // an engine instance whose native task has already been released.
