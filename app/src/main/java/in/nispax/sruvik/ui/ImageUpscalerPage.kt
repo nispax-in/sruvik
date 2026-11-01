@@ -82,6 +82,8 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
     var optimizedSource by remember { mutableStateOf(false) }
     var showQuickResize by remember { mutableStateOf(false) }
     val isProcessing = session.status == UpscaleStatus.RUNNING || isQuickResizing
+    val latestOriginal = rememberUpdatedState(original)
+    val latestResult = rememberUpdatedState(result)
     val progress = session.progress
     val progressLabel = session.progressLabel
 
@@ -287,10 +289,12 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
         }
     }
 
+    val latestOriginalForDispose = rememberUpdatedState(original)
+    val latestResultForDispose = rememberUpdatedState(result)
     DisposableEffect(Unit) {
         onDispose {
-            original?.takeUnless { it.isRecycled }?.recycle()
-            result?.takeUnless { it.isRecycled }?.recycle()
+            latestOriginalForDispose.value?.takeUnless { it.isRecycled }?.recycle()
+            latestResultForDispose.value?.takeUnless { it.isRecycled }?.recycle()
         }
     }
 
