@@ -82,8 +82,6 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
     var optimizedSource by remember { mutableStateOf(false) }
     var showQuickResize by remember { mutableStateOf(false) }
     val isProcessing = session.status == UpscaleStatus.RUNNING || isQuickResizing
-    val latestOriginal = rememberUpdatedState(original)
-    val latestResult = rememberUpdatedState(result)
     val progress = session.progress
     val progressLabel = session.progressLabel
 
