@@ -452,6 +452,25 @@ fun ModelDetailPage(
             Button(
                 onClick = {
                     scope.launch {
+                        error = ""
+                        info = ""
+                        // Recheck immediately before the model switch; RAM and thermal
+                        // headroom may have changed since this profile was first opened.
+                        val freshReasons = withContext(Dispatchers.IO) {
+                            val reasons = SruGenDeviceGuard.assessBeforeGeneration(context).reasons.toMutableList()
+                            if (android.os.Build.VERSION.SDK_INT < actualModel.minAndroidApi) {
+                                reasons += "This model requires Android API ${actualModel.minAndroidApi}."
+                            }
+                            if (actualModel.requiredAbis.isNotEmpty() &&
+                                actualModel.requiredAbis.none { it in android.os.Build.SUPPORTED_ABIS }) {
+                                reasons += "This model requires CPU architecture ${actualModel.requiredAbis.joinToString()}."
+                            }
+                            reasons.distinct()
+                        }
+                        if (freshReasons.isNotEmpty()) {
+                            error = freshReasons.joinToString("\n")
+                            return@launch
+                        }
                         val old = SruGenEngineRegistry.engine
                         if (old != null) {
                             old.requestStop()
@@ -460,7 +479,6 @@ fun ModelDetailPage(
                         SruGenActiveModelStore.setActiveModel(context, actualModel.id)
                         active = true
                         info = "${actualModel.name} is now selected for SruGen. The engine will load only after the runtime preflight passes when generation starts."
-                        error = ""
                     }
                 },
                 enabled = canSelectActive && !active && downloadId < 0L && !installing,
