@@ -50,7 +50,25 @@ jobs:
         with:
           api-level: 35
           arch: x86_64
-          script: gradle --no-daemon :app:connectedDebugAndroidTest
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -memory 4096 -cores 4
+          script: |
+            adb logcat -c
+            gradle --no-daemon :app:connectedDebugAndroidTest
+            TEST_STATUS=$?
+            adb logcat -d -v time -t 6000 > emulator-logcat.txt || true
+            adb shell dumpsys activity exit-info in.nispax.sruvik > emulator-exit-info.txt || true
+            exit $TEST_STATUS
+      - name: Upload emulator diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sruvik-emulator-diagnostics
+          path: |
+            emulator-logcat.txt
+            emulator-exit-info.txt
+            app/build/reports/androidTests/connected/debug/
+          if-no-files-found: warn
+          retention-days: 7
       - name: Download pinned Real-ESRGAN model
         run: bash scripts/fetch-upscaler-model.sh
       - name: Restore build-101 signing key from its original branch cache
