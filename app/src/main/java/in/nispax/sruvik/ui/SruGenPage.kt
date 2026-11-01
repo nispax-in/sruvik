@@ -55,6 +55,8 @@ import `in`.nispax.sruvik.ui.theme.SruvikColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -70,6 +72,8 @@ private data class SruGenResourceStats(
 fun SruGenPage(memoryEnabled: Boolean) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    // Serialize encrypted-history commits and always write the newest snapshot.
+    val historySaveMutex = remember { Mutex() }
 
     var chats by remember { mutableStateOf<List<SruGenChat>>(emptyList()) }
     var draftChat by remember { mutableStateOf(SruGenChat(title = "New chat")) }
@@ -114,9 +118,17 @@ fun SruGenPage(memoryEnabled: Boolean) {
         val updated = (listOf(chat) + chats.filterNot { it.id == chat.id })
             .sortedByDescending { it.updatedAt }
         chats = updated
-        scope.launch(Dispatchers.IO) {
-            runCatching { SruGenChatStore.saveChats(context, updated) }
-                .onFailure { error = "Could not save encrypted chat history: ${it.message}" }
+        scope.launch {
+            runCatching {
+                historySaveMutex.withLock {
+                    // Read the latest UI snapshot only after acquiring the lock.
+                    // A delayed older save can therefore never overwrite newer messages.
+                    val latestSnapshot = chats
+                    withContext(Dispatchers.IO) {
+                        SruGenChatStore.saveChats(context, latestSnapshot)
+                    }
+                }
+            }.onFailure { error = "Could not save encrypted chat history: ${it.message}" }
         }
     }
 
@@ -453,6 +465,15 @@ fun SruGenPage(memoryEnabled: Boolean) {
         progressLabel = "Preparing local model"
         scope.launch {
             try {
+                // Do not allocate the diffusion model until the user's prompt and
+                // any attachment references have been durably committed in encrypted
+                // app-private storage.
+                historySaveMutex.withLock {
+                    val latestSnapshot = chats
+                    withContext(Dispatchers.IO) {
+                        SruGenChatStore.saveChats(context, latestSnapshot)
+                    }
+                }
                 val result = withContext(Dispatchers.Default) {
                     // Recreate a released engine lazily. Android may have asked
                     // Sruvik to free native resources while the app was backgrounded.
