@@ -115,7 +115,7 @@ fun ModelDetailPage(
         refreshState()
         downloadId = when (model?.engine) {
             SruGenGalleryEngine.MEDIAPIPE_SD15 -> SruGenModelInstaller.savedDownloadId(context)
-            SruGenGalleryEngine.NEZUMI_MNN_SD15 -> SruGenModelPackInstaller.savedDownloadId(context, model.id)
+            SruGenGalleryEngine.NEZUMI_MNN_SD15 -> SruGenModelPackInstaller.savedDownloadId(context, modelId)
             null -> -1L
         }
     }
