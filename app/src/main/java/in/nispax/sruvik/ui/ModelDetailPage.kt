@@ -268,7 +268,7 @@ fun ModelDetailPage(
                 }
             }
             Spacer(Modifier.weight(1f))
-            if (active) ModelStatusChip("ACTIVE", Color(0xFF9FE2C1))
+            if (active) ModelStatusChip("ACTIVE", Color(0xFFE98261))
             else if (installed) ModelStatusChip("INSTALLED", SruvikColors.Lime)
         }
 
@@ -276,17 +276,17 @@ fun ModelDetailPage(
             Modifier.fillMaxWidth().height(184.dp)
                 .background(
                     Brush.linearGradient(
-                        listOf(Color(0xFF343C65), Color(0xFF272A49), Color(0xFF172B37))
+                        listOf(Color(0xFF292929), Color(0xFF202020), Color(0xFF151515))
                     ),
                     RoundedCornerShape(25.dp)
                 )
                 .border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(25.dp))
         ) {
             Column(Modifier.align(Alignment.BottomStart).padding(18.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(actualModel.runtime.uppercase(Locale.ROOT), color = Color(0xFFB8D9C0),
+                Text(actualModel.runtime.uppercase(Locale.ROOT), color = Color(0xFFC5C0BB),
                     style = MaterialTheme.typography.labelSmall, letterSpacing = 1.6.sp)
                 Text(actualModel.name, color = Color.White, style = MaterialTheme.typography.headlineLarge)
-                Text(actualModel.subtitle, color = Color(0xFFD2D5DF), style = MaterialTheme.typography.bodySmall)
+                Text(actualModel.subtitle, color = Color(0xFFC5C0BB), style = MaterialTheme.typography.bodySmall)
             }
         }
 
@@ -301,7 +301,7 @@ fun ModelDetailPage(
             border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .08f))
         ) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("“${actualModel.lore}”", color = Color(0xFFE5DDC8),
+                Text("“${actualModel.lore}”", color = Color(0xFFEAE6E2),
                     style = MaterialTheme.typography.titleMedium, lineHeight = 24.sp)
                 Text(actualModel.description, color = SruvikColors.TextSecondary,
                     style = MaterialTheme.typography.bodyMedium, lineHeight = 21.sp)
@@ -367,9 +367,9 @@ fun ModelDetailPage(
                 border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .08f))
             ) {
                 Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Icon(Icons.Rounded.Info, null, tint = Color(0xFFE8B67B))
+                    Icon(Icons.Rounded.Info, null, tint = Color(0xFFF0B58F))
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Not ready for installation", color = Color(0xFFE8B67B), fontWeight = FontWeight.SemiBold)
+                        Text("Not ready for installation", color = Color(0xFFF0B58F), fontWeight = FontWeight.SemiBold)
                         Text(
                             when (actualModel.availability) {
                                 SruGenGalleryAvailability.PACK_VERIFICATION_PENDING -> "The package or model manifest is still being verified."
@@ -403,8 +403,8 @@ fun ModelDetailPage(
         ) {
             Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Icon(Icons.Rounded.Security, null, tint = Color(0xFFE8B67B))
-                    Text("Third-party model warning", color = Color(0xFFE8B67B), fontWeight = FontWeight.SemiBold)
+                    Icon(Icons.Rounded.Security, null, tint = Color(0xFFF0B58F))
+                    Text("Third-party model warning", color = Color(0xFFF0B58F), fontWeight = FontWeight.SemiBold)
                 }
                 Text(
                     "Sruvik's device screening is a best-effort compatibility check, not a guarantee that a model is safe, stable, accurate or suitable for every use. Third-party model weights can behave unexpectedly. You choose to install and run them at your own discretion, and are responsible for reviewing and complying with the source licence. Sruvik and its publisher do not warrant third-party models or accept responsibility for model behaviour, output, device instability, data loss or damage, to the extent permitted by applicable law.",
@@ -500,7 +500,7 @@ fun ModelDetailPage(
                 enabled = canSelectActive && !active && downloadId < 0L && !installing,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF526A58), contentColor = Color.White)
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE98261), contentColor = Color.White)
             ) {
                 Icon(Icons.Rounded.CheckCircle, null)
                 Spacer(Modifier.width(8.dp))
@@ -549,8 +549,8 @@ fun ModelDetailPage(
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = SruvikColors.Lime,
-                    contentColor = Color(0xFF172015),
-                    disabledContainerColor = Color(0xFF303641),
+                    contentColor = Color(0xFF1A100D),
+                    disabledContainerColor = Color(0xFF45413F),
                     disabledContentColor = SruvikColors.TextMuted
                 )
             ) {
@@ -614,9 +614,9 @@ private fun DeviceAssessmentCard(allowed: Boolean, heading: String, reasons: Lis
                 Icon(
                     if (allowed) Icons.Rounded.CheckCircle else Icons.Rounded.Info,
                     null,
-                    tint = if (allowed) Color(0xFF9FE2C1) else Color(0xFFE8B67B)
+                    tint = if (allowed) Color(0xFFE98261) else Color(0xFFF0B58F)
                 )
-                Text(heading, color = if (allowed) Color(0xFF9FE2C1) else Color(0xFFE8B67B),
+                Text(heading, color = if (allowed) Color(0xFFE98261) else Color(0xFFF0B58F),
                     fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
             }
             reasons.forEach { reason ->
@@ -647,7 +647,7 @@ private fun FeedbackPanel(text: String, isError: Boolean) {
         Text(
             text,
             Modifier.fillMaxWidth().padding(12.dp),
-            color = if (isError) Color(0xFFF0A28E) else Color(0xFFB8D8C4),
+            color = if (isError) Color(0xFFF0A28E) else Color(0xFFC5C0BB),
             style = MaterialTheme.typography.bodySmall,
             lineHeight = 18.sp
         )
