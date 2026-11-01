@@ -457,13 +457,14 @@ private fun AppRow(icon: ImageVector, title: String, subtitle: String, status: S
 }
 
 @Composable
+@Suppress("UNUSED_PARAMETER")
 private fun GlassCard(modifier: Modifier, shape: RoundedCornerShape, fill: Brush, content: @Composable BoxScope.() -> Unit) {
-    Box(modifier.clip(shape).background(fill)
-        .border(1.dp, Brush.linearGradient(listOf(Color.White.copy(alpha = .22f),
-            SruvikColors.GlassBorder, Color.White.copy(alpha = .07f))), shape)
-        .animateContentSize()) {
-        Box(Modifier.fillMaxWidth().height(1.dp).align(Alignment.TopCenter)
-            .background(Brush.horizontalGradient(listOf(Color.Transparent, Color.White.copy(alpha = .22f), Color.Transparent))))
+    Box(
+        modifier.clip(shape)
+            .background(Color(0xFF1B1B1B))
+            .border(1.dp, Color(0xFF3A3938), shape)
+            .animateContentSize()
+    ) {
         content()
     }
 }
