@@ -343,8 +343,8 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
         }
     }
 
-    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
-        if (uri != null) scope.launch {
+    fun importReferenceImage(uri: Uri) {
+        scope.launch {
             try {
                 val bytes = withContext(Dispatchers.IO) {
                     context.contentResolver.openInputStream(uri)?.use { input ->
@@ -368,9 +368,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                     }
                     val id = withContext(Dispatchers.IO) {
                         SruGenChatStore.saveAttachment(
-                            context,
-                            bytes,
-                            context.contentResolver.getType(uri) ?: "image/jpeg"
+                            context, bytes, context.contentResolver.getType(uri) ?: "image/jpeg"
                         )
                     }
                     selectedImage?.let { old ->
@@ -385,12 +383,28 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                 } finally {
                     bytes.fill(0)
                 }
+            } catch (failure: OutOfMemoryError) {
+                error = "This image is too large to preview safely. Choose a smaller photo."
             } catch (failure: Exception) {
                 error = failure.message ?: "Unable to attach image."
             }
         }
     }
 
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
+        if (uri != null) importReferenceImage(uri)
+    }
+    val imageFilePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) importReferenceImage(uri)
+    }
+    fun launchImagePicker() {
+        try {
+            imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        } catch (pickerError: Exception) {
+            runCatching { imageFilePicker.launch(arrayOf("image/*")) }
+                .onFailure { fallbackError -> error = "Unable to open image picker: ${fallbackError.message ?: pickerError.message ?: "unknown error"}" }
+        }
+    }
     val modelPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri != null) scope.launch {
             try {
@@ -821,7 +835,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                     horizontalArrangement = Arrangement.spacedBy(9.dp)
                 ) {
                     IconButton(
-                        onClick = { imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                        onClick = { launchImagePicker() },
                         modifier = Modifier.size(52.dp).clip(CircleShape).background(studioRaised)
                     ) {
                         Icon(Icons.Rounded.Add, "Attach a reference image", tint = studioText, modifier = Modifier.size(25.dp))
