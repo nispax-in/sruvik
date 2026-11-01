@@ -2,6 +2,8 @@ name: Build Sruvik Debug APK
 on:
   push:
     branches: [main, 'fix/**', 'feature/**', 'safety/**']
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
