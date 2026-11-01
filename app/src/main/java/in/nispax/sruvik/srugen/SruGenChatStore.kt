@@ -111,8 +111,25 @@ object SruGenChatStore {
      */
     @Synchronized
     fun upsertChat(context: Context, chat: SruGenChat) {
-        val latest = loadChats(context).filterNot { it.id == chat.id }
-        saveChats(context, (listOf(chat) + latest).sortedByDescending { it.updatedAt })
+        val current = loadChats(context)
+        val existing = current.firstOrNull { it.id == chat.id }
+        val merged = if (existing == null) {
+            chat
+        } else {
+            val messages = (existing.messages + chat.messages)
+                .distinctBy { it.id }
+                .sortedBy { it.createdAt }
+            val newest = if (chat.updatedAt >= existing.updatedAt) chat else existing
+            newest.copy(
+                updatedAt = maxOf(existing.updatedAt, chat.updatedAt),
+                messages = messages
+            )
+        }
+        saveChats(
+            context,
+            (listOf(merged) + current.filterNot { it.id == chat.id })
+                .sortedByDescending { it.updatedAt }
+        )
     }
 
     @Synchronized
