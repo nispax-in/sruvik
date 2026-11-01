@@ -48,7 +48,6 @@ jobs:
         with:
           api-level: 35
           arch: x86_64
-          profile: Pixel_2
           script: gradle --no-daemon :app:connectedDebugAndroidTest
       # Device-level Srukrypt instrumentation is tracked in a separate emulator run.
       - name: Run JVM regression tests
