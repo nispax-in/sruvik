@@ -74,6 +74,7 @@ object SruGenGalleryCatalog {
             approximateDownloadBytes = 2_050_000_000L,
             archiveMaxBytes = 2_200_000_000L,
             minAndroidApi = 26,
+            maxExtractedBytes = 5_000_000_000L,
             recommendedRamGb = 8,
             sourceUrl = "https://huggingface.co/na5h13/stable-diffusion-v1-5-mediapipe",
             licenseName = "CreativeML Open RAIL-M",
