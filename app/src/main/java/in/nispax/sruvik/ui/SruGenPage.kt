@@ -473,119 +473,23 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
         val generationPrompt = if (remembered.isBlank()) text else
             "Use the recent creative context only for style continuity. Follow the current prompt first.\nRecent creative context:\n$remembered\n\nCurrent prompt: $text"
 
-        generating = true
+        generating = SruGenGenerationSession.start(
+            context = context,
+            chatWithPrompt = updatedChat,
+            generationPrompt = generationPrompt,
+            modelId = activeModelId
+        )
         progress = 0
         progressLabel = "Preparing local model"
-        scope.launch {
-            try {
-                // Do not allocate the diffusion model until the user's prompt and
-                // any attachment references have been durably committed in encrypted
-                // app-private storage.
-                historySaveMutex.withLock {
-                    val latestSnapshot = chats
-                    withContext(Dispatchers.IO) {
-                        SruGenChatStore.saveChats(context, latestSnapshot)
-                    }
-                }
-                val result = withContext(Dispatchers.Default) {
-                    // Recreate a released engine lazily. Android may have asked
-                    // Sruvik to free native resources while the app was backgrounded.
-                    val engine = SruGenEngineRegistry.getOrCreate {
-                        SruGenEngineFactory.create(
-                            context.applicationContext,
-                            activeModelId
-                        )
-                    }
-                    engine.generate(
-                        SruGenRequest(
-                            mode = SruGenMode.TEXT_TO_IMAGE,
-                            prompt = generationPrompt,
-                            style = "Cinematic",
-                            aspectRatio = "1:1",
-                            sourceImage = null
-                        )
-                    ) { value, label ->
-                        progress = value.coerceIn(0, 100)
-                        progressLabel = label
-                    }
-                }
-                val imageId = withContext(Dispatchers.IO) {
-                    SruGenChatStore.saveAttachment(context, result.imageBytes, result.mimeType)
-                }
-                val previewBytes = result.imageBytes.copyOf()
-                result.imageBytes.fill(0)
-                val bitmap = withContext(Dispatchers.Default) {
-                    BitmapFactory.decodeByteArray(previewBytes, 0, previewBytes.size)
-                }
-                previewBytes.fill(0)
-                if (bitmap != null) thumbnails = thumbnails + (imageId to bitmap)
-                val newest = chats.firstOrNull { it.id == updatedChat.id } ?: updatedChat
-                persist(newest.copy(
-                    updatedAt = System.currentTimeMillis(),
-                    messages = newest.messages + SruGenMessage(
-                        role = "assistant",
-                        text = "Generated locally on this device. No prompt or image was uploaded.",
-                        attachmentId = imageId,
-                        attachmentMime = result.mimeType,
-                        modelName = result.modelName
-                    )
-                ))
-            } catch (failure: LinkageError) {
-                android.util.Log.e(
-                    "SruGen",
-                    "MediaPipe could not link a runtime dependency during image generation.",
-                    failure
+        if (!generating) {
+            persist(updatedChat.copy(
+                messages = updatedChat.messages + SruGenMessage(
+                    role = "assistant",
+                    text = "Another image is already being generated. Please wait for it to finish."
                 )
-                val failedEngine = SruGenEngineRegistry.engine
-                if (failedEngine != null) {
-                    failedEngine.requestStop()
-                    kotlinx.coroutines.CoroutineScope(
-                        kotlinx.coroutines.SupervisorJob() + Dispatchers.IO
-                    ).launch { runCatching { SruGenEngineRegistry.closeAndDetach(failedEngine) } }
-                }
-                val newest = chats.firstOrNull { it.id == activeId } ?: updatedChat
-                persist(newest.copy(
-                    updatedAt = System.currentTimeMillis(),
-                    messages = newest.messages + SruGenMessage(
-                        role = "assistant",
-                        text = "SruGen's image engine could not load a compatible Android runtime library. The failure was recorded locally instead of closing the app. Please update Sruvik; no prompt or image was uploaded."
-                    )
-                ))
-            } catch (failure: OutOfMemoryError) {
-                val failedEngine = SruGenEngineRegistry.engine
-                if (failedEngine != null) {
-                    failedEngine.requestStop()
-                    kotlinx.coroutines.CoroutineScope(
-                        kotlinx.coroutines.SupervisorJob() + Dispatchers.IO
-                    ).launch { runCatching { SruGenEngineRegistry.closeAndDetach(failedEngine) } }
-                }
-                System.gc()
-                val newest = chats.firstOrNull { it.id == activeId } ?: updatedChat
-                persist(newest.copy(
-                    updatedAt = System.currentTimeMillis(),
-                    messages = newest.messages + SruGenMessage(
-                        role = "assistant",
-                        text = "Android ran out of memory while loading Stable Diffusion. SruGen released the failed engine. Close other apps and retry; if this keeps happening, this phone may not have enough RAM for this model."
-                    )
-                ))
-                modelReady = SruGenEngineFactory.isInstalled(context, activeModelId)
-            } catch (failure: Exception) {
-                val newest = chats.firstOrNull { it.id == activeId } ?: updatedChat
-                persist(newest.copy(
-                    updatedAt = System.currentTimeMillis(),
-                    messages = newest.messages + SruGenMessage(
-                        role = "assistant",
-                        text = failure.message ?: "Local image generation failed."
-                    )
-                ))
-            } finally {
-                generating = false
-                progress = 0
-                progressLabel = ""
-            }
+            ))
         }
     }
-
     val studioInk = Color(0xFF0D0D0D)
     val studioPanel = Color(0xFF202020)
     val studioRaised = Color(0xFF2D2D2D)
