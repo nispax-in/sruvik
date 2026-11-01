@@ -32,6 +32,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.horizontalScroll
@@ -62,8 +63,6 @@ import `in`.nispax.sruvik.ui.theme.SruvikColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlin.math.cos
 import kotlin.math.sin
@@ -81,9 +80,6 @@ private data class SruGenResourceStats(
 fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    // Serialize encrypted-history commits and always write the newest snapshot.
-    val historySaveMutex = remember { Mutex() }
-
     var chats by remember { mutableStateOf<List<SruGenChat>>(emptyList()) }
     var draftChat by remember { mutableStateOf(SruGenChat(title = "New chat")) }
     var activeId by remember { mutableStateOf(draftChat.id) }
@@ -110,6 +106,8 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
     var deleteTarget by remember { mutableStateOf<SruGenChat?>(null) }
     var monitorExpanded by remember { mutableStateOf(false) }
     var resourceStats by remember { mutableStateOf(SruGenResourceStats()) }
+    val generationState by SruGenGenerationSession.state.collectAsState()
+    val messageListState = rememberLazyListState()
     val animatedGenerationProgress by animateFloatAsState(
         targetValue = progress.coerceIn(0, 100) / 100f,
         animationSpec = tween(220),
@@ -123,22 +121,17 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
 
     val activeChat = chats.firstOrNull { it.id == activeId } ?: draftChat.takeIf { it.id == activeId }
 
-    fun persist(chat: SruGenChat) {
-        // Empty drafts are UI state, never history. Attachments count once the user sends them.
+    fun stage(chat: SruGenChat) {
         if (chat.messages.none { it.role == "user" && (it.text.isNotBlank() || it.attachmentId != null) }) return
-        val updated = (listOf(chat) + chats.filterNot { it.id == chat.id })
+        chats = (listOf(chat) + chats.filterNot { it.id == chat.id })
             .sortedByDescending { it.updatedAt }
-        chats = updated
+    }
+
+    fun persist(chat: SruGenChat) {
+        stage(chat)
         scope.launch {
             runCatching {
-                historySaveMutex.withLock {
-                    // Read the latest UI snapshot only after acquiring the lock.
-                    // A delayed older save can therefore never overwrite newer messages.
-                    val latestSnapshot = chats
-                    withContext(Dispatchers.IO) {
-                        SruGenChatStore.saveChats(context, latestSnapshot)
-                    }
-                }
+                withContext(Dispatchers.IO) { SruGenChatStore.upsertChat(context, chat) }
             }.onFailure { error = "Could not save encrypted chat history: ${it.message}" }
         }
     }
@@ -401,7 +394,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
         val title = if (chat.messages.isEmpty()) text.take(42).ifBlank { "Image conversation" } else chat.title
         val updatedChat = chat.copy(title = title, updatedAt = System.currentTimeMillis(),
             messages = chat.messages + userMessage)
-        persist(updatedChat)
+        stage(updatedChat)
         prompt = ""
         selectedImage = null
         error = ""
