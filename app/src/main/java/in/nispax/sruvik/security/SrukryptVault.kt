@@ -154,17 +154,25 @@ object SrukryptVault {
             throw IllegalStateException("This vault uses a passphrase. Choose “Use passphrase” to unlock it.")
         }
         val existingMasterKey = hasMasterKey()
-        val masterKey = if (existingMasterKey) getMasterKey() else createMasterKey()
-        val allowedAuthenticators = if (existingMasterKey) {
-            authenticatorFlagsForKey(masterKey)
-        } else {
-            preferredAuthenticatorFlags(context)
+        val hasEntries = entryFiles(dir).isNotEmpty()
+
+        // Never mint a replacement Keystore key when ciphertext already exists.
+        // A fresh key cannot decrypt the old envelope; silently creating one makes
+        // a recoverable vault look like a new, empty vault and obscures the real error.
+        if (wrappedFile.exists() && !existingMasterKey) {
+            throw SecurityException(
+                "The original Srukrypt Keystore key is missing. No replacement key was created and your encrypted files were left untouched. Use your saved passphrase fallback if one was configured."
+            )
+        }
+        if (!wrappedFile.exists() && !hasPassphraseFallback(context) && hasEntries) {
+            throw SecurityException(
+                "The Srukrypt key envelope is missing. Existing encrypted files were left untouched; a new key was not created."
+            )
         }
 
         if (!wrappedFile.exists()) {
-            if (entryFiles(dir).isNotEmpty()) {
-                throw SecurityException("The Srukrypt key envelope is missing. Existing vault data cannot be safely recovered.")
-            }
+            val masterKey = if (existingMasterKey) getMasterKey() else createMasterKey()
+            val allowedAuthenticators = authenticatorFlagsForKey(masterKey)
             val dataKey = ByteArray(32).also { SecureRandom().nextBytes(it) }
             return try {
                 val cipher = Cipher.getInstance("AES/GCM/NoPadding")
@@ -177,6 +185,8 @@ object SrukryptVault {
             }
         }
 
+        val masterKey = getMasterKey()
+        val allowedAuthenticators = authenticatorFlagsForKey(masterKey)
         val envelope = readEnvelope(wrappedFile, WRAP_MAGIC)
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.DECRYPT_MODE, masterKey, GCMParameterSpec(TAG_BITS, envelope.first))

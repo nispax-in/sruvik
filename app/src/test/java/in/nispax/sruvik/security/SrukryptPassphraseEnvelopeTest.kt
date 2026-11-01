@@ -49,6 +49,30 @@ class SrukryptPassphraseEnvelopeTest {
     }
 
     @Test
+    fun invalidReplacementLeavesPreviousEnvelopeUsable() {
+        val file = File(temporaryFolder.root, "passphrase.wrap")
+        val originalKey = ByteArray(32).also { SecureRandom().nextBytes(it) }
+        val originalPassphrase = "original safe passphrase".toCharArray()
+        SrukryptPassphraseEnvelope.write(file, originalKey, originalPassphrase)
+        val before = Files.readAllBytes(file.toPath())
+
+        try {
+            SrukryptPassphraseEnvelope.write(file, originalKey, "short".toCharArray())
+            fail("A short passphrase must be rejected.")
+        } catch (expected: IllegalArgumentException) {
+            // Rejected before any temporary file can replace the working envelope.
+        }
+
+        assertArrayEquals(before, Files.readAllBytes(file.toPath()))
+        val recovered = SrukryptPassphraseEnvelope.read(file, originalPassphrase)
+        assertArrayEquals(originalKey, recovered)
+        assertTrue(temporaryFolder.root.listFiles().orEmpty().none { it.name.endsWith(".tmp") })
+        originalKey.fill(0)
+        recovered.fill(0)
+        originalPassphrase.fill('\u0000')
+    }
+
+    @Test
     fun wrongPassphraseFailsWithoutChangingEnvelope() {
         val file = File(temporaryFolder.root, "passphrase.wrap")
         val key = ByteArray(32).also { SecureRandom().nextBytes(it) }

@@ -102,6 +102,10 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
     var installMessage by remember { mutableStateOf("") }
     var showInstallDialog by remember { mutableStateOf(false) }
     var historyOpen by remember { mutableStateOf(false) }
+    // Reopening this destination after a tab switch should follow an in-flight
+    // generation until its chat is restored. Explicit history/new-chat navigation
+    // opts out so the user is never forcibly pulled away from another conversation.
+    var followGenerationChat by remember { mutableStateOf(true) }
     var renameTarget by remember { mutableStateOf<SruGenChat?>(null) }
     var renameText by remember { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<SruGenChat?>(null) }
@@ -138,6 +142,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
     }
 
     fun newChat() {
+        followGenerationChat = false
         // Start a volatile draft. It only enters encrypted history after the first user message.
         val draft = SruGenChat(title = "New chat")
         draftChat = draft
@@ -261,20 +266,47 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
         downloadId = SruGenModelInstaller.savedDownloadId(context)
     }
 
-    LaunchedEffect(generationState.status, generationState.chatId, generationState.updatedAt, activeId) {
-        generating = generationState.status == SruGenGenerationStatus.RUNNING && generationState.chatId == activeId
+    LaunchedEffect(
+        generationState.status,
+        generationState.chatId,
+        generationState.updatedAt,
+        activeId,
+        followGenerationChat
+    ) {
+        val generationChatId = generationState.chatId
+        generating = generationState.status == SruGenGenerationStatus.RUNNING &&
+            generationChatId == activeId
         if (generating) {
             progress = generationState.progress
             progressLabel = generationState.progressLabel
         }
-        if (generationState.status == SruGenGenerationStatus.COMPLETED ||
-            generationState.status == SruGenGenerationStatus.FAILED
-        ) {
-            progress = 0
-            progressLabel = ""
-            chats = withContext(Dispatchers.IO) { SruGenChatStore.loadChats(context) }
-            if (generationState.chatId == activeId) info = generationState.message
-            generating = false
+
+        // The session writes the prompt asynchronously before model loading. If
+        // the user returns to SruGen during that small window, the first history
+        // read can legitimately be empty. Re-read when the app-scoped session
+        // advances and attach the restored screen to the owning conversation.
+        val shouldRefreshRunningChat =
+            generationState.status == SruGenGenerationStatus.RUNNING &&
+                followGenerationChat &&
+                !generationChatId.isNullOrBlank() &&
+                activeId != generationChatId
+        val generationFinished =
+            generationState.status == SruGenGenerationStatus.COMPLETED ||
+                generationState.status == SruGenGenerationStatus.FAILED
+        if (shouldRefreshRunningChat || generationFinished) {
+            val refreshed = withContext(Dispatchers.IO) { SruGenChatStore.loadChats(context) }
+            chats = refreshed
+            if (followGenerationChat && !generationChatId.isNullOrBlank() &&
+                refreshed.any { it.id == generationChatId }
+            ) {
+                activeId = generationChatId
+            }
+            if (generationFinished) {
+                progress = 0
+                progressLabel = ""
+                if (generationChatId == activeId) info = generationState.message
+                generating = false
+            }
         }
     }
     LaunchedEffect(downloadId) {
@@ -560,7 +592,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
             Modifier.fillMaxSize()
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .padding(horizontal = 18.dp)
-                .padding(top = 10.dp, bottom = 104.dp)
+                .padding(top = 8.dp, bottom = 90.dp)
                 .imePadding()
         ) {
             Row(
@@ -578,9 +610,9 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                     "SruGen",
                     modifier = Modifier.weight(1f),
                     color = studioText,
-                    style = MaterialTheme.typography.displayMedium.copy(
-                        fontSize = 36.sp,
-                        lineHeight = 42.sp,
+                    style = MaterialTheme.typography.headlineLarge.copy(
+                        fontSize = 29.sp,
+                        lineHeight = 34.sp,
                         fontWeight = FontWeight.SemiBold,
                         letterSpacing = (-1.2).sp
                     )
@@ -951,7 +983,12 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                         Row(
                             Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp))
                                 .background(if (item.id == activeId) Color(0xFF3A3568) else Color.Transparent)
-                                .clickable { activeId = item.id; selectedImage = null; historyOpen = false }
+                                .clickable {
+                                    followGenerationChat = false
+                                    activeId = item.id
+                                    selectedImage = null
+                                    historyOpen = false
+                                }
                                 .padding(start = 10.dp, end = 2.dp, top = 7.dp, bottom = 7.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
