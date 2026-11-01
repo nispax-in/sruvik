@@ -21,6 +21,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -42,6 +46,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -58,6 +64,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlin.math.cos
+import kotlin.math.sin
 import java.io.ByteArrayOutputStream
 import java.io.File
 
@@ -584,96 +592,112 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
         }
     }
 
-    Box(Modifier.fillMaxSize().background(SruvikColors.Background)) {
-        Box(
-            Modifier.fillMaxWidth().height(430.dp).align(Alignment.TopCenter)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color(0xFF29234F).copy(alpha = .68f), Color(0xFF171B35).copy(alpha = .34f), Color.Transparent)
+    val studioInk = Color(0xFF0D0D0D)
+    val studioPanel = Color(0xFF202020)
+    val studioRaised = Color(0xFF2D2D2D)
+    val studioAccent = Color(0xFFE47F5D)
+    val studioText = Color(0xFFF4F2EF)
+    val studioSecondary = Color(0xFFBDB9B5)
+
+    Box(Modifier.fillMaxSize().background(studioInk)) {
+        Column(
+            Modifier.fillMaxSize()
+                .padding(horizontal = 18.dp)
+                .padding(top = 10.dp, bottom = 104.dp)
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(9.dp)
+            ) {
+                IconButton(
+                    onClick = { historyOpen = true },
+                    modifier = Modifier.size(50.dp).clip(CircleShape).background(studioRaised)
+                ) {
+                    Icon(Icons.Rounded.Menu, "Open conversation history", tint = studioText, modifier = Modifier.size(25.dp))
+                }
+                Text(
+                    "SruGen",
+                    modifier = Modifier.weight(1f),
+                    color = studioText,
+                    style = MaterialTheme.typography.displayMedium.copy(
+                        fontSize = 36.sp,
+                        lineHeight = 42.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = (-1.2).sp
                     )
                 )
-        )
-        Column(
-            Modifier.fillMaxSize().padding(horizontal = 17.dp).padding(top = 13.dp, bottom = 104.dp),
-            verticalArrangement = Arrangement.spacedBy(0.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                    Text(
-                        "SRUVIK  /  CREATIVE STUDIO",
-                        color = SruvikColors.LimeMuted,
-                        style = MaterialTheme.typography.labelSmall,
-                        letterSpacing = 1.8.sp
-                    )
-                    Text(
-                        "SruGen",
-                        color = SruvikColors.TextPrimary,
-                        style = MaterialTheme.typography.displayLarge.copy(
-                            fontSize = 42.sp,
-                            lineHeight = 46.sp,
-                            letterSpacing = (-1.4).sp
-                        )
-                    )
-                }
-                Surface(
+                FilledTonalButton(
                     onClick = { historyOpen = true },
-                    color = Color.White.copy(alpha = .07f),
-                    shape = RoundedCornerShape(18.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .13f))
+                    modifier = Modifier.height(50.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = studioRaised,
+                        contentColor = studioText
+                    ),
+                    contentPadding = PaddingValues(horizontal = 13.dp)
                 ) {
-                    Row(Modifier.padding(horizontal = 11.dp, vertical = 9.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Icon(Icons.Rounded.History, null, tint = SruvikColors.TextSecondary, modifier = Modifier.size(17.dp))
-                        Text("HISTORY", color = SruvikColors.TextSecondary, letterSpacing = .8.sp, fontSize = 10.sp)
-                    }
+                    Icon(Icons.Rounded.History, null, modifier = Modifier.size(19.dp))
+                    Spacer(Modifier.width(7.dp))
+                    Text("History", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 }
-                Spacer(Modifier.width(7.dp))
-                Surface(
+                Button(
                     onClick = { newChat() },
-                    color = SruvikColors.Lime.copy(alpha = .16f),
-                    shape = RoundedCornerShape(18.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, SruvikColors.Lime.copy(alpha = .32f))
+                    modifier = Modifier.height(50.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = studioAccent,
+                        contentColor = Color(0xFF1A100D)
+                    ),
+                    contentPadding = PaddingValues(horizontal = 15.dp)
                 ) {
-                    Text("+ NEW", Modifier.padding(horizontal = 11.dp, vertical = 10.dp),
-                        color = SruvikColors.Lime, letterSpacing = .8.sp, fontSize = 10.sp)
+                    Icon(Icons.Rounded.Add, null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("New", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(14.dp))
+
             Row(
                 Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(9.dp)
             ) {
-                Surface(
-                    color = if (modelReady) Color(0xFF62C69B).copy(alpha = .15f) else Color(0xFFFFBE79).copy(alpha = .13f),
-                    shape = RoundedCornerShape(30.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .10f))
+                OutlinedButton(
+                    onClick = onOpenModels,
+                    modifier = Modifier.weight(1f).height(54.dp),
+                    shape = RoundedCornerShape(17.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .20f)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = studioText),
+                    contentPadding = PaddingValues(horizontal = 15.dp)
                 ) {
-                    Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Box(Modifier.size(6.dp).clip(CircleShape)
-                            .background(if (modelReady) Color(0xFF7DE0BC) else Color(0xFFFFC98F)))
+                    Icon(Icons.Rounded.AutoAwesome, null, tint = studioAccent, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
                         Text(
-                            if (modelReady) "${activeModel?.name ?: "MODEL"}  /  ON DEVICE" else "${activeModel?.name ?: "LOCAL ENGINE"}  /  NOT INSTALLED",
-                            color = if (modelReady) Color(0xFF9AE9CC) else Color(0xFFFFC98F),
-                            style = MaterialTheme.typography.labelSmall,
-                            letterSpacing = .8.sp
+                            activeModel?.name ?: "Choose an image model",
+                            color = studioText,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1
+                        )
+                        Text(
+                            if (modelReady) "Ready on this device" else "Tap to browse and install",
+                            color = studioSecondary,
+                            fontSize = 13.sp,
+                            maxLines = 1
                         )
                     }
+                    Icon(Icons.Rounded.ChevronRight, null, tint = studioSecondary, modifier = Modifier.size(21.dp))
                 }
-                Spacer(Modifier.weight(1f))
-                Text(
-                    "PROCESS  ${resourceStats.pss} MB",
-                    Modifier.clickable { monitorExpanded = !monitorExpanded }
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color.White.copy(alpha = .06f))
-                        .padding(horizontal = 10.dp, vertical = 7.dp),
-                    color = SruvikColors.TextMuted,
-                    style = MaterialTheme.typography.labelSmall,
-                    letterSpacing = .4.sp
-                )
+                IconButton(
+                    onClick = { monitorExpanded = !monitorExpanded },
+                    modifier = Modifier.size(54.dp).clip(RoundedCornerShape(17.dp))
+                        .background(studioRaised)
+                ) {
+                    Icon(Icons.Rounded.Tune, "Device performance", tint = studioText, modifier = Modifier.size(23.dp))
+                }
             }
 
             AnimatedVisibility(
@@ -681,58 +705,48 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                 enter = fadeIn(tween(180)) + expandVertically(tween(180)),
                 exit = fadeOut(tween(130)) + shrinkVertically(tween(130))
             ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                Column(
+                    Modifier.fillMaxWidth().padding(top = 10.dp)
+                        .clip(RoundedCornerShape(15.dp))
+                        .background(studioPanel)
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
-                    Text("CPU ${String.format("%.1f", resourceStats.cpu)}%", color = Color(0xFFB7BDA8), style = MaterialTheme.typography.labelSmall)
-                    Text("HEAP ${resourceStats.heap} MB", color = Color(0xFFB7BDA8), style = MaterialTheme.typography.labelSmall)
-                    Text("FREE ${resourceStats.available} MB", color = Color(0xFFB7BDA8), style = MaterialTheme.typography.labelSmall)
+                    Text("DEVICE PERFORMANCE", color = studioText, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        "CPU  ${String.format("%.1f", resourceStats.cpu)}%     MEMORY  ${resourceStats.pss} MB     FREE RAM  ${resourceStats.available} MB",
+                        color = studioSecondary,
+                        fontSize = 13.sp
+                    )
                 }
             }
-            Box(Modifier.fillMaxWidth().height(1.dp).background(SruvikColors.Border))
-            SruGenModelRoadmap(modelReady, activeModelId)
+
             AnimatedVisibility(
-                visible = !modelReady && activeModelId == "sd15-mediapipe",
-                enter = fadeIn(tween(220)) + expandVertically(tween(220)),
-                exit = fadeOut(tween(160)) + shrinkVertically(tween(160))
+                visible = !modelReady,
+                enter = fadeIn(tween(180)) + expandVertically(tween(180)),
+                exit = fadeOut(tween(130)) + shrinkVertically(tween(130))
             ) {
-                SruGenGlassPanel(
-                    Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(22.dp),
-                    fill = Brush.linearGradient(listOf(Color(0xB9342D69), Color(0xB51D294A), Color(0xCC171D35)))
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Image(
-                            painter = painterResource(R.drawable.sruvik_glass_art),
-                            contentDescription = "Sruvik abstract artwork",
-                            modifier = Modifier.size(width = 74.dp, height = 72.dp).clip(RoundedCornerShape(15.dp)),
-                            contentScale = ContentScale.Crop
+                    Text(
+                        "An image model is needed before you can create.",
+                        Modifier.weight(1f),
+                        color = studioSecondary,
+                        fontSize = 14.sp
+                    )
+                    Button(
+                        onClick = onOpenModels,
+                        modifier = Modifier.height(46.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = studioAccent,
+                            contentColor = Color(0xFF1A100D)
                         )
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Text("YOUR LOCAL IMAGE ENGINE", color = SruvikColors.LimeMuted,
-                                style = MaterialTheme.typography.labelSmall, letterSpacing = .9.sp)
-                            Text("Bring SruGen to life", color = SruvikColors.TextPrimary,
-                                style = MaterialTheme.typography.titleMedium)
-                            Text("SD 1.5 · 1.9 GiB · guarded local inference",
-                                color = SruvikColors.TextSecondary, style = MaterialTheme.typography.labelSmall)
-                        }
-                        Button(
-                            onClick = onOpenModels,
-                            enabled = !installing && downloadId < 0L,
-                            shape = RoundedCornerShape(15.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = SruvikColors.Lime,
-                                contentColor = Color(0xFF17152B)
-                            ),
-                            contentPadding = PaddingValues(horizontal = 11.dp, vertical = 8.dp)
-                        ) {
-                            Text("OPEN LIBRARY", fontSize = 10.sp, letterSpacing = .7.sp)
-                        }
+                    ) {
+                        Text("Browse models", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -742,33 +756,37 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                 enter = fadeIn(tween(180)) + expandVertically(tween(180)),
                 exit = fadeOut(tween(130)) + shrinkVertically(tween(130))
             ) {
-                SruGenGlassPanel(
-                    Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp),
-                    fill = Brush.linearGradient(listOf(Color(0xAA2B2954), Color(0xAA18233C)))
+                Column(
+                    Modifier.fillMaxWidth().padding(top = 10.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(studioPanel)
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(9.dp)
                 ) {
-                    Column(Modifier.fillMaxWidth().padding(13.dp),
-                        verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                        Text(
-                            if (installing) installMessage else "DOWNLOADING MODEL  /  $downloadPercent%",
-                            color = SruvikColors.Lime,
-                            style = MaterialTheme.typography.labelSmall,
-                            letterSpacing = .9.sp
-                        )
-                        LinearProgressIndicator(
-                            progress = { animatedDownloadProgress },
-                            modifier = Modifier.fillMaxWidth(),
-                            color = SruvikColors.Lime,
-                            trackColor = Color.White.copy(alpha = .12f)
-                        )
-                        if (downloadId >= 0L) {
-                            TextButton(onClick = {
+                    Text(
+                        if (installing) installMessage else "Downloading model · $downloadPercent%",
+                        color = studioText,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    LinearProgressIndicator(
+                        progress = { animatedDownloadProgress },
+                        modifier = Modifier.fillMaxWidth(),
+                        color = studioAccent,
+                        trackColor = Color.White.copy(alpha = .14f)
+                    )
+                    if (downloadId >= 0L) {
+                        OutlinedButton(
+                            onClick = {
                                 (context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).remove(downloadId)
                                 SruGenModelInstaller.clearDownloadId(context)
                                 downloadId = -1L
                                 info = "Model download cancelled."
-                            }) { Text("CANCEL DOWNLOAD", color = SruvikColors.TextSecondary, fontSize = 10.sp) }
-                        }
+                            },
+                            modifier = Modifier.height(44.dp),
+                            shape = RoundedCornerShape(13.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = studioText)
+                        ) { Text("Cancel download", fontSize = 14.sp) }
                     }
                 }
             }
@@ -776,58 +794,40 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
             activeChat?.let { chat ->
                 LazyColumn(
                     Modifier.weight(1f).fillMaxWidth(),
-                    contentPadding = PaddingValues(top = 15.dp, bottom = 18.dp),
-                    verticalArrangement = Arrangement.spacedBy(15.dp)
+                    contentPadding = PaddingValues(top = 12.dp, bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     if (chat.messages.isEmpty()) {
                         item {
                             Column(
-                                Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 20.dp),
-                                verticalArrangement = Arrangement.spacedBy(13.dp)
+                                Modifier.fillParentMaxSize().padding(horizontal = 8.dp, vertical = 12.dp),
+                                verticalArrangement = Arrangement.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                SruGenHeroArtwork(
-                                    artRes = R.drawable.sruvik_city_art,
-                                    eyebrow = "01  /  LOCAL IMAGE STUDIO",
-                                    title = "Imagine\nbeyond the ordinary.",
-                                    subtitle = "Describe a world. SruGen builds it privately on this device."
+                                SruGenCreativeSpark()
+                                Spacer(Modifier.height(27.dp))
+                                Text(
+                                    "Let's make something.",
+                                    color = studioText,
+                                    fontSize = 32.sp,
+                                    lineHeight = 38.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                 )
-                                Row(
-                                    Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text("EXPLORE A STARTING POINT", color = SruvikColors.LimeMuted,
-                                        style = MaterialTheme.typography.labelSmall, letterSpacing = 1.sp)
-                                    Spacer(Modifier.weight(1f))
-                                    Text("TAP TO USE", color = SruvikColors.TextMuted,
-                                        style = MaterialTheme.typography.labelSmall, letterSpacing = .7.sp)
-                                }
-                                Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                                    SruGenArtworkSuggestion(
-                                        Modifier.weight(1f),
-                                        R.drawable.sruvik_city_art,
-                                        "Dreamscape",
-                                        "A quiet city after monsoon",
-                                        onClick = {
-                                            prompt = "A quiet city after the monsoon, wet laterite streets, warm windows, cinematic natural light"
-                                        }
-                                    )
-                                    SruGenArtworkSuggestion(
-                                        Modifier.weight(1f),
-                                        R.drawable.sruvik_glass_art,
-                                        "Fluid forms",
-                                        "A machine grown like a plant",
-                                        onClick = {
-                                            prompt = "An intricate machine grown like a plant, organic metal, botanical forms, tactile editorial photography"
-                                        }
-                                    )
-                                    SruGenArtworkSuggestion(
-                                        Modifier.weight(1f),
-                                        R.drawable.sruvik_alpine_art,
-                                        "Elsewhere",
-                                        "A place that never existed",
-                                        onClick = {
-                                            prompt = "A nostalgic photograph of a place that never existed, imperfect film grain, soft afternoon light"
-                                        }
+                                Spacer(Modifier.height(9.dp))
+                                Text(
+                                    "Describe what you're imagining.",
+                                    color = studioSecondary,
+                                    fontSize = 17.sp,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                                if (!modelReady) {
+                                    Spacer(Modifier.height(22.dp))
+                                    Text(
+                                        "Choose a compatible model to get started.",
+                                        color = studioSecondary,
+                                        fontSize = 15.sp,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                     )
                                 }
                             }
@@ -839,20 +839,29 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                     if (generating) {
                         item {
                             Row(
-                                Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                                Modifier.fillMaxWidth().padding(vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = SruvikColors.Lime)
-                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                                    Text("RENDERING LOCALLY  /  $progress%", color = SruvikColors.Lime, style = MaterialTheme.typography.labelSmall, letterSpacing = .8.sp)
+                                CircularProgressIndicator(
+                                    Modifier.size(24.dp),
+                                    strokeWidth = 3.dp,
+                                    color = studioAccent
+                                )
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                                    Text(
+                                        "Creating your image · $progress%",
+                                        color = studioText,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
                                     LinearProgressIndicator(
                                         progress = { animatedGenerationProgress },
                                         modifier = Modifier.fillMaxWidth(),
-                                        color = SruvikColors.Lime,
-                                        trackColor = SruvikColors.Border
+                                        color = studioAccent,
+                                        trackColor = studioRaised
                                     )
-                                    Text(progressLabel, color = SruvikColors.TextSecondary, style = MaterialTheme.typography.labelSmall)
+                                    Text(progressLabel, color = studioSecondary, fontSize = 14.sp)
                                 }
                             }
                         }
@@ -865,125 +874,186 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                 enter = fadeIn(tween(180)) + expandVertically(tween(180)),
                 exit = fadeOut(tween(130)) + shrinkVertically(tween(130))
             ) {
-                Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.Top) {
-                    Box(Modifier.width(3.dp).height(24.dp).background(Color(0xFFD47C64)))
-                    Spacer(Modifier.width(8.dp))
-                    Text(error, color = Color(0xFFF0A28E), style = MaterialTheme.typography.bodySmall)
-                }
+                Text(
+                    error,
+                    Modifier.fillMaxWidth().padding(vertical = 7.dp),
+                    color = Color(0xFFFFA38E),
+                    fontSize = 15.sp,
+                    lineHeight = 21.sp
+                )
             }
             AnimatedVisibility(
                 visible = info.isNotBlank(),
                 enter = fadeIn(tween(180)) + expandVertically(tween(180)),
                 exit = fadeOut(tween(130)) + shrinkVertically(tween(130))
             ) {
-                if (info.isNotBlank()) {
-                    Text(info, Modifier.fillMaxWidth().padding(vertical = 4.dp), color = Color(0xFFADB99A), style = MaterialTheme.typography.bodySmall)
-                }
+                Text(
+                    info,
+                    Modifier.fillMaxWidth().padding(vertical = 7.dp),
+                    color = Color(0xFFBFD7C8),
+                    fontSize = 15.sp,
+                    lineHeight = 21.sp
+                )
             }
 
-            SruGenGlassPanel(
-                Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(25.dp),
-                fill = Brush.linearGradient(listOf(Color(0xE52B2851), Color(0xE51B2540), Color(0xEC151A31)))
-            ) {
             Column(
-                Modifier.fillMaxWidth().animateContentSize()
-                    .padding(horizontal = 13.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(25.dp))
+                    .background(studioPanel)
+                    .border(1.dp, Color.White.copy(alpha = .16f), RoundedCornerShape(25.dp))
+                    .padding(horizontal = 14.dp, vertical = 13.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(15.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
                 ) {
-                    StudioModeControl("CREATE", mode == SruGenMode.TEXT_TO_IMAGE) { mode = SruGenMode.TEXT_TO_IMAGE }
-                    StudioModeControl("EDIT", mode == SruGenMode.PROMPT_EDIT) { mode = SruGenMode.PROMPT_EDIT }
-                    StudioModeControl("CUT OUT", mode == SruGenMode.REMOVE_BACKGROUND) { mode = SruGenMode.REMOVE_BACKGROUND }
-                    StudioModeControl("ERASE", mode == SruGenMode.REMOVE_OBJECT) { mode = SruGenMode.REMOVE_OBJECT }
+                    val modeButtonShape = RoundedCornerShape(13.dp)
+                    Button(
+                        onClick = { mode = SruGenMode.TEXT_TO_IMAGE },
+                        modifier = Modifier.weight(1f).height(46.dp),
+                        shape = modeButtonShape,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (mode == SruGenMode.TEXT_TO_IMAGE) studioAccent else studioRaised,
+                            contentColor = if (mode == SruGenMode.TEXT_TO_IMAGE) Color(0xFF1A100D) else studioText
+                        ),
+                        contentPadding = PaddingValues(horizontal = 3.dp)
+                    ) { Text("Create", fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
+                    Button(
+                        onClick = { mode = SruGenMode.PROMPT_EDIT },
+                        modifier = Modifier.weight(1f).height(46.dp),
+                        shape = modeButtonShape,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (mode == SruGenMode.PROMPT_EDIT) studioAccent else studioRaised,
+                            contentColor = if (mode == SruGenMode.PROMPT_EDIT) Color(0xFF1A100D) else studioText
+                        ),
+                        contentPadding = PaddingValues(horizontal = 3.dp)
+                    ) { Text("Edit", fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
+                    Button(
+                        onClick = { mode = SruGenMode.REMOVE_BACKGROUND },
+                        modifier = Modifier.weight(1f).height(46.dp),
+                        shape = modeButtonShape,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (mode == SruGenMode.REMOVE_BACKGROUND) studioAccent else studioRaised,
+                            contentColor = if (mode == SruGenMode.REMOVE_BACKGROUND) Color(0xFF1A100D) else studioText
+                        ),
+                        contentPadding = PaddingValues(horizontal = 3.dp)
+                    ) { Text("Cut out", fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
+                    Button(
+                        onClick = { mode = SruGenMode.REMOVE_OBJECT },
+                        modifier = Modifier.weight(1f).height(46.dp),
+                        shape = modeButtonShape,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (mode == SruGenMode.REMOVE_OBJECT) studioAccent else studioRaised,
+                            contentColor = if (mode == SruGenMode.REMOVE_OBJECT) Color(0xFF1A100D) else studioText
+                        ),
+                        contentPadding = PaddingValues(horizontal = 3.dp)
+                    ) { Text("Erase", fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
                 }
+
                 selectedImage?.let { id ->
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
                         thumbnails[id]?.let { bitmap ->
                             Image(
                                 bitmap.asImageBitmap(),
                                 "Attached reference image",
-                                Modifier.width(54.dp).height(54.dp),
-                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                Modifier.size(60.dp).clip(RoundedCornerShape(13.dp)),
+                                contentScale = ContentScale.Crop
                             )
                         }
-                        Spacer(Modifier.width(10.dp))
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text("REFERENCE / ENCRYPTED", color = SruvikColors.Lime, style = MaterialTheme.typography.labelSmall, letterSpacing = .7.sp)
-                            Text("Stored locally with this draft until sent", color = SruvikColors.TextSecondary, style = MaterialTheme.typography.labelSmall)
-                        }
-                        IconButton(onClick = {
-                            selectedImage = null
-                            SruGenChatStore.deleteAttachment(context, id)
-                            thumbnails[id]?.takeIf { !it.isRecycled }?.recycle()
-                            thumbnails = thumbnails - id
-                        }, modifier = Modifier.size(34.dp)) {
-                            Icon(Icons.Rounded.Close, "Remove image", tint = SruvikColors.TextSecondary)
+                        Text(
+                            "Image attached",
+                            Modifier.weight(1f),
+                            color = studioText,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        IconButton(
+                            onClick = {
+                                selectedImage = null
+                                SruGenChatStore.deleteAttachment(context, id)
+                                thumbnails[id]?.takeIf { !it.isRecycled }?.recycle()
+                                thumbnails = thumbnails - id
+                            },
+                            modifier = Modifier.size(46.dp).clip(CircleShape).background(studioRaised)
+                        ) {
+                            Icon(Icons.Rounded.Close, "Remove image", tint = studioText, modifier = Modifier.size(22.dp))
                         }
                     }
                 }
+
                 BasicTextField(
                     value = prompt,
                     onValueChange = { prompt = it.take(1800) },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 66.dp, max = 126.dp).padding(vertical = 5.dp),
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = SruvikColors.TextPrimary, lineHeight = 23.sp),
-                    cursorBrush = SolidColor(SruvikColors.Lime),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 62.dp, max = 116.dp)
+                        .padding(vertical = 4.dp),
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(
+                        color = studioText,
+                        fontSize = 18.sp,
+                        lineHeight = 25.sp
+                    ),
+                    cursorBrush = SolidColor(studioAccent),
                     decorationBox = { innerTextField ->
                         Box(Modifier.fillMaxWidth()) {
                             if (prompt.isBlank()) {
                                 Text(
-                                    "Describe what you can see in your head…",
-                                    color = SruvikColors.TextMuted,
-                                    style = MaterialTheme.typography.bodyLarge
+                                    when (mode) {
+                                        SruGenMode.TEXT_TO_IMAGE -> "Describe what you want to create…"
+                                        SruGenMode.PROMPT_EDIT -> "Describe how to change the image…"
+                                        SruGenMode.REMOVE_BACKGROUND -> "Describe the subject to keep…"
+                                        SruGenMode.REMOVE_OBJECT -> "Describe what to remove…"
+                                    },
+                                    color = Color(0xFFAAA6A2),
+                                    fontSize = 18.sp,
+                                    lineHeight = 25.sp
                                 )
                             }
                             innerTextField()
                         }
                     }
                 )
-                Box(Modifier.fillMaxWidth().height(1.dp).background(SruvikColors.Border))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(
+
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(9.dp)
+                ) {
+                    OutlinedButton(
                         onClick = {
                             imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                         },
-                        contentPadding = PaddingValues(horizontal = 2.dp, vertical = 4.dp)
+                        modifier = Modifier.weight(1f).height(52.dp),
+                        shape = RoundedCornerShape(15.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .18f)),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = studioText),
+                        contentPadding = PaddingValues(horizontal = 10.dp)
                     ) {
-                        Icon(Icons.Rounded.AddPhotoAlternate, null, tint = SruvikColors.TextSecondary, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("ADD IMAGE", color = SruvikColors.TextSecondary, fontSize = 10.sp, letterSpacing = .8.sp)
+                        Icon(Icons.Rounded.AddPhotoAlternate, null, modifier = Modifier.size(21.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Add image", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     }
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        if (memoryEnabled) "MEMORY / ON" else "MEMORY / OFF",
-                        color = SruvikColors.LimeMuted,
-                        style = MaterialTheme.typography.labelSmall,
-                        letterSpacing = .6.sp
-                    )
-                    Spacer(Modifier.width(10.dp))
                     Button(
                         onClick = { sendMessage() },
                         enabled = !generating && (prompt.isNotBlank() || selectedImage != null),
-                        modifier = Modifier.height(44.dp),
-                        shape = RoundedCornerShape(4.dp),
+                        modifier = Modifier.weight(1.15f).height(52.dp),
+                        shape = RoundedCornerShape(15.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = SruvikColors.Lime,
-                            contentColor = Color(0xFF182015),
-                            disabledContainerColor = SruvikColors.SurfaceSoft,
-                            disabledContentColor = SruvikColors.TextMuted
+                            containerColor = studioAccent,
+                            contentColor = Color(0xFF1A100D),
+                            disabledContainerColor = Color(0xFF45413F),
+                            disabledContentColor = Color(0xFF96918D)
                         ),
-                        contentPadding = PaddingValues(horizontal = 17.dp, vertical = 8.dp)
+                        contentPadding = PaddingValues(horizontal = 12.dp)
                     ) {
-                        Text("RENDER", fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
-                        Spacer(Modifier.width(5.dp))
-                        Icon(Icons.Rounded.ArrowUpward, null, modifier = Modifier.size(16.dp))
+                        Text("Create", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.width(8.dp))
+                        Icon(Icons.Rounded.ArrowUpward, null, modifier = Modifier.size(20.dp))
                     }
                 }
-            }
             }
         }
     }
@@ -1119,57 +1189,41 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
 
 
 @Composable
-private fun SruGenModelRoadmap(modelReady: Boolean, activeModelId: String) {
-    val models = SruGenGalleryCatalog.models
-    SruGenGlassPanel(
-        Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        fill = Brush.linearGradient(listOf(Color(0xAA27284D), Color(0xAA19243D)))
-    ) {
-        Column(
-            Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 11.dp),
-            verticalArrangement = Arrangement.spacedBy(7.dp)
-        ) {
-            Text(
-                "MODEL CATALOG  /  VERIFIED PACKS ONLY",
-                color = SruvikColors.LimeMuted,
-                style = MaterialTheme.typography.labelSmall,
-                letterSpacing = .9.sp
+private fun SruGenCreativeSpark() {
+    val motion = rememberInfiniteTransition(label = "srugen-creative-spark")
+    val rotation by motion.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 9000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "srugen-spark-rotation"
+    )
+    androidx.compose.foundation.Canvas(Modifier.size(96.dp)) {
+        val centerX = size.width / 2f
+        val centerY = size.height / 2f
+        val inner = size.minDimension * .13f
+        for (index in 0 until 12) {
+            val radians = Math.toRadians(index * 30.0 + rotation.toDouble())
+            val outer = size.minDimension * if (index % 3 == 0) .46f else .37f
+            val start = Offset(
+                centerX + cos(radians).toFloat() * inner,
+                centerY + sin(radians).toFloat() * inner
             )
-            models.forEach { model ->
-                val ready = model.canInstall
-                val active = model.id == activeModelId && modelReady
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(
-                            "${model.name} · ${model.runtime}",
-                            color = SruvikColors.TextPrimary,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            model.description,
-                            color = SruvikColors.TextMuted,
-                            style = MaterialTheme.typography.labelSmall,
-                            lineHeight = 15.sp
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        when { active -> "ACTIVE"; ready -> "AVAILABLE"; else -> "LOCKED" },
-                        color = if (active || ready) Color(0xFF9AE9CC) else Color(0xFFFFC98F),
-                        style = MaterialTheme.typography.labelSmall,
-                        letterSpacing = .5.sp
-                    )
-                }
-            }
-            Text(
-                "Explore the full Model Library to read each model profile, review its source and licence, and install only packs that pass Sruvik's device and integrity checks.",
-                color = SruvikColors.TextSecondary,
-                style = MaterialTheme.typography.labelSmall,
-                lineHeight = 15.sp
+            val end = Offset(
+                centerX + cos(radians).toFloat() * outer,
+                centerY + sin(radians).toFloat() * outer
+            )
+            drawLine(
+                color = Color(0xFFE47F5D).copy(alpha = if (index % 3 == 0) 1f else .82f),
+                start = start,
+                end = end,
+                strokeWidth = size.minDimension * .055f,
+                cap = StrokeCap.Round
             )
         }
+        drawCircle(Color(0xFFE47F5D), radius = size.minDimension * .065f)
     }
 }
 
@@ -1279,31 +1333,25 @@ private fun SruGenMessageBubble(message: SruGenMessage, image: Bitmap?) {
         Modifier.fillMaxWidth(),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
     ) {
-        SruGenGlassPanel(
-            Modifier.widthIn(max = 324.dp),
-            shape = RoundedCornerShape(22.dp),
-            fill = if (isUser) {
-                Brush.linearGradient(listOf(Color(0xCC463F78), Color(0xCC283653)))
-            } else {
-                Brush.linearGradient(listOf(Color(0xCC25294A), Color(0xCC17243B)))
-            }
-        ) {
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(7.dp)
+            Modifier.widthIn(max = 324.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(if (isUser) Color(0xFF303030) else Color(0xFF1B1B1B))
+                .border(1.dp, Color.White.copy(alpha = .10f), RoundedCornerShape(20.dp))
+                .padding(horizontal = 15.dp, vertical = 13.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                if (isUser) "YOU  /  PROMPT" else "SRUGEN  /  RESPONSE",
-                color = if (isUser) SruvikColors.Lime else SruvikColors.Mint,
-                style = MaterialTheme.typography.labelSmall,
-                letterSpacing = 1.1.sp
+                if (isUser) "You" else "SruGen",
+                color = if (isUser) Color(0xFFEBA087) else Color(0xFFBDB9B5),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
             )
             if (message.text.isNotBlank()) {
                 Text(
                     message.text,
-                    color = SruvikColors.TextPrimary,
-                    style = MaterialTheme.typography.bodyMedium,
-                    lineHeight = 21.sp
+                    color = Color(0xFFF4F2EF),
+                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp, lineHeight = 23.sp)
                 )
             }
             image?.let {
@@ -1315,9 +1363,8 @@ private fun SruGenMessageBubble(message: SruGenMessage, image: Bitmap?) {
                 )
             }
             message.modelName?.let {
-                Text(it, color = SruvikColors.Lime, style = MaterialTheme.typography.labelSmall)
+                Text(it, color = Color(0xFFEBA087), fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }
-        }
         }
     }
 }
