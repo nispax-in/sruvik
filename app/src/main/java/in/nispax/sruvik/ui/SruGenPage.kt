@@ -363,8 +363,22 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                 }
                 try {
                     val bitmap = withContext(Dispatchers.Default) {
-                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                            ?: error("This image format cannot be previewed.")
+                        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                        require(bounds.outWidth > 0 && bounds.outHeight > 0) { "This image format cannot be previewed." }
+                        var sample = 1
+                        while (
+                            bounds.outWidth / sample > 2048 ||
+                            bounds.outHeight / sample > 2048 ||
+                            (bounds.outWidth.toLong() / sample) * (bounds.outHeight.toLong() / sample) > 3000000L
+                        ) sample *= 2
+                        BitmapFactory.decodeByteArray(
+                            bytes, 0, bytes.size,
+                            BitmapFactory.Options().apply {
+                                inSampleSize = sample
+                                inPreferredConfig = Bitmap.Config.RGB_565
+                            }
+                        ) ?: error("This image format cannot be previewed.")
                     }
                     val id = withContext(Dispatchers.IO) {
                         SruGenChatStore.saveAttachment(
