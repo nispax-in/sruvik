@@ -41,7 +41,8 @@ class NezumiMnnSruGenEngine(
         stopRequested = true
         stopReason = "Android requested that image generation stop to protect device resources."
         val current = handle
-        if (current != 0L && loaded) {
+        if (current != 0L) {
+            // The native engine accepts cancellation even before load completes.
             runCatching { MnnSdNative.cancel(current) }
         }
     }
@@ -94,6 +95,9 @@ class NezumiMnnSruGenEngine(
             check(success) {
                 "DreamShaper could not be loaded by Nezumi Kiln: ${MnnSdNative.getLastError()}"
             }
+            check(!stopRequested) {
+                "DreamShaper loading was stopped because Android requested memory release."
+            }
             SruGenDeviceGuard.assertSafeToContinue(context)
             loaded = true
         } catch (failure: Throwable) {
@@ -120,6 +124,9 @@ class NezumiMnnSruGenEngine(
             SruGenDeviceGuard.requireSafeToStart(context)
             onProgress(2, "Checking DreamShaper model pack")
             ensureLoaded()
+            check(!stopRequested) {
+                "DreamShaper loading was cancelled to protect device resources. Your encrypted prompt remains saved."
+            }
             SruGenDeviceGuard.assertSafeToContinue(context)
             val currentHandle = handle
             check(currentHandle != 0L && loaded) { "Nezumi Kiln did not finish loading the model." }
