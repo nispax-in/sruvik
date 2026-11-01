@@ -641,6 +641,70 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
 
             Spacer(Modifier.height(8.dp))
 
+            // Keep model choice out of the prompt composer. A full-width status
+            // row gives it a stable place below the title instead of squeezing
+            // it between the attachment and send controls.
+            SruGenGlassPanel(
+                modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenModels),
+                shape = RoundedCornerShape(18.dp),
+                fill = Brush.linearGradient(
+                    listOf(Color(0xCC29264D), Color(0xCC1B2440))
+                )
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
+                            .background(studioAccent.copy(alpha = .15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Rounded.AutoAwesome,
+                            contentDescription = null,
+                            tint = studioAccent,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    Column(
+                        Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Text(
+                            "ACTIVE MODEL",
+                            color = studioSecondary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.1.sp
+                        )
+                        Text(
+                            activeModel?.name ?: "Choose a model",
+                            color = studioText,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1
+                        )
+                        Text(
+                            if (modelReady) "Ready on this device · Local inference"
+                            else "Open the model library to install or select one",
+                            color = studioSecondary,
+                            fontSize = 12.sp,
+                            maxLines = 2
+                        )
+                    }
+                    Icon(
+                        Icons.Rounded.ChevronRight,
+                        contentDescription = "Open model library",
+                        tint = studioSecondary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(4.dp))
+
             AnimatedVisibility(
                 visible = monitorExpanded,
                 enter = fadeIn(tween(180)) + expandVertically(tween(180)),
@@ -898,20 +962,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                     ) {
                         Icon(Icons.Rounded.Add, "Attach a reference image", tint = studioText, modifier = Modifier.size(25.dp))
                     }
-                    OutlinedButton(
-                        onClick = onOpenModels,
-                        modifier = Modifier.weight(1f).height(52.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .16f)),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = studioText),
-                        contentPadding = PaddingValues(horizontal = 12.dp)
-                    ) {
-                        Icon(Icons.Rounded.AutoAwesome, null, tint = studioAccent, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(activeModel?.name ?: "Choose model", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                        Spacer(Modifier.width(4.dp))
-                        Icon(Icons.Rounded.ExpandMore, null, tint = studioSecondary, modifier = Modifier.size(18.dp))
-                    }
+                    Spacer(Modifier.weight(1f))
                     Button(
                         onClick = { sendMessage() },
                         enabled = !generating && (prompt.isNotBlank() || selectedImage != null),
@@ -1243,11 +1294,11 @@ private fun SruGenMessageBubble(message: SruGenMessage, image: Bitmap?) {
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
     ) {
         Column(
-            Modifier.widthIn(max = 324.dp)
+            Modifier.widthIn(max = 300.dp)
                 .clip(RoundedCornerShape(20.dp))
                 .background(if (isUser) Color(0xFF303030) else Color(0xFF1B1B1B))
                 .border(1.dp, Color.White.copy(alpha = .10f), RoundedCornerShape(20.dp))
-                .padding(horizontal = 15.dp, vertical = 13.dp),
+                .padding(horizontal = 13.dp, vertical = 11.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
@@ -1260,7 +1311,7 @@ private fun SruGenMessageBubble(message: SruGenMessage, image: Bitmap?) {
                 Text(
                     message.text,
                     color = Color(0xFFF4F2EF),
-                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp, lineHeight = 23.sp)
+                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp, lineHeight = 22.sp)
                 )
             }
             image?.let {
