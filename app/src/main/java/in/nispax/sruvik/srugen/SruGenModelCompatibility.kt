@@ -28,7 +28,17 @@ object SruGenModelCompatibility {
     private const val MIN_AVAILABLE_RAM = 4L * GIB
     private const val MIN_FREE_AFTER_DOWNLOAD = 750L * 1024L * 1024L
 
-    fun assess(context: Context, model: SruGenGalleryModel): SruGenModelDeviceAssessment {
+    fun assess(context: Context, model: SruGenGalleryModel): SruGenModelDeviceAssessment =
+        assessInternal(context, model, downloading = true)
+
+    fun assessForInstall(context: Context, model: SruGenGalleryModel): SruGenModelDeviceAssessment =
+        assessInternal(context, model, downloading = false)
+
+    private fun assessInternal(
+        context: Context,
+        model: SruGenGalleryModel,
+        downloading: Boolean
+    ): SruGenModelDeviceAssessment {
         val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
         val memory = ActivityManager.MemoryInfo().also(am::getMemoryInfo)
         val freeStorage = runCatching { StatFs(context.filesDir.absolutePath).availableBytes }.getOrDefault(0L)
@@ -53,8 +63,30 @@ object SruGenModelCompatibility {
         if (memory.lowMemory || memory.availMem < MIN_AVAILABLE_RAM) {
             reasons += "At least 4 GB currently available system RAM is required before installing or running a diffusion model. Detected ${formatGb(memory.availMem)} GB."
         }
-        if (freeStorage < maxOf(SruGenGalleryCatalog.MIN_DOWNLOAD_STORAGE_BYTES, model.approximateDownloadBytes + model.maxExtractedBytes + MIN_FREE_AFTER_DOWNLOAD)) {
-            reasons += "Not enough internal storage to download, verify, extract and retain a recovery reserve. Free: ${formatGb(freeStorage)} GB."
+        val existingModelBytes = runCatching {
+            when (model.engine) {
+                SruGenGalleryEngine.MEDIAPIPE_SD15 ->
+                    SruGenModelInstaller.modelDirectory(context).walkTopDown().filter { it.isFile }.sumOf { it.length() }
+                SruGenGalleryEngine.NEZUMI_MNN_SD15 ->
+                    SruGenModelPackInstaller.installedBytes(context, model.id)
+                null -> 0L
+            }
+        }.getOrDefault(0L)
+        val minimumStorage = if (downloading) {
+            when (model.engine) {
+                SruGenGalleryEngine.MEDIAPIPE_SD15 -> 8L * GIB
+                SruGenGalleryEngine.NEZUMI_MNN_SD15 -> maxOf(
+                    7L * GIB,
+                    model.approximateDownloadBytes + model.maxExtractedBytes + existingModelBytes + MIN_FREE_AFTER_DOWNLOAD
+                )
+                null -> Long.MAX_VALUE
+            }
+        } else {
+            model.maxExtractedBytes + existingModelBytes + MIN_FREE_AFTER_DOWNLOAD
+        }
+        if (freeStorage < minimumStorage) {
+            val minimumGb = formatGb(minimumStorage)
+            reasons += "Not enough internal storage. Sruvik needs about $minimumGb GB free for ${if (downloading) "download and installation" else "installation and recovery"}; currently free: ${formatGb(freeStorage)} GB."
         }
         if (power.isPowerSaveMode) reasons += "Battery Saver is enabled. Turn it off before installing a long-running on-device model."
         if (thermal != null && thermal >= PowerManager.THERMAL_STATUS_MODERATE) {
