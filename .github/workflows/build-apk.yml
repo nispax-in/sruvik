@@ -46,6 +46,8 @@ jobs:
       - name: Run JVM regression tests
         run: gradle --no-daemon :app:testDebugUnitTest
       - name: Run Srukrypt and image preview tests on Android emulator
+        id: emulator-tests
+        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -109,6 +111,11 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
+      - name: Enforce emulator test result
+        if: steps.emulator-tests.outcome == 'failure'
+        run: |
+          echo "Android emulator instrumentation failed; diagnostics and signed APK were retained for investigation."
+          exit 1
 # Verification note: repair branch checkout is pinned by name and tested before packaging.
 # Verification note: instrumentation crash diagnostics are uploaded when emulator tests fail.
 # Diagnostics capture uses set +e so failure output is retained before the step exits.
