@@ -145,7 +145,7 @@ object SruGenModelPackInstaller {
         require(model.archiveSha256?.matches(Regex("[0-9a-fA-F]{64}")) == true) {
             "The model does not have a valid SHA-256 integrity pin."
         }
-        val compatibility = SruGenModelCompatibility.assess(context, model)
+        val compatibility = SruGenModelCompatibility.assessForInstall(context, model)
         require(compatibility.canDownload) { compatibility.reasons.joinToString("\n") }
         recoverInterruptedInstall(context, model.id)
 
@@ -273,7 +273,7 @@ object SruGenModelPackInstaller {
             while (entry != null) {
                 files++
                 require(files <= MAX_ARCHIVE_ENTRIES) { "The archive contains too many entries." }
-                val name = entry.name.replace('\\', '/')
+                val name = entry.name.replace('\\', '/').trimEnd('/')
                 require(name.isNotBlank() && !name.startsWith("/") &&
                     !name.contains(':') && name.split('/').none { it == ".." || it.isBlank() }) {
                     "The archive contains an unsafe file path."
