@@ -28,7 +28,13 @@ class MediaPipeSruGenEngine(
     private var imageGenerator: ImageGenerator? = null
     @Volatile
     private var closed = false
+    @Volatile
+    private var stopRequested = false
     override val isClosed: Boolean get() = closed
+
+    override fun requestStop() {
+        stopRequested = true
+    }
     private val inferenceLock = ReentrantLock()
 
     private fun getOrCreateGenerator(): ImageGenerator {
@@ -75,6 +81,12 @@ class MediaPipeSruGenEngine(
         generator.setInputs(request.prompt, iterations, seed)
         var finalResult: ImageGeneratorResult? = null
         for (step in 0 until iterations) {
+            if (stopRequested) {
+                throw IllegalStateException(
+                    "SruGen stopped at a safe checkpoint because Android hid the app or requested memory release. " +
+                        "Your prompt and encrypted chat remain saved; reopen the Studio to retry."
+                )
+            }
             // Recheck before every native diffusion step; a device can heat up or
             // enter low-memory state while the model is running.
             SruGenDeviceGuard.assertSafeToContinue(context)
