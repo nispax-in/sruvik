@@ -87,3 +87,4 @@ jobs:
 # Trigger a build for the updated SruGen native workspace.
 # Rebuild after SruGen navigation, picker and Srukrypt stability fixes.
 # Run this verification independently so emulator tests are not left queued.
+# Re-run after resolving the Srukrypt typography import compile failure.
