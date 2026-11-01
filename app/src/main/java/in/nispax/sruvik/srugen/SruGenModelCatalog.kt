@@ -4,6 +4,7 @@ enum class SruGenModelAvailability {
     READY_IN_APP,
     NATIVE_RUNTIME_PENDING,
     MODEL_CONVERSION_PENDING,
+    MODEL_PACK_VERIFICATION_PENDING,
     DEVICE_VALIDATION_PENDING
 }
 
@@ -32,8 +33,8 @@ object SruGenModelCatalog {
             id = "dreamshaper-mnn",
             displayName = "DreamShaper",
             runtime = "MNN-Diffusion",
-            availability = SruGenModelAvailability.MODEL_CONVERSION_PENDING,
-            detail = "Not downloadable yet. It needs a reproducible MNN conversion, tokenizer/config validation, signed manifest and device benchmarks."
+            availability = SruGenModelAvailability.MODEL_PACK_VERIFICATION_PENDING,
+            detail = "An MNN-converted DreamShaper 8 pack exists for Nezumi Kiln. Sruvik has integrated the arm64 JNI runtime, but the exact archive SHA-256, install manifest and real-device tests are still pending; download remains locked."
         ),
         SruGenModelInfo(
             id = "sd35-mnn",
