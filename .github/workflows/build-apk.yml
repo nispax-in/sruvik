@@ -111,3 +111,4 @@ jobs:
           retention-days: 30
 # Verification note: repair branch checkout is pinned by name and tested before packaging.
 # Verification note: instrumentation crash diagnostics are uploaded when emulator tests fail.
+# Diagnostics capture uses set +e so failure output is retained before the step exits.
