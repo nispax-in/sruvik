@@ -432,7 +432,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
             persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(role = "assistant", text = unavailable)))
             return
         }
-        if (!modelReady || SruGenEngineRegistry.engine == null) {
+        if (!modelReady) {
             persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
                 role = "assistant",
                 text = "Your prompt and image are safely stored in this encrypted chat. Install the local Stable Diffusion model to generate images on this device."
@@ -450,7 +450,14 @@ fun SruGenPage(memoryEnabled: Boolean) {
         scope.launch {
             try {
                 val result = withContext(Dispatchers.Default) {
-                    val engine = SruGenEngineRegistry.engine ?: error("Local SruGen engine is unavailable.")
+                    // Recreate a released engine lazily. Android may have asked
+                    // Sruvik to free native resources while the app was backgrounded.
+                    val engine = SruGenEngineRegistry.getOrCreate {
+                        MediaPipeSruGenEngine(
+                            context.applicationContext,
+                            File(SruGenModelInstaller.modelDirectory(context), "sd15_bins").absolutePath
+                        )
+                    }
                     engine.generate(
                         SruGenRequest(
                             mode = SruGenMode.TEXT_TO_IMAGE,
