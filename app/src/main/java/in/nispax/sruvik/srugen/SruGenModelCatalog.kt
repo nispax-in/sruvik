@@ -36,6 +36,27 @@ object SruGenModelCatalog {
             detail = "Not downloadable yet. It needs a reproducible MNN conversion, tokenizer/config validation, signed manifest and device benchmarks."
         ),
         SruGenModelInfo(
+            id = "sd35-mnn",
+            displayName = "Stable Diffusion 3.5",
+            runtime = "MNN-Diffusion",
+            availability = SruGenModelAvailability.NATIVE_RUNTIME_PENDING,
+            detail = "MNN upstream documents SD 3.5. Sruvik still needs an Android native build, a verified model pack and device-specific memory/thermal benchmarks."
+        ),
+        SruGenModelInfo(
+            id = "sana-mnn",
+            displayName = "Sana",
+            runtime = "MNN-Diffusion",
+            availability = SruGenModelAvailability.NATIVE_RUNTIME_PENDING,
+            detail = "MNN upstream documents Sana. It also needs a separate text-feature pipeline and a verified model pack; neither is shipped in Sruvik."
+        ),
+        SruGenModelInfo(
+            id = "wan21-mnn",
+            displayName = "Wan 2.1",
+            runtime = "MNN-Diffusion",
+            availability = SruGenModelAvailability.NATIVE_RUNTIME_PENDING,
+            detail = "MNN upstream documents Wan video diffusion. It is heavier than the current image-only engine and remains disabled pending a separate memory-safe implementation."
+        ),
+        SruGenModelInfo(
             id = "chilloutmix-mnn",
             displayName = "ChilloutMix",
             runtime = "MNN-Diffusion",
