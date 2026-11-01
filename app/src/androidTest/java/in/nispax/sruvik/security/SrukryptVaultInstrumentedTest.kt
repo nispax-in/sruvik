@@ -28,7 +28,8 @@ class SrukryptVaultInstrumentedTest {
         var previewBitmap: Bitmap? = null
         var imageBytes: ByteArray? = null
         try {
-            firstKey = SrukryptVault.createVaultWithPassphrase(context, firstPassphrase)
+            val key = SrukryptVault.createVaultWithPassphrase(context, firstPassphrase)
+            firstKey = key
             assertTrue(SrukryptVault.hasVault(context))
             assertTrue(SrukryptVault.hasPassphraseFallback(context))
 
@@ -36,29 +37,31 @@ class SrukryptVaultInstrumentedTest {
             val output = ByteArrayOutputStream()
             check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output))
             bitmap.recycle()
-            imageBytes = output.toByteArray()
+            val encodedImageBytes = output.toByteArray()
+            imageBytes = encodedImageBytes
 
             val id = SrukryptVault.storeImage(
-                context, firstKey, "instrumentation image", "image/png", imageBytes
+                context, key, "instrumentation image", "image/png", encodedImageBytes
             )
             val unlockedWithOriginal = SrukryptVault.unlockWithPassphrase(context, firstPassphrase)
-            assertArrayEquals(firstKey, unlockedWithOriginal)
+            assertArrayEquals(key, unlockedWithOriginal)
             unlockedWithOriginal.fill(0)
 
-            val previews = SrukryptVault.loadPreviews(context, firstKey)
+            val previews = SrukryptVault.loadPreviews(context, key)
             assertEquals(1, previews.size)
             assertEquals("instrumentation image", previews.single().title)
             previewBitmap = previews.single().thumbnail
 
-            val (title, bytes) = SrukryptVault.readImage(context, firstKey, id)
+            val (title, bytes) = SrukryptVault.readImage(context, key, id)
             assertEquals("instrumentation image", title)
             recoveredImage = bytes
-            assertArrayEquals(imageBytes, recoveredImage)
+            assertArrayEquals(encodedImageBytes, bytes)
 
             // Replacing an existing envelope must preserve the exact same data key.
-            SrukryptVault.enablePassphraseFallback(context, firstKey, replacementPassphrase)
-            replacementKey = SrukryptVault.unlockWithPassphrase(context, replacementPassphrase)
-            assertArrayEquals(firstKey, replacementKey)
+            SrukryptVault.enablePassphraseFallback(context, key, replacementPassphrase)
+            val keyAfterReplacement = SrukryptVault.unlockWithPassphrase(context, replacementPassphrase)
+            replacementKey = keyAfterReplacement
+            assertArrayEquals(key, keyAfterReplacement)
 
             try {
                 SrukryptVault.unlockWithPassphrase(context, wrongPassphrase)
