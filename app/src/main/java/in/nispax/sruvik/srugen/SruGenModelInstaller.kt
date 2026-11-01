@@ -141,6 +141,8 @@ object SruGenModelInstaller {
     }
 
     fun importArchive(context: Context, input: InputStream, onProgress: (String) -> Unit = {}) {
+        // Restore any previously committed model before staging a replacement.
+        recoverInterruptedInstall(context)
         requireInstallSpace(context)
         val staging = File(context.filesDir, "srugen-model-staging-${UUID.randomUUID()}")
         if (!staging.mkdirs()) throw IllegalStateException("Unable to create model staging directory.")
@@ -160,8 +162,10 @@ object SruGenModelInstaller {
                                 "The model archive is larger than the approved download. It was rejected before extraction."
                             }
                             output.write(buffer, 0, count)
-                            require(availableBytes(context) >= MIN_REMAINING_FREE_BYTES) {
-                                "SruGen stopped copying because the storage safety reserve was reached. Your existing model was not changed."
+                            if (copied % (32L * 1024L * 1024L) < count) {
+                                require(availableBytes(context) >= MIN_REMAINING_FREE_BYTES) {
+                                    "SruGen stopped copying because the storage safety reserve was reached. Your existing model was not changed."
+                                }
                             }
                         }
                         require(copied > 0L) { "The selected model archive is empty." }
@@ -273,8 +277,10 @@ object SruGenModelInstaller {
                                 if (count < 0) break
                                 expanded += count
                                 require(expanded <= MAX_EXTRACTED_BYTES) { "The extracted model exceeds the supported size limit." }
-                                require(availableBytes(context) >= MIN_REMAINING_FREE_BYTES) {
-                                    "SruGen stopped extraction to preserve 750 MB of free storage. The previous model remains untouched."
+                                if (expanded % (32L * 1024L * 1024L) < count) {
+                                    require(availableBytes(context) >= MIN_REMAINING_FREE_BYTES) {
+                                        "SruGen stopped extraction to preserve 750 MB of free storage. The previous model remains untouched."
+                                    }
                                 }
                                 output.write(buffer, 0, count)
                             }
@@ -283,8 +289,7 @@ object SruGenModelInstaller {
                             buffer.fill(0)
                         }
                     }
-                    fileCount++
-                    if (fileCount % 20 == 0) onProgress("Extracting model files · $fileCount")
+                    if (fileCount % 20 == 0) onProgress("Extracting model entries · $fileCount")
                 }
                 zip.closeEntry()
                 entry = zip.nextEntry
