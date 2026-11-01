@@ -1,14 +1,14 @@
 package `in`.nispax.sruvik
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import `in`.nispax.sruvik.ui.SruvikApp
 import `in`.nispax.sruvik.ui.theme.SruvikTheme
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)

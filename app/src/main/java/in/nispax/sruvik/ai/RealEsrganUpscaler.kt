@@ -42,6 +42,8 @@ internal object RealEsrganUpscaler {
     private const val MAX_OUTPUT_DIMENSION = 6_144
     private const val MIN_FREE_MEMORY_BYTES = 400L * 1024L * 1024L
     private const val RESERVED_MEMORY_BYTES = 180L * 1024L * 1024L
+    // Never call a near-1× or downscaled result an upscale.
+    private const val MIN_EFFECTIVE_UPSCALE = 1.25f
 
     /** Model creation, warm-up, inference and close are confined to one worker thread. */
     suspend fun upscale(
@@ -67,7 +69,17 @@ internal object RealEsrganUpscaler {
                 val pixelScale = kotlin.math.sqrt(
                     desiredSourcePixels.toDouble() / sourcePixels
                 ).toFloat()
-                val inputScale = min(1f, min(dimensionScale, pixelScale)).coerceAtLeast(0.05f)
+                val inputScale = min(1f, min(dimensionScale, pixelScale))
+                val minimumInputScale = MIN_EFFECTIVE_UPSCALE / requestedScale.toFloat()
+                check(inputScale >= minimumInputScale) {
+                    val suggestion = if (requestedScale == 4) {
+                        "Choose 2×, select a smaller photo, or free up device memory."
+                    } else {
+                        "Select a smaller photo or free up device memory, then try again."
+                    }
+                    "This phone cannot safely create a meaningful ${requestedScale}× AI upscale from this photo. " +
+                        "No reduced-resolution result was created. $suggestion"
+                }
                 val working = if (inputScale < 0.999f) {
                     Bitmap.createScaledBitmap(
                         source,
@@ -104,6 +116,13 @@ internal object RealEsrganUpscaler {
                     val height = working.height
                     val outputWidth = width * requestedScale
                     val outputHeight = height * requestedScale
+                    check(
+                        outputWidth >= (source.width * MIN_EFFECTIVE_UPSCALE).roundToInt() &&
+                            outputHeight >= (source.height * MIN_EFFECTIVE_UPSCALE).roundToInt()
+                    ) {
+                        "The safe working size would not produce a meaningful increase over the original. " +
+                            "Choose a smaller source photo or try again after freeing device memory."
+                    }
                     check(outputWidth.toLong() * outputHeight.toLong() <= outputBudget) {
                         "The selected image is larger than this phone's safe processing limit."
                     }
