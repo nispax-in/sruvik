@@ -4,9 +4,6 @@ on:
     branches: ['fix/upscaler-image-selection-feedback']
 permissions:
   contents: read
-concurrency:
-  group: sruvik-debug-apk-signing
-  cancel-in-progress: false
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -98,3 +95,4 @@ jobs:
           retention-days: 30
 # Trigger a build for the updated SruGen native workspace.
 # Rebuild after SruGen navigation, picker and Srukrypt stability fixes.
+# Run this verification independently so emulator tests are not left queued.
