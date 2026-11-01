@@ -462,7 +462,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
         if (!modelReady) {
             persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
                 role = "assistant",
-                text = "Your prompt and image are safely stored in this encrypted chat. Install the local Stable Diffusion model to generate images on this device."
+                text = "Your prompt and image remain saved in this encrypted chat. The selected model is not installed yet. Open Models to install a compatible model before generating."
             )))
             return
         }
@@ -656,7 +656,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
                         Box(Modifier.size(6.dp).clip(CircleShape)
                             .background(if (modelReady) Color(0xFF7DE0BC) else Color(0xFFFFC98F)))
                         Text(
-                            if (modelReady) "SD 1.5  /  ON DEVICE" else "LOCAL ENGINE  /  NOT INSTALLED",
+                            if (modelReady) "${activeModel?.name ?: "MODEL"}  /  ON DEVICE" else "${activeModel?.name ?: "LOCAL ENGINE"}  /  NOT INSTALLED",
                             color = if (modelReady) Color(0xFF9AE9CC) else Color(0xFFFFC98F),
                             style = MaterialTheme.typography.labelSmall,
                             letterSpacing = .8.sp
@@ -693,7 +693,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
             Box(Modifier.fillMaxWidth().height(1.dp).background(SruvikColors.Border))
             SruGenModelRoadmap(modelReady)
             AnimatedVisibility(
-                visible = !modelReady,
+                visible = !modelReady && activeModelId == "sd15-mediapipe",
                 enter = fadeIn(tween(220)) + expandVertically(tween(220)),
                 exit = fadeOut(tween(160)) + shrinkVertically(tween(160))
             ) {
