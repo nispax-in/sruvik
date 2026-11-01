@@ -314,6 +314,21 @@ fun ModelDetailPage(
             actualModel.engine == SruGenGalleryEngine.NEZUMI_MNN_SD15
         } ?: actualModel.baseModel)
         ModelDetailInfo("Model download", if (actualModel.approximateDownloadBytes > 0L) formatBytes(actualModel.approximateDownloadBytes) else "Not available yet")
+        ModelDetailInfo(
+            "Free space before install",
+            if (actualModel.canInstall) {
+                val reserve = if (actualModel.engine == SruGenGalleryEngine.MEDIAPIPE_SD15) {
+                    8L * 1024L * 1024L * 1024L
+                } else {
+                    maxOf(
+                        7L * 1024L * 1024L * 1024L,
+                        actualModel.approximateDownloadBytes + actualModel.maxExtractedBytes + 750L * 1024L * 1024L
+                    )
+                }
+                formatBytes(reserve)
+            } else "Not available yet"
+        )
+        ModelDetailInfo("Sruvik RAM gate", "8 GB total · 4 GB currently free")
         ModelDetailInfo("Recommended device memory", "${actualModel.recommendedRamGb} GB RAM")
         ModelDetailInfo("Android version", "Android API ${actualModel.minAndroidApi}+")
         ModelDetailInfo("Inference", "On-device · offline · 512 × 512")
