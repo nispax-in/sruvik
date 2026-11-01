@@ -45,6 +45,37 @@ class SrukryptVaultInstrumentedTest {
     }
 
     @Test
+    fun unreadableEncryptedEntryIsReportedAndCiphertextIsPreserved() {
+        val context = InstrumentationRegistry.getInstrumentation().context
+        val directory = SrukryptStorage.vaultDirectory(context)
+        val passphrase = "integrity test passphrase".toCharArray()
+        var dataKey: ByteArray? = null
+        try {
+            dataKey = SrukryptVault.createVaultWithPassphrase(context, passphrase)
+            val bitmap = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888)
+            val output = ByteArrayOutputStream()
+            check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output))
+            bitmap.recycle()
+            val entryId = SrukryptVault.storeImage(
+                context, dataKey, "Integrity test", "image/png", output.toByteArray()
+            )
+            val encryptedFile = java.io.File(directory, "$entryId.srk")
+            val ciphertext = encryptedFile.readBytes()
+            ciphertext[ciphertext.lastIndex] = (ciphertext.last().toInt() xor 0x01).toByte()
+            encryptedFile.writeBytes(ciphertext)
+
+            val load = SrukryptVault.loadPreviewsWithReport(context, dataKey)
+            assertTrue(load.entries.isEmpty())
+            assertEquals(1, load.unreadableEntries)
+            assertTrue("Unreadable ciphertext must be preserved", encryptedFile.isFile)
+        } finally {
+            dataKey?.fill(0)
+            passphrase.fill('\u0000')
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
     fun passphraseVaultCanStoreReadAndRewrapTheSameImageKey() {
         // Use the instrumentation package's private storage, never the user's app data.
         val context = InstrumentationRegistry.getInstrumentation().context
