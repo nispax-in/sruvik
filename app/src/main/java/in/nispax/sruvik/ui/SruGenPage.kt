@@ -1025,35 +1025,65 @@ private fun SruGenCreativeSpark() {
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 9000, easing = LinearEasing),
+            animation = tween(durationMillis = 11000, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "srugen-spark-rotation"
     )
-    androidx.compose.foundation.Canvas(Modifier.size(96.dp)) {
-        val centerX = size.width / 2f
-        val centerY = size.height / 2f
-        val inner = size.minDimension * .13f
+    val breathing by motion.animateFloat(
+        initialValue = .82f,
+        targetValue = 1.08f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2100),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "srugen-spark-breathing"
+    )
+    androidx.compose.foundation.Canvas(Modifier.size(116.dp)) {
+        val center = Offset(size.width / 2f, size.height / 2f)
+        val unit = size.minDimension
+        val coral = Color(0xFFE47F5D)
+        drawCircle(
+            color = coral.copy(alpha = .055f),
+            radius = unit * .49f * breathing
+        )
+        drawCircle(
+            color = Color.White.copy(alpha = .11f),
+            radius = unit * .43f,
+            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx())
+        )
+        drawCircle(
+            color = coral.copy(alpha = .28f),
+            radius = unit * .31f,
+            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx())
+        )
         for (index in 0 until 12) {
             val radians = Math.toRadians(index * 30.0 + rotation.toDouble())
-            val outer = size.minDimension * if (index % 3 == 0) .46f else .37f
-            val start = Offset(
-                centerX + cos(radians).toFloat() * inner,
-                centerY + sin(radians).toFloat() * inner
+            val inner = unit * .12f
+            val outer = unit * if (index % 3 == 0) .43f else .34f
+            val startPoint = Offset(
+                center.x + cos(radians).toFloat() * inner,
+                center.y + sin(radians).toFloat() * inner
             )
-            val end = Offset(
-                centerX + cos(radians).toFloat() * outer,
-                centerY + sin(radians).toFloat() * outer
+            val endPoint = Offset(
+                center.x + cos(radians).toFloat() * outer,
+                center.y + sin(radians).toFloat() * outer
             )
             drawLine(
-                color = Color(0xFFE47F5D).copy(alpha = if (index % 3 == 0) 1f else .82f),
-                start = start,
-                end = end,
-                strokeWidth = size.minDimension * .055f,
+                color = coral.copy(alpha = if (index % 3 == 0) 1f else .78f),
+                start = startPoint,
+                end = endPoint,
+                strokeWidth = unit * .048f * breathing,
                 cap = StrokeCap.Round
             )
         }
-        drawCircle(Color(0xFFE47F5D), radius = size.minDimension * .065f)
+        val orbitAngle = Math.toRadians(-rotation.toDouble() * .63)
+        val orbit = Offset(
+            center.x + cos(orbitAngle).toFloat() * unit * .39f,
+            center.y + sin(orbitAngle).toFloat() * unit * .39f
+        )
+        drawCircle(Color(0xFFFFC5AC), radius = unit * .035f, center = orbit)
+        drawCircle(coral, radius = unit * .062f * breathing, center = center)
     }
 }
 
