@@ -25,6 +25,10 @@ interface SruGenEngine {
     val displayName: String
     val isOffline: Boolean
     val isClosed: Boolean get() = false
+
+    /** Ask a running implementation to stop at its next safe checkpoint. */
+    fun requestStop() {}
+
     suspend fun generate(
         request: SruGenRequest,
         onProgress: (Int, String) -> Unit
