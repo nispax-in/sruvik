@@ -574,18 +574,6 @@ fun SrukryptPage(autoLockMinutes: Int) {
                     Text("Lock now")
                 }
                 Spacer(Modifier.width(7.dp))
-                OutlinedButton(
-                    onClick = { openPassphrase("add") },
-                    modifier = Modifier.height(48.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = SruvikColors.Lime),
-                    contentPadding = PaddingValues(horizontal = 10.dp)
-                ) {
-                    Icon(Icons.Rounded.Key, null, modifier = Modifier.size(17.dp))
-                    Spacer(Modifier.width(5.dp))
-                    Text("Add passphrase", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                }
-                Spacer(Modifier.width(4.dp))
                 Button(
                     onClick = { beginImport() },
                     shape = RoundedCornerShape(14.dp),
@@ -594,6 +582,17 @@ fun SrukryptPage(autoLockMinutes: Int) {
                     Icon(Icons.Rounded.Add, null)
                     Text("Add")
                 }
+            }
+
+            OutlinedButton(
+                onClick = { openPassphrase("add") },
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = SruvikColors.Lime)
+            ) {
+                Icon(Icons.Rounded.Key, null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Add passphrase fallback", fontWeight = FontWeight.SemiBold)
             }
 
             if (entries.isEmpty()) {
