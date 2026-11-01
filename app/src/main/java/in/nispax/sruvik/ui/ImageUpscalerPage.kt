@@ -240,7 +240,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
     LaunchedEffect(session.resultPath, session.status, original) {
         if (session.status == UpscaleStatus.COMPLETED && !session.resultPath.isNullOrBlank()) {
             val path = session.resultPath
-            val restored = withContext(Dispatchers.IO) { BitmapFactory.decodeFile(path) }
+            val restored = withContext(Dispatchers.IO) { decodeSavedPreview(path) }
             if (restored != null) {
                 val previous = result
                 result = restored
@@ -273,12 +273,14 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: OutOfMemoryError) {
-            original?.recycle()
+            val previous = original
             original = null
+            recycleAfterFrame(previous)
             message = "This photo is too large to preview safely. Choose a smaller image."
         } catch (error: Exception) {
-            original?.recycle()
+            val previous = original
             original = null
+            recycleAfterFrame(previous)
             message = error.message ?: "Couldn't read this image."
         } finally {
             // A cancelled older decode must not clear the loading state for a
@@ -776,6 +778,21 @@ internal fun decodeImage(context: Context, uri: Uri): Bitmap {
         modernDecodeError?.let(error::addSuppressed)
         throw error
     }
+}
+
+private fun decodeSavedPreview(path: String): Bitmap? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(path, bounds)
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0 ||
+        bounds.outWidth > MAX_SOURCE_DIMENSION || bounds.outHeight > MAX_SOURCE_DIMENSION
+    ) return null
+    return BitmapFactory.decodeFile(
+        path,
+        BitmapFactory.Options().apply {
+            inSampleSize = previewSampleSize(bounds.outWidth, bounds.outHeight)
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+        }
+    )
 }
 
 internal fun previewSampleSize(width: Int, height: Int): Int {
