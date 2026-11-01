@@ -1164,7 +1164,7 @@ private fun SruGenModelRoadmap(modelReady: Boolean, activeModelId: String) {
                 }
             }
             Text(
-                "DreamShaper 8 now has a community MNN conversion and Sruvik includes the pinned Nezumi Kiln arm64 runtime, but the model archive hash and device validation are still pending. SD 3.5, Sana and Wan need separate native pipelines. Nothing is enabled until its exact model files, memory behavior and device tests are verified.",
+                "Explore the full Model Library to read each model profile, review its source and licence, and install only packs that pass Sruvik's device and integrity checks.",
                 color = SruvikColors.TextSecondary,
                 style = MaterialTheme.typography.labelSmall,
                 lineHeight = 15.sp
