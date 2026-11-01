@@ -82,7 +82,7 @@ object SruGenModelCompatibility {
                 null -> Long.MAX_VALUE
             }
         } else {
-            model.maxExtractedBytes + existingModelBytes + MIN_FREE_AFTER_DOWNLOAD
+            model.approximateDownloadBytes + model.maxExtractedBytes + existingModelBytes + MIN_FREE_AFTER_DOWNLOAD
         }
         if (freeStorage < minimumStorage) {
             val minimumGb = formatGb(minimumStorage)
