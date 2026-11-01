@@ -1120,7 +1120,7 @@ private fun SruGenModelRoadmap(modelReady: Boolean) {
                 }
             }
             Text(
-                "DreamShaper and the MNN-Diffusion models stay locked until their native runtime, converted weights, integrity manifest and device-safety tests are shipped together.",
+                "MNN SD 3.5, Sana and Wan remain locked until Sruvik ships their native Android runtime and verified packs; DreamShaper also needs a validated conversion. All stay disabled until memory, thermal and device tests pass.",
                 color = SruvikColors.TextSecondary,
                 style = MaterialTheme.typography.labelSmall,
                 lineHeight = 15.sp
