@@ -87,3 +87,4 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 # Trigger a build for the updated SruGen native workspace.
+# Rebuild after SruGen navigation, picker and Srukrypt stability fixes.
