@@ -535,12 +535,26 @@ fun SrukryptPage(autoLockMinutes: Int) {
                     Text(if (busy) "Preparing secure session..." else if (SrukryptVault.hasVault(context)) "Unlock vault" else "Set up Srukrypt")
                 }
                 if (SrukryptVault.hasPassphraseFallback(context)) {
-                    TextButton(onClick = { openPassphrase("unlock") }) {
-                        Text("Use passphrase instead", color = SruvikColors.Lime)
+                    OutlinedButton(
+                        onClick = { openPassphrase("unlock") },
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                        shape = RoundedCornerShape(15.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = SruvikColors.Lime)
+                    ) {
+                        Icon(Icons.Rounded.Key, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Use passphrase instead", fontWeight = FontWeight.SemiBold)
                     }
                 } else if (!SrukryptVault.hasVault(context)) {
-                    TextButton(onClick = { openPassphrase("create") }) {
-                        Text("Set up with a passphrase", color = SruvikColors.Lime)
+                    OutlinedButton(
+                        onClick = { openPassphrase("create") },
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                        shape = RoundedCornerShape(15.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = SruvikColors.Lime)
+                    ) {
+                        Icon(Icons.Rounded.Key, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Set up with a passphrase", fontWeight = FontWeight.SemiBold)
                     }
                 }
                 Text("On Android 11+, the device screen lock can authorize the key. On older versions, the passphrase fallback is available. Enrolling biometrics may invalidate older biometric-only keys. Device reset or uninstall destroys access; export important files first.",
@@ -560,15 +574,22 @@ fun SrukryptPage(autoLockMinutes: Int) {
                     Text("Lock now")
                 }
                 Spacer(Modifier.width(7.dp))
-                TextButton(onClick = { openPassphrase("add") }) {
-                    Icon(Icons.Rounded.Key, null, modifier = Modifier.size(16.dp))
-                    Text("Passphrase")
+                OutlinedButton(
+                    onClick = { openPassphrase("add") },
+                    modifier = Modifier.height(48.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = SruvikColors.Lime),
+                    contentPadding = PaddingValues(horizontal = 10.dp)
+                ) {
+                    Icon(Icons.Rounded.Key, null, modifier = Modifier.size(17.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text("Add passphrase", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 }
                 Spacer(Modifier.width(4.dp))
                 Button(
                     onClick = { beginImport() },
                     shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7865C8))
+                    colors = ButtonDefaults.buttonColors(containerColor = SruvikColors.Lime)
                 ) {
                     Icon(Icons.Rounded.Add, null)
                     Text("Add")
@@ -578,7 +599,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
             if (entries.isEmpty()) {
                 Column(
                     Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(24.dp))
-                        .background(Color(0x991B1D32))
+                        .background(Color(0xFF1B1B1B))
                         .border(1.dp, Color.White.copy(alpha = .09f), RoundedCornerShape(24.dp))
                         .padding(22.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
