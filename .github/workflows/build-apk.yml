@@ -53,8 +53,10 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -memory 4096 -cores 4
           script: |
             adb logcat -c
+            set +e
             gradle --no-daemon :app:connectedDebugAndroidTest
             TEST_STATUS=$?
+            set -e
             adb logcat -d -v time -t 6000 > emulator-logcat.txt || true
             adb shell dumpsys activity exit-info in.nispax.sruvik > emulator-exit-info.txt || true
             exit $TEST_STATUS
