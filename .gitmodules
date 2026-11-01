@@ -1,0 +1,3 @@
+[submodule "third_party/nezumi-ai"]
+	path = third_party/nezumi-ai
+	url = https://github.com/mouse0329/nezumi-ai.git

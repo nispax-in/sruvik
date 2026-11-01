@@ -55,6 +55,8 @@ import `in`.nispax.sruvik.ui.theme.SruvikColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -70,6 +72,8 @@ private data class SruGenResourceStats(
 fun SruGenPage(memoryEnabled: Boolean) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    // Serialize encrypted-history commits and always write the newest snapshot.
+    val historySaveMutex = remember { Mutex() }
 
     var chats by remember { mutableStateOf<List<SruGenChat>>(emptyList()) }
     var draftChat by remember { mutableStateOf(SruGenChat(title = "New chat")) }
@@ -114,9 +118,17 @@ fun SruGenPage(memoryEnabled: Boolean) {
         val updated = (listOf(chat) + chats.filterNot { it.id == chat.id })
             .sortedByDescending { it.updatedAt }
         chats = updated
-        scope.launch(Dispatchers.IO) {
-            runCatching { SruGenChatStore.saveChats(context, updated) }
-                .onFailure { error = "Could not save encrypted chat history: ${it.message}" }
+        scope.launch {
+            runCatching {
+                historySaveMutex.withLock {
+                    // Read the latest UI snapshot only after acquiring the lock.
+                    // A delayed older save can therefore never overwrite newer messages.
+                    val latestSnapshot = chats
+                    withContext(Dispatchers.IO) {
+                        SruGenChatStore.saveChats(context, latestSnapshot)
+                    }
+                }
+            }.onFailure { error = "Could not save encrypted chat history: ${it.message}" }
         }
     }
 
@@ -173,6 +185,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
                 DownloadManager.STATUS_FAILED -> {
                     val reason = it.getInt(it.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))
                     error = "Model download failed (reason $reason). Check your connection and free storage, then retry."
+                    runCatching { manager.remove(id) } // Delete partial archive and return its storage.
                     SruGenModelInstaller.clearDownloadId(context)
                     downloadId = -1L
                 }
@@ -193,6 +206,9 @@ fun SruGenPage(memoryEnabled: Boolean) {
                     } finally {
                         installing = false
                         installMessage = ""
+                        // The model is now unpacked in private storage. Do not keep
+                        // the original ~2 GB ZIP occupying the user's phone.
+                        runCatching { manager.remove(id) }
                         SruGenModelInstaller.clearDownloadId(context)
                         downloadId = -1L
                     }
@@ -280,16 +296,13 @@ fun SruGenPage(memoryEnabled: Boolean) {
             // Keep an active inference alive if navigation disposes this screen.
             // Otherwise detach before async close so a later visit cannot reuse
             // an engine instance whose native task has already been released.
-            val engineToClose = if (generationInFlight.value) {
-                null
-            } else {
-                SruGenEngineRegistry.detach(SruGenEngineRegistry.engine) as? AutoCloseable
-            }
+            val engineToClose = if (generationInFlight.value) null else SruGenEngineRegistry.engine
             if (engineToClose != null) {
+                engineToClose.requestStop()
                 kotlinx.coroutines.CoroutineScope(
                     kotlinx.coroutines.SupervisorJob() + Dispatchers.IO
                 ).launch {
-                    runCatching { engineToClose.close() }
+                    runCatching { SruGenEngineRegistry.closeAndDetach(engineToClose) }
                 }
             }
         }
@@ -432,7 +445,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
             persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(role = "assistant", text = unavailable)))
             return
         }
-        if (!modelReady || SruGenEngineRegistry.engine == null) {
+        if (!modelReady) {
             persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
                 role = "assistant",
                 text = "Your prompt and image are safely stored in this encrypted chat. Install the local Stable Diffusion model to generate images on this device."
@@ -449,8 +462,24 @@ fun SruGenPage(memoryEnabled: Boolean) {
         progressLabel = "Preparing local model"
         scope.launch {
             try {
+                // Do not allocate the diffusion model until the user's prompt and
+                // any attachment references have been durably committed in encrypted
+                // app-private storage.
+                historySaveMutex.withLock {
+                    val latestSnapshot = chats
+                    withContext(Dispatchers.IO) {
+                        SruGenChatStore.saveChats(context, latestSnapshot)
+                    }
+                }
                 val result = withContext(Dispatchers.Default) {
-                    val engine = SruGenEngineRegistry.engine ?: error("Local SruGen engine is unavailable.")
+                    // Recreate a released engine lazily. Android may have asked
+                    // Sruvik to free native resources while the app was backgrounded.
+                    val engine = SruGenEngineRegistry.getOrCreate {
+                        MediaPipeSruGenEngine(
+                            context.applicationContext,
+                            File(SruGenModelInstaller.modelDirectory(context), "sd15_bins").absolutePath
+                        )
+                    }
                     engine.generate(
                         SruGenRequest(
                             mode = SruGenMode.TEXT_TO_IMAGE,
@@ -491,11 +520,12 @@ fun SruGenPage(memoryEnabled: Boolean) {
                     "MediaPipe could not link a runtime dependency during image generation.",
                     failure
                 )
-                val failedEngine = SruGenEngineRegistry.detach(SruGenEngineRegistry.engine)
-                if (failedEngine is AutoCloseable) {
+                val failedEngine = SruGenEngineRegistry.engine
+                if (failedEngine != null) {
+                    failedEngine.requestStop()
                     kotlinx.coroutines.CoroutineScope(
                         kotlinx.coroutines.SupervisorJob() + Dispatchers.IO
-                    ).launch { runCatching { failedEngine.close() } }
+                    ).launch { runCatching { SruGenEngineRegistry.closeAndDetach(failedEngine) } }
                 }
                 val newest = chats.firstOrNull { it.id == activeId } ?: updatedChat
                 persist(newest.copy(
@@ -506,11 +536,12 @@ fun SruGenPage(memoryEnabled: Boolean) {
                     )
                 ))
             } catch (failure: OutOfMemoryError) {
-                val failedEngine = SruGenEngineRegistry.detach(SruGenEngineRegistry.engine)
-                if (failedEngine is AutoCloseable) {
+                val failedEngine = SruGenEngineRegistry.engine
+                if (failedEngine != null) {
+                    failedEngine.requestStop()
                     kotlinx.coroutines.CoroutineScope(
                         kotlinx.coroutines.SupervisorJob() + Dispatchers.IO
-                    ).launch { runCatching { failedEngine.close() } }
+                    ).launch { runCatching { SruGenEngineRegistry.closeAndDetach(failedEngine) } }
                 }
                 System.gc()
                 val newest = chats.firstOrNull { it.id == activeId } ?: updatedChat
@@ -646,6 +677,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
                 }
             }
             Box(Modifier.fillMaxWidth().height(1.dp).background(SruvikColors.Border))
+            SruGenModelRoadmap(modelReady)
             AnimatedVisibility(
                 visible = !modelReady,
                 enter = fadeIn(tween(220)) + expandVertically(tween(220)),
@@ -672,7 +704,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
                                 style = MaterialTheme.typography.labelSmall, letterSpacing = .9.sp)
                             Text("Bring SruGen to life", color = SruvikColors.TextPrimary,
                                 style = MaterialTheme.typography.titleMedium)
-                            Text("SD 1.5 · 1.91 GB · runs on this device",
+                            Text("SD 1.5 · 1.9 GiB · guarded local inference",
                                 color = SruvikColors.TextSecondary, style = MaterialTheme.typography.labelSmall)
                         }
                         Button(
@@ -948,7 +980,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
             title = { Text("Install SruGen's local image engine", color = SruvikColors.TextPrimary) },
             text = {
                 Text(
-                    "Stable Diffusion 1.5 · MediaPipe\n\nThe model archive is about 1.91 GB. Allow at least 5 GB free internal storage. Google recommends a device with at least 8 GB RAM. After installation, image generation runs locally with no service rate limits.\n\nThe model is under CreativeML OpenRAIL-M; please review its use restrictions. Nothing downloads until you confirm.",
+                    "Stable Diffusion 1.5 · MediaPipe\n\nThe model archive is about 1.91 GB. SruGen requires at least 8 GB free internal storage to stage it without filling your phone. Generation is blocked unless the device has at least 8 GB physical RAM, 4 GB currently available RAM, 1 GB free storage, acceptable thermal status, and Battery Saver off. Memory and temperature are checked again while generating. This is a conservative risk-reduction system, not a guarantee against Android system-level process kills.\n\nThe model is under CreativeML OpenRAIL-M; please review its use restrictions. Nothing downloads until you confirm.",
                     color = SruvikColors.TextSecondary, style = MaterialTheme.typography.bodySmall
                 )
             },
@@ -1063,6 +1095,61 @@ fun SruGenPage(memoryEnabled: Boolean) {
             dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Cancel", color = SruvikColors.TextSecondary) } },
             containerColor = Color(0xFF191A31)
         )
+    }
+}
+
+
+@Composable
+private fun SruGenModelRoadmap(modelReady: Boolean) {
+    val models = SruGenModelCatalog.models
+    SruGenGlassPanel(
+        Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        fill = Brush.linearGradient(listOf(Color(0xAA27284D), Color(0xAA19243D)))
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 11.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            Text(
+                "MODEL CATALOG  /  VERIFIED PACKS ONLY",
+                color = SruvikColors.LimeMuted,
+                style = MaterialTheme.typography.labelSmall,
+                letterSpacing = .9.sp
+            )
+            models.forEach { model ->
+                val ready = model.availability == SruGenModelAvailability.READY_IN_APP
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            "${model.displayName} · ${model.runtime}",
+                            color = SruvikColors.TextPrimary,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            model.detail,
+                            color = SruvikColors.TextMuted,
+                            style = MaterialTheme.typography.labelSmall,
+                            lineHeight = 15.sp
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        if (ready) { if (modelReady) "ACTIVE" else "READY" } else "LOCKED",
+                        color = if (ready) Color(0xFF9AE9CC) else Color(0xFFFFC98F),
+                        style = MaterialTheme.typography.labelSmall,
+                        letterSpacing = .5.sp
+                    )
+                }
+            }
+            Text(
+                "DreamShaper 8 now has a community MNN conversion and Sruvik includes the pinned Nezumi Kiln arm64 runtime, but the model archive hash and device validation are still pending. SD 3.5, Sana and Wan need separate native pipelines. Nothing is enabled until its exact model files, memory behavior and device tests are verified.",
+                color = SruvikColors.TextSecondary,
+                style = MaterialTheme.typography.labelSmall,
+                lineHeight = 15.sp
+            )
+        }
     }
 }
 
