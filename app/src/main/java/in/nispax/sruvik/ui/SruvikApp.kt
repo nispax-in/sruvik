@@ -47,7 +47,8 @@ import `in`.nispax.sruvik.ui.theme.SruvikColors
 private enum class Destination(val label: String, val icon: ImageVector) {
     Home("Home", Icons.Rounded.Home), Upscaler("Upscale", Icons.Rounded.AutoFixHigh), Models("Models", Icons.Rounded.Memory),
     Activity("Activity", Icons.Rounded.History), Device("Device", Icons.Rounded.Speed), Settings("Settings", Icons.Rounded.Settings),
-    SruGen("SruGen", Icons.Rounded.AutoAwesome), Srukrypt("Srukrypt", Icons.Rounded.Security)
+    SruGen("SruGen", Icons.Rounded.AutoAwesome), Srukrypt("Srukrypt", Icons.Rounded.Security),
+    ModelDetail("Model detail", Icons.Rounded.Memory)
 }
 
 @Composable
@@ -67,6 +68,7 @@ fun SruvikApp() {
     var showDailyTip by remember { mutableStateOf(SruvikPreferences.showDailyTip(context)) }
     var sruGenMemoryEnabled by remember { mutableStateOf(SruvikPreferences.sruGenMemoryEnabled(context)) }
     var selected by remember { mutableStateOf(Destination.Home) }
+    var selectedModelId by remember { mutableStateOf("sd15-mediapipe") }
     Box(Modifier.fillMaxSize().background(SruvikColors.Background)
         .drawBehind { drawAtmosphere() }
         .windowInsetsPadding(WindowInsets.safeDrawing)) {
@@ -77,7 +79,15 @@ fun SruvikApp() {
         ) { page ->
             when (page) {
                 Destination.Home -> HomeScreen(profile.name, showDailyTip, { selected = Destination.Models }, { selected = Destination.Settings }, { selected = Destination.Upscaler }, { selected = Destination.SruGen }, { selected = Destination.Srukrypt })
-                Destination.Models -> ModelsPage(onOpenSruGen = { selected = Destination.SruGen })
+                Destination.Models -> ModelsPage(onOpenModel = { modelId ->
+                    selectedModelId = modelId
+                    selected = Destination.ModelDetail
+                })
+                Destination.ModelDetail -> ModelDetailPage(
+                    modelId = selectedModelId,
+                    onBack = { selected = Destination.Models },
+                    onInstalled = { selected = Destination.Models }
+                )
                 Destination.Activity -> EmptyPage("YOUR WORK", "Activity",
                     "A quiet record of the things you create with Sruvik.",
                     Icons.Rounded.History, "Nothing here yet",
@@ -461,7 +471,12 @@ private fun FloatingDock(selected: Destination, onSelect: (Destination) -> Unit,
         Brush.linearGradient(listOf(Color(0xD76C7057), Color(0xE1283028), Color(0xE018241E)))) {
         Row(Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Destination.entries.filter { it in setOf(Destination.Home, Destination.Models, Destination.Activity, Destination.Device, Destination.Settings) }.forEach { destination ->
-                val active = (if (selected in setOf(Destination.Upscaler, Destination.SruGen, Destination.Srukrypt)) Destination.Home else selected) == destination
+                val dockDestination = when {
+                    selected == Destination.ModelDetail -> Destination.Models
+                    selected in setOf(Destination.Upscaler, Destination.SruGen, Destination.Srukrypt) -> Destination.Home
+                    else -> selected
+                }
+                val active = dockDestination == destination
                 val selectionProgress by animateFloatAsState(
                     targetValue = if (active) 1f else 0f,
                     animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
