@@ -129,7 +129,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
     fun launchImagePicker() {
         if (isProcessing || isSaving || isLoading) return
         try {
-            launchImagePicker()
+            picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
         } catch (pickerError: Exception) {
             message = "Photo Picker could not open. Trying Files instead…"
             try {
@@ -382,7 +382,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                                 listOf(Color(0xFF34435D), Color(0xFF483A5C), Color(0xFF25515B))
                             ))
                             .clickable(enabled = !isProcessing && !isSaving && !isLoading) {
-                                picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                                launchImagePicker()
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -410,7 +410,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                     OutlinedButton(
                         onClick = {
-                            picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                            launchImagePicker()
                         },
                         modifier = Modifier.weight(1f).height(48.dp),
                         shape = RoundedCornerShape(15.dp),
