@@ -38,6 +38,12 @@ data class SrukryptEntryPreview(
     val thumbnail: Bitmap
 )
 
+/** Successful previews plus the count of encrypted entries that could not be authenticated or decoded. */
+data class SrukryptPreviewLoadResult(
+    val entries: List<SrukryptEntryPreview>,
+    val unreadableEntries: Int
+)
+
 /**
  * Envelope encryption for Srukrypt:
  * - A random 256-bit data key encrypts files with AES-256-GCM and a fresh nonce.
@@ -290,21 +296,35 @@ object SrukryptVault {
     }
 
     @Throws(Exception::class)
-    fun loadPreviews(context: Context, dataKey: ByteArray): List<SrukryptEntryPreview> {
+    fun loadPreviews(context: Context, dataKey: ByteArray): List<SrukryptEntryPreview> =
+        loadPreviewsWithReport(context, dataKey).entries
+
+    /**
+     * Load every readable entry while explicitly reporting damaged or unsupported
+     * records. A preview failure never deletes its encrypted source file.
+     */
+    @Throws(Exception::class)
+    fun loadPreviewsWithReport(context: Context, dataKey: ByteArray): SrukryptPreviewLoadResult {
         val dir = SrukryptStorage.vaultDirectory(context)
-        return entryFiles(dir).mapNotNull { file ->
-            val id = file.name.removeSuffix(".srk")
-            try {
-                val plain = decryptEntry(file, id, dataKey)
+        var unreadable = 0
+        val previews = buildList {
+            entryFiles(dir).forEach { file ->
+                val id = file.name.removeSuffix(".srk")
                 try {
-                    decodePreview(id, plain)
-                } finally {
-                    Arrays.fill(plain, 0)
+                    val plain = decryptEntry(file, id, dataKey)
+                    try {
+                        add(decodePreview(id, plain))
+                    } finally {
+                        Arrays.fill(plain, 0)
+                    }
+                } catch (failure: Exception) {
+                    // Keep the ciphertext on disk; never hide this integrity issue.
+                    unreadable++
+                    android.util.Log.e("Srukrypt", "Encrypted vault entry $id could not be opened; file preserved.", failure)
                 }
-            } catch (_: Exception) {
-                null
             }
         }.sortedByDescending { it.createdAtMillis }
+        return SrukryptPreviewLoadResult(previews, unreadable)
     }
 
     @Throws(Exception::class)
