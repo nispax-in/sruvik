@@ -470,8 +470,12 @@ private fun GlassCard(modifier: Modifier, shape: RoundedCornerShape, fill: Brush
 
 @Composable
 private fun FloatingDock(selected: Destination, onSelect: (Destination) -> Unit, modifier: Modifier) {
-    GlassCard(modifier.fillMaxWidth().height(76.dp), RoundedCornerShape(40.dp),
-        Brush.linearGradient(listOf(Color(0xD76C7057), Color(0xE1283028), Color(0xE018241E)))) {
+    Box(
+        modifier.fillMaxWidth().height(76.dp)
+            .clip(RoundedCornerShape(38.dp))
+            .background(Color(0xFF1B1B1B))
+            .border(1.dp, Color(0xFF3A3938), RoundedCornerShape(38.dp))
+    ) {
         Row(Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Destination.entries.filter { it in setOf(Destination.Home, Destination.Models, Destination.Activity, Destination.Device, Destination.Settings) }.forEach { destination ->
                 val dockDestination = when {
@@ -497,8 +501,8 @@ private fun FloatingDock(selected: Destination, onSelect: (Destination) -> Unit,
                 ) {
                     Box(
                         Modifier.fillMaxSize().clip(RoundedCornerShape(28.dp))
-                            .background(Color.White.copy(alpha = .13f * selectionProgress))
-                            .border(1.dp, Color.White.copy(alpha = .13f * selectionProgress), RoundedCornerShape(28.dp))
+                            .background(SruvikColors.Lime.copy(alpha = .12f * selectionProgress))
+                            .border(1.dp, SruvikColors.Lime.copy(alpha = .30f * selectionProgress), RoundedCornerShape(28.dp))
                     )
                     Icon(destination.icon, destination.label,
                         tint = if (active) SruvikColors.TextPrimary else SruvikColors.TextSecondary.copy(alpha = .72f),
@@ -506,7 +510,7 @@ private fun FloatingDock(selected: Destination, onSelect: (Destination) -> Unit,
                     Box(
                         Modifier.align(Alignment.BottomCenter).padding(bottom = 2.dp)
                             .size(4.dp).scale(selectionProgress)
-                            .clip(CircleShape).background(SruvikColors.TextPrimary)
+                            .clip(CircleShape).background(SruvikColors.Lime)
                     )
                 }
             }
