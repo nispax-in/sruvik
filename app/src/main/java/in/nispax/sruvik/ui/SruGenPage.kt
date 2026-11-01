@@ -69,7 +69,7 @@ private data class SruGenResourceStats(
 )
 
 @Composable
-fun SruGenPage(memoryEnabled: Boolean) {
+fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     // Serialize encrypted-history commits and always write the newest snapshot.
@@ -722,7 +722,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
                                 color = SruvikColors.TextSecondary, style = MaterialTheme.typography.labelSmall)
                         }
                         Button(
-                            onClick = { showInstallDialog = true },
+                            onClick = onOpenModels,
                             enabled = !installing && downloadId < 0L,
                             shape = RoundedCornerShape(15.dp),
                             colors = ButtonDefaults.buttonColors(
@@ -731,7 +731,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
                             ),
                             contentPadding = PaddingValues(horizontal = 11.dp, vertical = 8.dp)
                         ) {
-                            Text("INSTALL", fontSize = 10.sp, letterSpacing = .7.sp)
+                            Text("OPEN LIBRARY", fontSize = 10.sp, letterSpacing = .7.sp)
                         }
                     }
                 }
