@@ -49,6 +49,38 @@ class SrukryptPassphraseEnvelopeTest {
     }
 
     @Test
+    fun rollbackFallbackReplacesExistingEnvelope() {
+        val directory = temporaryFolder.root
+        val temp = File(directory, ".new.tmp").apply { writeText("new envelope") }
+        val target = File(directory, "passphrase.wrap").apply { writeText("old envelope") }
+
+        SrukryptPassphraseEnvelope.replaceWithRollback(temp, target)
+
+        assertTrue(target.isFile)
+        assertEquals("new envelope", target.readText())
+        assertFalse(temp.exists())
+        assertTrue(directory.listFiles().orEmpty().none { it.name.endsWith(".bak") })
+    }
+
+    @Test
+    fun rollbackFallbackRestoresOriginalWhenCommitRenameFails() {
+        val directory = temporaryFolder.root
+        val temp = File(directory, ".missing.tmp")
+        val target = File(directory, "passphrase.wrap").apply { writeText("working envelope") }
+
+        try {
+            SrukryptPassphraseEnvelope.replaceWithRollback(temp, target)
+            fail("Replacing with a missing temporary file must fail.")
+        } catch (expected: java.io.IOException) {
+            // Expected. The original envelope must be restored from the backup.
+        }
+
+        assertTrue(target.isFile)
+        assertEquals("working envelope", target.readText())
+        assertTrue(directory.listFiles().orEmpty().none { it.name.endsWith(".bak") })
+    }
+
+    @Test
     fun invalidReplacementLeavesPreviousEnvelopeUsable() {
         val file = File(temporaryFolder.root, "passphrase.wrap")
         val originalKey = ByteArray(32).also { SecureRandom().nextBytes(it) }

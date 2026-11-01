@@ -158,7 +158,7 @@ internal object SrukryptPassphraseEnvelope {
         }
     }
 
-    private fun replaceWithRollback(temp: File, target: File) {
+    internal fun replaceWithRollback(temp: File, target: File) {
         val parent = target.absoluteFile.parentFile
             ?: throw IOException("Unable to prepare the Srukrypt passphrase directory.")
         val backup = File(parent, ".${target.name}.${UUID.randomUUID()}.bak")
