@@ -646,6 +646,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
                 }
             }
             Box(Modifier.fillMaxWidth().height(1.dp).background(SruvikColors.Border))
+            SruGenModelRoadmap(modelReady)
             AnimatedVisibility(
                 visible = !modelReady,
                 enter = fadeIn(tween(220)) + expandVertically(tween(220)),
@@ -672,7 +673,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
                                 style = MaterialTheme.typography.labelSmall, letterSpacing = .9.sp)
                             Text("Bring SruGen to life", color = SruvikColors.TextPrimary,
                                 style = MaterialTheme.typography.titleMedium)
-                            Text("SD 1.5 · 1.91 GB · runs on this device",
+                            Text("SD 1.5 · 1.9 GiB · guarded local inference",
                                 color = SruvikColors.TextSecondary, style = MaterialTheme.typography.labelSmall)
                         }
                         Button(
@@ -948,7 +949,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
             title = { Text("Install SruGen's local image engine", color = SruvikColors.TextPrimary) },
             text = {
                 Text(
-                    "Stable Diffusion 1.5 · MediaPipe\n\nThe model archive is about 1.91 GB. Allow at least 5 GB free internal storage. Google recommends a device with at least 8 GB RAM. After installation, image generation runs locally with no service rate limits.\n\nThe model is under CreativeML OpenRAIL-M; please review its use restrictions. Nothing downloads until you confirm.",
+                    "Stable Diffusion 1.5 · MediaPipe\n\nThe model archive is about 1.91 GB. SruGen requires at least 8 GB free internal storage to stage it without filling your phone. Generation is blocked unless the device has at least 8 GB physical RAM, 4 GB currently available RAM, 1 GB free storage, acceptable thermal status, and Battery Saver off. Memory and temperature are checked again while generating. This is a conservative risk-reduction system, not a guarantee against Android system-level process kills.\n\nThe model is under CreativeML OpenRAIL-M; please review its use restrictions. Nothing downloads until you confirm.",
                     color = SruvikColors.TextSecondary, style = MaterialTheme.typography.bodySmall
                 )
             },
@@ -1063,6 +1064,61 @@ fun SruGenPage(memoryEnabled: Boolean) {
             dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Cancel", color = SruvikColors.TextSecondary) } },
             containerColor = Color(0xFF191A31)
         )
+    }
+}
+
+
+@Composable
+private fun SruGenModelRoadmap(modelReady: Boolean) {
+    val models = SruGenModelCatalog.models
+    SruGenGlassPanel(
+        Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        fill = Brush.linearGradient(listOf(Color(0xAA27284D), Color(0xAA19243D)))
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 11.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            Text(
+                "MODEL CATALOG  /  VERIFIED PACKS ONLY",
+                color = SruvikColors.LimeMuted,
+                style = MaterialTheme.typography.labelSmall,
+                letterSpacing = .9.sp
+            )
+            models.forEach { model ->
+                val ready = model.availability == SruGenModelAvailability.READY_IN_APP
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            "${model.displayName} · ${model.runtime}",
+                            color = SruvikColors.TextPrimary,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            model.detail,
+                            color = SruvikColors.TextMuted,
+                            style = MaterialTheme.typography.labelSmall,
+                            lineHeight = 15.sp
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        if (ready) { if (modelReady) "ACTIVE" else "READY" } else "LOCKED",
+                        color = if (ready) Color(0xFF9AE9CC) else Color(0xFFFFC98F),
+                        style = MaterialTheme.typography.labelSmall,
+                        letterSpacing = .5.sp
+                    )
+                }
+            }
+            Text(
+                "DreamShaper and the MNN-Diffusion models stay locked until their native runtime, converted weights, integrity manifest and device-safety tests are shipped together.",
+                color = SruvikColors.TextSecondary,
+                style = MaterialTheme.typography.labelSmall,
+                lineHeight = 15.sp
+            )
+        }
     }
 }
 
