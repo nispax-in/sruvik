@@ -45,13 +45,13 @@ fun FirstRunProfileDialog(onContinue: (SruvikProfile) -> Unit) {
         Surface(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
             shape = RoundedCornerShape(30.dp),
-            color = Color(0xFF17172A),
+            color = Color(0xFF1B1B1B),
             border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .13f))
         ) {
             Column(Modifier.padding(23.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Box(
                     Modifier.size(48.dp).clip(CircleShape)
-                        .background(Color(0xFF6255A5).copy(alpha = .26f)),
+                        .background(Color(0xFFE98261).copy(alpha = .12f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Rounded.WavingHand, null, tint = SruvikColors.Lime, modifier = Modifier.size(23.dp))
@@ -100,9 +100,9 @@ fun FirstRunProfileDialog(onContinue: (SruvikProfile) -> Unit) {
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     shape = RoundedCornerShape(17.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF7764C9),
+                        containerColor = Color(0xFFE98261),
                         contentColor = Color.White,
-                        disabledContainerColor = Color(0xFF454258),
+                        disabledContainerColor = Color(0xFF45413F),
                         disabledContentColor = Color.White.copy(alpha = .45f)
                     )
                 ) {
@@ -465,7 +465,7 @@ private fun EditProfileDialog(
             }) { Text("Save", color = SruvikColors.Lime) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = SruvikColors.TextSecondary) } },
-        containerColor = Color(0xFF19192D),
+        containerColor = Color(0xFF1B1B1B),
         shape = RoundedCornerShape(25.dp)
     )
 }

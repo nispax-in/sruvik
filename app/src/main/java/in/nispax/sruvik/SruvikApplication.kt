@@ -4,6 +4,8 @@ import android.app.Application
 import android.content.ComponentCallbacks2
 import android.content.res.Configuration
 import `in`.nispax.sruvik.srugen.SruGenEngineRegistry
+import `in`.nispax.sruvik.srugen.SruGenGenerationSession
+import `in`.nispax.sruvik.srugen.SruGenGenerationStatus
 
 /**
  * Release heavyweight native inference resources when Android hides the app
@@ -27,6 +29,10 @@ class SruvikApplication : Application(), ComponentCallbacks2 {
     }
 
     private fun releaseInferenceEngine(reason: String) {
+        if (SruGenGenerationSession.state.value.status == SruGenGenerationStatus.RUNNING) {
+            android.util.Log.i("SruvikApplication", "Keeping the SruGen engine alive during an app-scoped generation task ($reason).")
+            return
+        }
         val current = SruGenEngineRegistry.engine ?: return
         current.requestStop()
         // Native close can wait for the current inference checkpoint. Run it off

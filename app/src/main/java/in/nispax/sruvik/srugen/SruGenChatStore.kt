@@ -105,6 +105,47 @@ object SruGenChatStore {
         }
     }
 
+    /**
+     * Upsert one conversation without writing a stale snapshot of the entire list.
+     * This lets a background generation append its result while the UI navigates.
+     */
+    @Synchronized
+    fun upsertChat(context: Context, chat: SruGenChat) {
+        val current = loadChats(context)
+        val existing = current.firstOrNull { it.id == chat.id }
+        val merged = if (existing == null) {
+            chat
+        } else {
+            val messages = (existing.messages + chat.messages)
+                .distinctBy { it.id }
+                .sortedBy { it.createdAt }
+            val newest = if (chat.updatedAt >= existing.updatedAt) chat else existing
+            newest.copy(
+                updatedAt = maxOf(existing.updatedAt, chat.updatedAt),
+                messages = messages
+            )
+        }
+        saveChats(
+            context,
+            (listOf(merged) + current.filterNot { it.id == chat.id })
+                .sortedByDescending { it.updatedAt }
+        )
+    }
+
+    @Synchronized
+    fun appendMessage(context: Context, chatId: String, message: SruGenMessage) {
+        val latest = loadChats(context)
+        val chat = latest.firstOrNull { it.id == chatId }
+            ?: throw IllegalStateException("The encrypted conversation for this generation no longer exists.")
+        upsertChat(
+            context,
+            chat.copy(
+                updatedAt = System.currentTimeMillis(),
+                messages = chat.messages + message
+            )
+        )
+    }
+
     @Synchronized
     fun saveChats(context: Context, chats: List<SruGenChat>) {
         val json = JSONArray()

@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -281,6 +282,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                                     }
                                     errorText = ""
                                 } catch (error: Exception) {
+                                    android.util.Log.e("Srukrypt", "Authenticated vault unwrap failed.", error)
                                     newKey?.let { Arrays.fill(it, 0) }
                                     SrukryptVault.discardChallenge(authChallenge)
                                     errorText = when (error) {
@@ -312,6 +314,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                 )
                 prompt.authenticate(promptInfo, BiometricPrompt.CryptoObject(authChallenge.cipher))
             } catch (error: Exception) {
+                android.util.Log.e("Srukrypt", "Could not prepare the Android Keystore unlock challenge.", error)
                 challenge?.let { SrukryptVault.discardChallenge(it) }
                 busy = false
                 errorText = when (error) {
@@ -331,15 +334,16 @@ fun SrukryptPage(autoLockMinutes: Int) {
     }
 
     fun submitPassphrase() {
+        val operation = passphraseMode
         val typed = passphraseText.toCharArray()
         val confirm = passphraseConfirm.toCharArray()
-        if (passphraseMode != "unlock" && passphraseText.length < 10) {
+        if (operation != "unlock" && passphraseText.length < 10) {
             errorText = "Use at least 10 characters for a Srukrypt passphrase."
             Arrays.fill(typed, '\u0000')
             Arrays.fill(confirm, '\u0000')
             return
         }
-        if (passphraseMode != "unlock" && passphraseText != passphraseConfirm) {
+        if (operation != "unlock" && passphraseText != passphraseConfirm) {
             errorText = "The passphrases do not match."
             Arrays.fill(typed, '\u0000')
             Arrays.fill(confirm, '\u0000')
@@ -349,11 +353,16 @@ fun SrukryptPage(autoLockMinutes: Int) {
         passphraseDialog = false
         busy = true
         errorText = ""
+        infoText = when (operation) {
+            "create" -> "Creating your encrypted Srukrypt vault…"
+            "add" -> "Saving your passphrase fallback…"
+            else -> "Unlocking your encrypted vault…"
+        }
         scope.launch {
             var unlocked: ByteArray? = null
             try {
                 unlocked = withContext(Dispatchers.IO) {
-                    when (passphraseMode) {
+                    when (operation) {
                         "create" -> SrukryptVault.createVaultWithPassphrase(context, typed)
                         "add" -> {
                             val key = currentKey ?: error("Unlock the vault first.")
@@ -363,7 +372,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                         else -> SrukryptVault.unlockWithPassphrase(context, typed)
                     }
                 }
-                if (passphraseMode == "unlock" || passphraseMode == "create") {
+                if (operation == "unlock" || operation == "create") {
                     val previews = withContext(Dispatchers.IO) {
                         SrukryptVault.loadPreviews(context, unlocked)
                     }
@@ -380,7 +389,9 @@ fun SrukryptPage(autoLockMinutes: Int) {
                 }
                 lastInteraction = SystemClock.elapsedRealtime()
             } catch (error: Exception) {
+                android.util.Log.e("Srukrypt", "Passphrase operation '$operation' failed.", error)
                 unlocked?.let { Arrays.fill(it, 0) }
+                infoText = ""
                 errorText = error.message ?: "Passphrase operation failed."
             } finally {
                 Arrays.fill(typed, '\u0000')
@@ -444,7 +455,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
 
         Row(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp))
-                .background(Color(0xFF282544).copy(alpha = .7f))
+                .background(Color(0xFF202020))
                 .border(1.dp, Color.White.copy(alpha = .10f), RoundedCornerShape(17.dp))
                 .padding(13.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -457,24 +468,50 @@ fun SrukryptPage(autoLockMinutes: Int) {
                 Text("Encrypted image contents and metadata · no cloud sync",
                     style = MaterialTheme.typography.bodySmall, color = SruvikColors.TextSecondary)
             }
-            Surface(shape = RoundedCornerShape(20.dp), color = Color(0xFF5BC9A0).copy(alpha = .15f)) {
+            Surface(shape = RoundedCornerShape(20.dp), color = Color(0xFFE98261).copy(alpha = .15f)) {
                 Text("OFFLINE", modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
                     color = SruvikColors.Lime, style = MaterialTheme.typography.labelSmall)
             }
         }
 
+        if (busy || errorText.isNotBlank() || infoText.isNotBlank()) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = if (errorText.isNotBlank()) Color(0xFF3A2020) else Color(0xFF242424),
+                shape = RoundedCornerShape(16.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .12f))
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (busy) CircularProgressIndicator(Modifier.size(19.dp), strokeWidth = 2.dp, color = SruvikColors.Lime)
+                    else Icon(
+                        if (errorText.isNotBlank()) Icons.Rounded.ErrorOutline else Icons.Rounded.CheckCircle,
+                        null, tint = if (errorText.isNotBlank()) Color(0xFFFFA6A6) else SruvikColors.Lime,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        when { busy && infoText.isNotBlank() -> infoText; errorText.isNotBlank() -> errorText; else -> infoText },
+                        color = if (errorText.isNotBlank()) Color(0xFFFFB0A8) else SruvikColors.TextPrimary,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+        }
         if (sessionKey == null) {
             Spacer(Modifier.height(12.dp))
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp))
-                    .background(Brush.linearGradient(listOf(Color(0xFF352D62), Color(0xFF1D2746), Color(0xFF17182C))))
+                    .background(Brush.linearGradient(listOf(Color(0xFF242424), Color(0xFF1B1B1B), Color(0xFF111111))))
                     .border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(28.dp))
                     .padding(22.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(13.dp)
             ) {
                 Box(Modifier.size(76.dp).clip(CircleShape)
-                    .background(Color(0xFF8876D9).copy(alpha = .18f)),
+                    .background(Color(0xFFE98261).copy(alpha = .16f)),
                     contentAlignment = Alignment.Center) {
                     Icon(Icons.Rounded.Lock, null, tint = SruvikColors.Lime, modifier = Modifier.size(36.dp))
                 }
@@ -491,7 +528,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                     enabled = !busy,
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     shape = RoundedCornerShape(17.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7865C8))
+                    colors = ButtonDefaults.buttonColors(containerColor = SruvikColors.Lime)
                 ) {
                     if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                     else Icon(Icons.Rounded.Fingerprint, null)
@@ -499,12 +536,26 @@ fun SrukryptPage(autoLockMinutes: Int) {
                     Text(if (busy) "Preparing secure session..." else if (SrukryptVault.hasVault(context)) "Unlock vault" else "Set up Srukrypt")
                 }
                 if (SrukryptVault.hasPassphraseFallback(context)) {
-                    TextButton(onClick = { openPassphrase("unlock") }) {
-                        Text("Use passphrase instead", color = SruvikColors.Lime)
+                    OutlinedButton(
+                        onClick = { openPassphrase("unlock") },
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                        shape = RoundedCornerShape(15.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = SruvikColors.Lime)
+                    ) {
+                        Icon(Icons.Rounded.Key, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Use passphrase instead", fontWeight = FontWeight.SemiBold)
                     }
                 } else if (!SrukryptVault.hasVault(context)) {
-                    TextButton(onClick = { openPassphrase("create") }) {
-                        Text("Set up with a passphrase", color = SruvikColors.Lime)
+                    OutlinedButton(
+                        onClick = { openPassphrase("create") },
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                        shape = RoundedCornerShape(15.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = SruvikColors.Lime)
+                    ) {
+                        Icon(Icons.Rounded.Key, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Set up with a passphrase", fontWeight = FontWeight.SemiBold)
                     }
                 }
                 Text("On Android 11+, the device screen lock can authorize the key. On older versions, the passphrase fallback is available. Enrolling biometrics may invalidate older biometric-only keys. Device reset or uninstall destroys access; export important files first.",
@@ -524,25 +575,31 @@ fun SrukryptPage(autoLockMinutes: Int) {
                     Text("Lock now")
                 }
                 Spacer(Modifier.width(7.dp))
-                TextButton(onClick = { openPassphrase("add") }) {
-                    Icon(Icons.Rounded.Key, null, modifier = Modifier.size(16.dp))
-                    Text("Passphrase")
-                }
-                Spacer(Modifier.width(4.dp))
                 Button(
                     onClick = { beginImport() },
                     shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7865C8))
+                    colors = ButtonDefaults.buttonColors(containerColor = SruvikColors.Lime)
                 ) {
                     Icon(Icons.Rounded.Add, null)
                     Text("Add")
                 }
             }
 
+            OutlinedButton(
+                onClick = { openPassphrase("add") },
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = SruvikColors.Lime)
+            ) {
+                Icon(Icons.Rounded.Key, null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Add passphrase fallback", fontWeight = FontWeight.SemiBold)
+            }
+
             if (entries.isEmpty()) {
                 Column(
                     Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(24.dp))
-                        .background(Color(0x991B1D32))
+                        .background(Color(0xFF1B1B1B))
                         .border(1.dp, Color.White.copy(alpha = .09f), RoundedCornerShape(24.dp))
                         .padding(22.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -565,7 +622,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                     items(entries, key = { it.id }) { entry ->
                         Column(
                             Modifier.clip(RoundedCornerShape(19.dp))
-                                .background(Color(0xAA20213A))
+                                .background(Color(0xFF242424))
                                 .border(1.dp, Color.White.copy(alpha = .10f), RoundedCornerShape(19.dp))
                                 .padding(9.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -596,9 +653,6 @@ fun SrukryptPage(autoLockMinutes: Int) {
             }
         }
 
-        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        if (errorText.isNotBlank()) Text(errorText, color = Color(0xFFFFA6A6), style = MaterialTheme.typography.bodySmall)
-        if (infoText.isNotBlank()) Text(infoText, color = SruvikColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
     }
 
     if (confirmDelete != null) {
@@ -624,7 +678,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                 }) { Text("Delete", color = Color(0xFFFF9B9B)) }
             },
             dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text("Cancel") } },
-            containerColor = Color(0xFF19192D),
+            containerColor = Color(0xFF1B1B1B),
             shape = RoundedCornerShape(23.dp)
         )
     }    

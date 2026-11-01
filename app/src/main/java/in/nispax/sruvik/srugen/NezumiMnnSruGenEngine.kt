@@ -23,9 +23,10 @@ import kotlinx.coroutines.withContext
  */
 class NezumiMnnSruGenEngine(
     private val context: Context,
-    private val modelDirectory: File
+    private val modelDirectory: File,
+    private val modelDisplayName: String = "Nezumi MNN · SD1.5"
 ) : SruGenEngine, AutoCloseable {
-    override val displayName: String = "DreamShaper 8 · Nezumi Kiln (MNN)"
+    override val displayName: String = "$modelDisplayName · Nezumi Kiln (MNN)"
     override val isOffline: Boolean = true
 
     private val nativeLock = ReentrantLock()
@@ -93,7 +94,7 @@ class NezumiMnnSruGenEngine(
                 448
             )
             check(success) {
-                "DreamShaper could not be loaded by Nezumi Kiln: ${MnnSdNative.getLastError()}"
+                "$displayName could not be loaded by Nezumi Kiln: ${MnnSdNative.getLastError()}"
             }
             check(!stopRequested) {
                 "DreamShaper loading was stopped because Android requested memory release."
@@ -114,7 +115,7 @@ class NezumiMnnSruGenEngine(
         onProgress: (Int, String) -> Unit
     ): SruGenResult = withContext(Dispatchers.IO) {
         require(request.mode == SruGenMode.TEXT_TO_IMAGE) {
-            "DreamShaper 8 currently supports text-to-image only in Sruvik."
+            "$displayName currently supports text-to-image only in Sruvik."
         }
         require(request.prompt.isNotBlank()) { "Describe the image you want to create." }
         nativeLock.withLock {
@@ -122,7 +123,7 @@ class NezumiMnnSruGenEngine(
             stopRequested = false
             stopReason = null
             SruGenDeviceGuard.requireSafeToStart(context)
-            onProgress(2, "Checking DreamShaper model pack")
+            onProgress(2, "Checking $displayName model pack")
             ensureLoaded()
             check(!stopRequested) {
                 "DreamShaper loading was cancelled to protect device resources. Your encrypted prompt remains saved."
@@ -154,7 +155,7 @@ class NezumiMnnSruGenEngine(
                 }
             }
 
-            onProgress(5, "Loading DreamShaper 8 · CPU-safe mode")
+            onProgress(5, "Loading $displayName · CPU-safe mode")
             val packed = MnnSdNative.generate(
                 handle = currentHandle,
                 prompt = request.prompt,

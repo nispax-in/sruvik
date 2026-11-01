@@ -55,14 +55,14 @@ import java.io.InputStream
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-private val LabInk = Color(0xFF0D1421)
-private val LabViolet = Color(0xFFB6A1FF)
-private val LabCyan = Color(0xFF78DFE4)
-private val LabCoral = Color(0xFFFF9A83)
-private val LabGold = Color(0xFFFFD08A)
-private val LabSurface = Color(0xFF172334)
-private val LabText = Color(0xFFF4F4FA)
-private val LabMuted = Color(0xFFAEB9C9)
+private val LabInk = Color(0xFF0B0B0B)
+private val LabViolet = Color(0xFFE98261)
+private val LabCyan = Color(0xFFD1CCC7)
+private val LabCoral = Color(0xFFE98261)
+private val LabGold = Color(0xFFF0B58F)
+private val LabSurface = Color(0xFF1B1B1B)
+private val LabText = Color(0xFFF5F3F1)
+private val LabMuted = Color(0xFFC5C0BB)
 
 @Composable
 fun ImageUpscalerPage(onBack: () -> Unit) {
@@ -124,6 +124,19 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
             beginImageLoad(uri, "Loading image from files…")
         } else if (uri == null) {
             message = "No file selected."
+        }
+    }
+    fun launchImagePicker() {
+        if (isProcessing || isSaving || isLoading) return
+        try {
+            picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        } catch (pickerError: Exception) {
+            message = "Photo Picker could not open. Trying Files instead…"
+            try {
+                filePicker.launch(arrayOf("image/*"))
+            } catch (filesError: Exception) {
+                message = "Unable to open an image picker: ${filesError.message ?: pickerError.message ?: "unknown error"}"
+            }
         }
     }
     val saver = rememberLauncherForActivityResult(
@@ -269,7 +282,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                     letterSpacing = 1.4.sp)
             }
             Spacer(Modifier.weight(1f))
-            Surface(color = Color(0xFF163B3E), shape = CircleShape) {
+            Surface(color = Color(0xFF252525), shape = CircleShape) {
                 Row(Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(6.dp).clip(CircleShape).background(LabCyan))
@@ -312,7 +325,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
         ) {
             Column(
                 Modifier.background(Brush.linearGradient(
-                    listOf(Color(0xFF25344F), Color(0xFF27233F), Color(0xFF17313C))
+                    listOf(Color(0xFF262626), Color(0xFF1D1D1D), Color(0xFF141414))
                 )).padding(17.dp),
                 verticalArrangement = Arrangement.spacedBy(13.dp)
             ) {
@@ -366,10 +379,10 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                     Box(
                         Modifier.fillMaxWidth().height(176.dp).clip(RoundedCornerShape(20.dp))
                             .background(Brush.linearGradient(
-                                listOf(Color(0xFF34435D), Color(0xFF483A5C), Color(0xFF25515B))
+                                listOf(Color(0xFF292929), Color(0xFF202020), Color(0xFF161616))
                             ))
                             .clickable(enabled = !isProcessing && !isSaving && !isLoading) {
-                                picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                                launchImagePicker()
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -397,7 +410,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                     OutlinedButton(
                         onClick = {
-                            picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                            launchImagePicker()
                         },
                         modifier = Modifier.weight(1f).height(48.dp),
                         shape = RoundedCornerShape(15.dp),
@@ -407,7 +420,14 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                         Text(if (original == null) "Photo library" else "Change photo")
                     }
                     OutlinedButton(
-                        onClick = { filePicker.launch(arrayOf("image/*")) },
+                        onClick = {
+                            if (!isProcessing && !isSaving && !isLoading) {
+                                runCatching { filePicker.launch(arrayOf("image/*")) }
+                                    .onFailure { failure ->
+                                        message = "Android couldn't open Files: ${failure.message ?: "unknown error"}"
+                                    }
+                            }
+                        },
                         modifier = Modifier.weight(1f).height(48.dp),
                         shape = RoundedCornerShape(15.dp),
                         enabled = !isProcessing && !isSaving && !isLoading
@@ -454,7 +474,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = Color(0xFF29253E),
+            color = Color(0xFF2A2A2A),
             shape = RoundedCornerShape(25.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, LabViolet.copy(alpha = .24f))
         ) {
@@ -511,8 +531,8 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                     shape = RoundedCornerShape(17.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = LabViolet, contentColor = LabInk,
-                        disabledContainerColor = Color(0xFF494559),
-                        disabledContentColor = Color(0xFFA7A1B7)
+                        disabledContainerColor = Color(0xFF45413F),
+                        disabledContentColor = Color(0xFF96918D)
                     )
                 ) {
                     if (isProcessing) {
@@ -641,7 +661,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
         }
 
         Surface(
-            color = Color(0xFF1B2A2F), shape = RoundedCornerShape(18.dp),
+            color = Color(0xFF202020), shape = RoundedCornerShape(18.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, LabCyan.copy(alpha = .14f))
         ) {
             Row(Modifier.padding(13.dp), verticalAlignment = Alignment.Top) {
@@ -667,7 +687,7 @@ private fun ModelTag(label: String) {
 @Composable
 private fun ComparisonCard(title: String, size: String, bitmap: Bitmap, modifier: Modifier, accent: Color) {
     Surface(
-        modifier = modifier, color = Color(0xFF172334), shape = RoundedCornerShape(20.dp),
+        modifier = modifier, color = Color(0xFF1B1B1B), shape = RoundedCornerShape(20.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = .22f))
     ) {
         Column(Modifier.padding(9.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -681,7 +701,7 @@ private fun ComparisonCard(title: String, size: String, bitmap: Bitmap, modifier
 
 @Composable
 private fun ImagePreview(bitmap: Bitmap, modifier: Modifier = Modifier) {
-    Box(modifier.clip(RoundedCornerShape(17.dp)).background(Color(0xFF0A101A)),
+    Box(modifier.clip(RoundedCornerShape(17.dp)).background(Color(0xFF101010)),
         contentAlignment = Alignment.Center) {
         Image(bitmap.asImageBitmap(), "Image preview",
             Modifier.fillMaxSize().padding(4.dp), contentScale = ContentScale.Fit)
