@@ -126,6 +126,19 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
             message = "No file selected."
         }
     }
+    fun launchImagePicker() {
+        if (isProcessing || isSaving || isLoading) return
+        try {
+            launchImagePicker()
+        } catch (pickerError: Exception) {
+            message = "Photo Picker could not open. Trying Files instead…"
+            try {
+                filePicker.launch(arrayOf("image/*"))
+            } catch (filesError: Exception) {
+                message = "Unable to open an image picker: ${filesError.message ?: pickerError.message ?: "unknown error"}"
+            }
+        }
+    }
     val saver = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("image/png")
     ) { uri ->
@@ -407,7 +420,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                         Text(if (original == null) "Photo library" else "Change photo")
                     }
                     OutlinedButton(
-                        onClick = { filePicker.launch(arrayOf("image/*")) },
+                        onClick = { launchImagePicker() },
                         modifier = Modifier.weight(1f).height(48.dp),
                         shape = RoundedCornerShape(15.dp),
                         enabled = !isProcessing && !isSaving && !isLoading
