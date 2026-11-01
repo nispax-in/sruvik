@@ -766,7 +766,7 @@ internal fun decodeImage(context: Context, uri: Uri): Bitmap {
     }
 }
 
-private fun previewSampleSize(width: Int, height: Int): Int {
+internal fun previewSampleSize(width: Int, height: Int): Int {
     var sample = 1
     while (
         (width.toLong() / sample.toLong()) *
