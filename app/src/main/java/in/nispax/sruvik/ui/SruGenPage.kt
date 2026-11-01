@@ -296,16 +296,13 @@ fun SruGenPage(memoryEnabled: Boolean) {
             // Keep an active inference alive if navigation disposes this screen.
             // Otherwise detach before async close so a later visit cannot reuse
             // an engine instance whose native task has already been released.
-            val engineToClose = if (generationInFlight.value) {
-                null
-            } else {
-                SruGenEngineRegistry.detach(SruGenEngineRegistry.engine) as? AutoCloseable
-            }
+            val engineToClose = if (generationInFlight.value) null else SruGenEngineRegistry.engine
             if (engineToClose != null) {
+                engineToClose.requestStop()
                 kotlinx.coroutines.CoroutineScope(
                     kotlinx.coroutines.SupervisorJob() + Dispatchers.IO
                 ).launch {
-                    runCatching { engineToClose.close() }
+                    runCatching { SruGenEngineRegistry.closeAndDetach(engineToClose) }
                 }
             }
         }
