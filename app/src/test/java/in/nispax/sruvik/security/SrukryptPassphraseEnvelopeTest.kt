@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.security.SecureRandom
 import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -46,6 +47,62 @@ class SrukryptPassphraseEnvelopeTest {
         originalKey.fill(0)
         replacementKey.fill(0)
         unlocked.fill(0)
+    }
+
+    @Test
+    fun rollbackFallbackReplacesExistingEnvelope() {
+        val directory = temporaryFolder.root
+        val temp = File(directory, ".new.tmp").apply { writeText("new envelope") }
+        val target = File(directory, "passphrase.wrap").apply { writeText("old envelope") }
+
+        SrukryptPassphraseEnvelope.replaceWithRollback(temp, target)
+
+        assertTrue(target.isFile)
+        assertEquals("new envelope", target.readText())
+        assertFalse(temp.exists())
+        assertTrue(directory.listFiles().orEmpty().none { it.name.endsWith(".bak") })
+    }
+
+    @Test
+    fun rollbackFallbackRestoresOriginalWhenCommitRenameFails() {
+        val directory = temporaryFolder.root
+        val temp = File(directory, ".missing.tmp")
+        val target = File(directory, "passphrase.wrap").apply { writeText("working envelope") }
+
+        try {
+            SrukryptPassphraseEnvelope.replaceWithRollback(temp, target)
+            fail("Replacing with a missing temporary file must fail.")
+        } catch (expected: java.io.IOException) {
+            // Expected. The original envelope must be restored from the backup.
+        }
+
+        assertTrue(target.isFile)
+        assertEquals("working envelope", target.readText())
+        assertTrue(directory.listFiles().orEmpty().none { it.name.endsWith(".bak") })
+    }
+
+    @Test
+    fun invalidReplacementLeavesPreviousEnvelopeUsable() {
+        val file = File(temporaryFolder.root, "passphrase.wrap")
+        val originalKey = ByteArray(32).also { SecureRandom().nextBytes(it) }
+        val originalPassphrase = "original safe passphrase".toCharArray()
+        SrukryptPassphraseEnvelope.write(file, originalKey, originalPassphrase)
+        val before = Files.readAllBytes(file.toPath())
+
+        try {
+            SrukryptPassphraseEnvelope.write(file, originalKey, "short".toCharArray())
+            fail("A short passphrase must be rejected.")
+        } catch (expected: IllegalArgumentException) {
+            // Rejected before any temporary file can replace the working envelope.
+        }
+
+        assertArrayEquals(before, Files.readAllBytes(file.toPath()))
+        val recovered = SrukryptPassphraseEnvelope.read(file, originalPassphrase)
+        assertArrayEquals(originalKey, recovered)
+        assertTrue(temporaryFolder.root.listFiles().orEmpty().none { it.name.endsWith(".tmp") })
+        originalKey.fill(0)
+        recovered.fill(0)
+        originalPassphrase.fill('\u0000')
     }
 
     @Test

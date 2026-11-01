@@ -102,6 +102,10 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
     var installMessage by remember { mutableStateOf("") }
     var showInstallDialog by remember { mutableStateOf(false) }
     var historyOpen by remember { mutableStateOf(false) }
+    // Reopening this destination after a tab switch should follow an in-flight
+    // generation until its chat is restored. Explicit history/new-chat navigation
+    // opts out so the user is never forcibly pulled away from another conversation.
+    var followGenerationChat by remember { mutableStateOf(true) }
     var renameTarget by remember { mutableStateOf<SruGenChat?>(null) }
     var renameText by remember { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<SruGenChat?>(null) }
@@ -138,6 +142,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
     }
 
     fun newChat() {
+        followGenerationChat = false
         // Start a volatile draft. It only enters encrypted history after the first user message.
         val draft = SruGenChat(title = "New chat")
         draftChat = draft
@@ -261,20 +266,47 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
         downloadId = SruGenModelInstaller.savedDownloadId(context)
     }
 
-    LaunchedEffect(generationState.status, generationState.chatId, generationState.updatedAt, activeId) {
-        generating = generationState.status == SruGenGenerationStatus.RUNNING && generationState.chatId == activeId
+    LaunchedEffect(
+        generationState.status,
+        generationState.chatId,
+        generationState.updatedAt,
+        activeId,
+        followGenerationChat
+    ) {
+        val generationChatId = generationState.chatId
+        generating = generationState.status == SruGenGenerationStatus.RUNNING &&
+            generationChatId == activeId
         if (generating) {
             progress = generationState.progress
             progressLabel = generationState.progressLabel
         }
-        if (generationState.status == SruGenGenerationStatus.COMPLETED ||
-            generationState.status == SruGenGenerationStatus.FAILED
-        ) {
-            progress = 0
-            progressLabel = ""
-            chats = withContext(Dispatchers.IO) { SruGenChatStore.loadChats(context) }
-            if (generationState.chatId == activeId) info = generationState.message
-            generating = false
+
+        // The session writes the prompt asynchronously before model loading. If
+        // the user returns to SruGen during that small window, the first history
+        // read can legitimately be empty. Re-read when the app-scoped session
+        // advances and attach the restored screen to the owning conversation.
+        val shouldRefreshRunningChat =
+            generationState.status == SruGenGenerationStatus.RUNNING &&
+                followGenerationChat &&
+                !generationChatId.isNullOrBlank() &&
+                activeId != generationChatId
+        val generationFinished =
+            generationState.status == SruGenGenerationStatus.COMPLETED ||
+                generationState.status == SruGenGenerationStatus.FAILED
+        if (shouldRefreshRunningChat || generationFinished) {
+            val refreshed = withContext(Dispatchers.IO) { SruGenChatStore.loadChats(context) }
+            chats = refreshed
+            if (followGenerationChat && !generationChatId.isNullOrBlank() &&
+                refreshed.any { it.id == generationChatId }
+            ) {
+                activeId = generationChatId
+            }
+            if (generationFinished) {
+                progress = 0
+                progressLabel = ""
+                if (generationChatId == activeId) info = generationState.message
+                generating = false
+            }
         }
     }
     LaunchedEffect(downloadId) {
@@ -335,9 +367,10 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
     }
 
     val generationInFlight = rememberUpdatedState(generating)
+    val latestThumbnails = rememberUpdatedState(thumbnails)
     DisposableEffect(Unit) {
         onDispose {
-            thumbnails.values.forEach { if (!it.isRecycled) it.recycle() }
+            latestThumbnails.value.values.forEach { if (!it.isRecycled) it.recycle() }
             // Keep an active inference alive if navigation disposes this screen.
             // Otherwise detach before async close so a later visit cannot reuse
             // an engine instance whose native task has already been released.
@@ -560,7 +593,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
             Modifier.fillMaxSize()
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .padding(horizontal = 18.dp)
-                .padding(top = 10.dp, bottom = 104.dp)
+                .padding(top = 8.dp, bottom = 90.dp)
                 .imePadding()
         ) {
             Row(
@@ -578,9 +611,9 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                     "SruGen",
                     modifier = Modifier.weight(1f),
                     color = studioText,
-                    style = MaterialTheme.typography.displayMedium.copy(
-                        fontSize = 36.sp,
-                        lineHeight = 42.sp,
+                    style = MaterialTheme.typography.headlineLarge.copy(
+                        fontSize = 29.sp,
+                        lineHeight = 34.sp,
                         fontWeight = FontWeight.SemiBold,
                         letterSpacing = (-1.2).sp
                     )
@@ -608,6 +641,70 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
             }
 
             Spacer(Modifier.height(8.dp))
+
+            // Keep model choice out of the prompt composer. A full-width status
+            // row gives it a stable place below the title instead of squeezing
+            // it between the attachment and send controls.
+            SruGenGlassPanel(
+                modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenModels),
+                shape = RoundedCornerShape(18.dp),
+                fill = Brush.linearGradient(
+                    listOf(Color(0xCC29264D), Color(0xCC1B2440))
+                )
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
+                            .background(studioAccent.copy(alpha = .15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Rounded.AutoAwesome,
+                            contentDescription = null,
+                            tint = studioAccent,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    Column(
+                        Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Text(
+                            "ACTIVE MODEL",
+                            color = studioSecondary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.1.sp
+                        )
+                        Text(
+                            activeModel?.name ?: "Choose a model",
+                            color = studioText,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1
+                        )
+                        Text(
+                            if (modelReady) "Ready on this device · Local inference"
+                            else "Open the model library to install or select one",
+                            color = studioSecondary,
+                            fontSize = 12.sp,
+                            maxLines = 2
+                        )
+                    }
+                    Icon(
+                        Icons.Rounded.ChevronRight,
+                        contentDescription = "Open model library",
+                        tint = studioSecondary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(4.dp))
 
             AnimatedVisibility(
                 visible = monitorExpanded,
@@ -866,20 +963,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                     ) {
                         Icon(Icons.Rounded.Add, "Attach a reference image", tint = studioText, modifier = Modifier.size(25.dp))
                     }
-                    OutlinedButton(
-                        onClick = onOpenModels,
-                        modifier = Modifier.weight(1f).height(52.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .16f)),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = studioText),
-                        contentPadding = PaddingValues(horizontal = 12.dp)
-                    ) {
-                        Icon(Icons.Rounded.AutoAwesome, null, tint = studioAccent, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(activeModel?.name ?: "Choose model", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                        Spacer(Modifier.width(4.dp))
-                        Icon(Icons.Rounded.ExpandMore, null, tint = studioSecondary, modifier = Modifier.size(18.dp))
-                    }
+                    Spacer(Modifier.weight(1f))
                     Button(
                         onClick = { sendMessage() },
                         enabled = !generating && (prompt.isNotBlank() || selectedImage != null),
@@ -951,7 +1035,12 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                         Row(
                             Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp))
                                 .background(if (item.id == activeId) Color(0xFF3A3568) else Color.Transparent)
-                                .clickable { activeId = item.id; selectedImage = null; historyOpen = false }
+                                .clickable {
+                                    followGenerationChat = false
+                                    activeId = item.id
+                                    selectedImage = null
+                                    historyOpen = false
+                                }
                                 .padding(start = 10.dp, end = 2.dp, top = 7.dp, bottom = 7.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -1206,11 +1295,11 @@ private fun SruGenMessageBubble(message: SruGenMessage, image: Bitmap?) {
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
     ) {
         Column(
-            Modifier.widthIn(max = 324.dp)
+            Modifier.widthIn(max = 300.dp)
                 .clip(RoundedCornerShape(20.dp))
                 .background(if (isUser) Color(0xFF303030) else Color(0xFF1B1B1B))
                 .border(1.dp, Color.White.copy(alpha = .10f), RoundedCornerShape(20.dp))
-                .padding(horizontal = 15.dp, vertical = 13.dp),
+                .padding(horizontal = 13.dp, vertical = 11.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
@@ -1223,7 +1312,7 @@ private fun SruGenMessageBubble(message: SruGenMessage, image: Bitmap?) {
                 Text(
                     message.text,
                     color = Color(0xFFF4F2EF),
-                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp, lineHeight = 23.sp)
+                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp, lineHeight = 22.sp)
                 )
             }
             image?.let {

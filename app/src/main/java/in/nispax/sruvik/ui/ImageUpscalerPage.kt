@@ -34,6 +34,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -84,9 +85,20 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
     val progress = session.progress
     val progressLabel = session.progressLabel
 
+    // Compose may still be drawing the previous frame when state changes. Recycle
+    // native Bitmap memory only after the next frame has dropped that reference.
+    fun recycleAfterFrame(bitmap: Bitmap?) {
+        if (bitmap == null || bitmap.isRecycled) return
+        scope.launch {
+            withFrameNanos { }
+            if (!bitmap.isRecycled) bitmap.recycle()
+        }
+    }
+
     fun resetResult() {
-        result?.recycle()
+        val previous = result
         result = null
+        recycleAfterFrame(previous)
         optimizedSource = false
         showQuickResize = false
         UpscaleSession.clearResult()
@@ -95,8 +107,10 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
     // Drop the old preview immediately so a replacement image cannot be mistaken
     // for the newly selected file while its content URI is being decoded.
     fun beginImageLoad(uri: Uri, loadingMessage: String) {
-        original?.recycle()
+        val previous = original
         original = null
+        recycleAfterFrame(previous)
+        isLoading = true
         selectedUri = uri
         imageLoadRequest++
         resetResult()
@@ -225,11 +239,12 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
 
     LaunchedEffect(session.resultPath, session.status, original) {
         if (session.status == UpscaleStatus.COMPLETED && !session.resultPath.isNullOrBlank()) {
-            val path = session.resultPath
-            val restored = withContext(Dispatchers.IO) { BitmapFactory.decodeFile(path) }
+            val path = requireNotNull(session.resultPath)
+            val restored = withContext(Dispatchers.IO) { decodeSavedPreview(path) }
             if (restored != null) {
-                result?.recycle()
+                val previous = result
                 result = restored
+                recycleAfterFrame(previous)
                 optimizedSource = session.sourceWasOptimized
                 showQuickResize = false
                 message = session.message
@@ -246,25 +261,40 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
 
     LaunchedEffect(selectedUri, imageLoadRequest) {
         val uri = selectedUri ?: return@LaunchedEffect
+        val requestId = imageLoadRequest
         isLoading = true
         message = "Reading your photo…"
         try {
             val decoded = withContext(Dispatchers.IO) { decodeImage(context, uri) }
-            original?.recycle()
+            val previous = original
             original = decoded
+            recycleAfterFrame(previous)
             message = "Photo ready. Choose your AI output size."
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: OutOfMemoryError) {
-            original?.recycle()
+            val previous = original
             original = null
+            recycleAfterFrame(previous)
             message = "This photo is too large to preview safely. Choose a smaller image."
         } catch (error: Exception) {
-            original?.recycle()
+            val previous = original
             original = null
+            recycleAfterFrame(previous)
             message = error.message ?: "Couldn't read this image."
         } finally {
-            isLoading = false
+            // A cancelled older decode must not clear the loading state for a
+            // newer image selection.
+            if (imageLoadRequest == requestId) isLoading = false
+        }
+    }
+
+    val latestOriginalForDispose = rememberUpdatedState(original)
+    val latestResultForDispose = rememberUpdatedState(result)
+    DisposableEffect(Unit) {
+        onDispose {
+            latestOriginalForDispose.value?.takeUnless { it.isRecycled }?.recycle()
+            latestResultForDispose.value?.takeUnless { it.isRecycled }?.recycle()
         }
     }
 
@@ -750,7 +780,22 @@ internal fun decodeImage(context: Context, uri: Uri): Bitmap {
     }
 }
 
-private fun previewSampleSize(width: Int, height: Int): Int {
+private fun decodeSavedPreview(path: String): Bitmap? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(path, bounds)
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0 ||
+        bounds.outWidth > MAX_SOURCE_DIMENSION || bounds.outHeight > MAX_SOURCE_DIMENSION
+    ) return null
+    return BitmapFactory.decodeFile(
+        path,
+        BitmapFactory.Options().apply {
+            inSampleSize = previewSampleSize(bounds.outWidth, bounds.outHeight)
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+        }
+    )
+}
+
+internal fun previewSampleSize(width: Int, height: Int): Int {
     var sample = 1
     while (
         (width.toLong() / sample.toLong()) *
@@ -801,8 +846,10 @@ private fun decodeWithBitmapFactory(context: Context, uri: Uri): Bitmap {
     openSelectedImageStream(context, uri).use {
         BitmapFactory.decodeStream(it, null, bounds)
     }
-    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
-        throw IOException("Couldn't decode this image. Choose a JPG, PNG, or WebP photo.")
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0 ||
+        bounds.outWidth > MAX_SOURCE_DIMENSION || bounds.outHeight > MAX_SOURCE_DIMENSION
+    ) {
+        throw IOException("This image has invalid or unsupported dimensions. Choose a smaller JPG, PNG, or WebP photo.")
     }
 
     val decoded = openSelectedImageStream(context, uri).use { stream ->
@@ -873,3 +920,4 @@ private fun quickResize(source: Bitmap, requestedScale: Int, context: Context): 
 
 private const val MAX_PREVIEW_PIXELS = 4_000_000L
 private const val MAX_PREVIEW_DIMENSION = 4096
+private const val MAX_SOURCE_DIMENSION = 100_000

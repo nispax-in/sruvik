@@ -117,9 +117,14 @@ fun SrukryptPage(autoLockMinutes: Int) {
     }
 
     suspend fun refreshEntries(key: ByteArray) {
-        val previews = withContext(Dispatchers.IO) { SrukryptVault.loadPreviews(context, key) }
+        val loadResult = withContext(Dispatchers.IO) {
+            SrukryptVault.loadPreviewsWithReport(context, key)
+        }
         entries.forEach { if (!it.thumbnail.isRecycled) it.thumbnail.recycle() }
-        entries = previews
+        entries = loadResult.entries
+        if (loadResult.unreadableEntries > 0) {
+            errorText = "Warning: ${loadResult.unreadableEntries} encrypted item(s) could not be opened. Their original encrypted files remain on this device and have not been deleted."
+        }
     }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
@@ -267,15 +272,18 @@ fun SrukryptPage(autoLockMinutes: Int) {
                                         SrukryptVault.finishUnlock(context, authChallenge, authenticatedCipher)
                                     }
                                     SrukryptVault.discardChallenge(authChallenge)
-                                    val previews = withContext(Dispatchers.IO) {
-                                        SrukryptVault.loadPreviews(context, newKey)
+                                    val loadResult = withContext(Dispatchers.IO) {
+                                        SrukryptVault.loadPreviewsWithReport(context, newKey)
                                     }
+                                    val previews = loadResult.entries
                                     sessionKey?.let { Arrays.fill(it, 0) }
                                     entries.forEach { if (!it.thumbnail.isRecycled) it.thumbnail.recycle() }
                                     sessionKey = newKey
                                     entries = previews
                                     lastInteraction = SystemClock.elapsedRealtime()
-                                    infoText = if (previews.isEmpty()) {
+                                    infoText = if (loadResult.unreadableEntries > 0) {
+                                        "Vault unlocked. ${previews.size} readable item(s); ${loadResult.unreadableEntries} encrypted item(s) could not be verified and were left untouched."
+                                    } else if (previews.isEmpty()) {
                                         "Your private vault is ready. Add an image to encrypt it."
                                     } else {
                                         "Vault unlocked. " + previews.size + " encrypted item(s) available."
@@ -373,14 +381,17 @@ fun SrukryptPage(autoLockMinutes: Int) {
                     }
                 }
                 if (operation == "unlock" || operation == "create") {
-                    val previews = withContext(Dispatchers.IO) {
-                        SrukryptVault.loadPreviews(context, unlocked)
+                    val loadResult = withContext(Dispatchers.IO) {
+                        SrukryptVault.loadPreviewsWithReport(context, unlocked)
                     }
+                    val previews = loadResult.entries
                     sessionKey?.let { Arrays.fill(it, 0) }
                     entries.forEach { if (!it.thumbnail.isRecycled) it.thumbnail.recycle() }
                     sessionKey = unlocked
                     entries = previews
-                    infoText = if (previews.isEmpty()) "Your private vault is ready. Add an image to encrypt it."
+                    infoText = if (loadResult.unreadableEntries > 0) {
+                        "Vault unlocked with passphrase. ${previews.size} readable item(s); ${loadResult.unreadableEntries} encrypted item(s) could not be verified and were left untouched."
+                    } else if (previews.isEmpty()) "Your private vault is ready. Add an image to encrypt it."
                     else "Vault unlocked with passphrase. ${previews.size} encrypted item(s) available."
                     errorText = ""
                 } else {

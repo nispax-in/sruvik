@@ -38,6 +38,12 @@ data class SrukryptEntryPreview(
     val thumbnail: Bitmap
 )
 
+/** Successful previews plus the count of encrypted entries that could not be authenticated or decoded. */
+data class SrukryptPreviewLoadResult(
+    val entries: List<SrukryptEntryPreview>,
+    val unreadableEntries: Int
+)
+
 /**
  * Envelope encryption for Srukrypt:
  * - A random 256-bit data key encrypts files with AES-256-GCM and a fresh nonce.
@@ -154,17 +160,25 @@ object SrukryptVault {
             throw IllegalStateException("This vault uses a passphrase. Choose “Use passphrase” to unlock it.")
         }
         val existingMasterKey = hasMasterKey()
-        val masterKey = if (existingMasterKey) getMasterKey() else createMasterKey()
-        val allowedAuthenticators = if (existingMasterKey) {
-            authenticatorFlagsForKey(masterKey)
-        } else {
-            preferredAuthenticatorFlags(context)
+        val hasEntries = entryFiles(dir).isNotEmpty()
+
+        // Never mint a replacement Keystore key when ciphertext already exists.
+        // A fresh key cannot decrypt the old envelope; silently creating one makes
+        // a recoverable vault look like a new, empty vault and obscures the real error.
+        if (wrappedFile.exists() && !existingMasterKey) {
+            throw SecurityException(
+                "The original Srukrypt Keystore key is missing. No replacement key was created and your encrypted files were left untouched. Use your saved passphrase fallback if one was configured."
+            )
+        }
+        if (!wrappedFile.exists() && !hasPassphraseFallback(context) && hasEntries) {
+            throw SecurityException(
+                "The Srukrypt key envelope is missing. Existing encrypted files were left untouched; a new key was not created."
+            )
         }
 
         if (!wrappedFile.exists()) {
-            if (entryFiles(dir).isNotEmpty()) {
-                throw SecurityException("The Srukrypt key envelope is missing. Existing vault data cannot be safely recovered.")
-            }
+            val masterKey = if (existingMasterKey) getMasterKey() else createMasterKey()
+            val allowedAuthenticators = authenticatorFlagsForKey(masterKey)
             val dataKey = ByteArray(32).also { SecureRandom().nextBytes(it) }
             return try {
                 val cipher = Cipher.getInstance("AES/GCM/NoPadding")
@@ -177,6 +191,8 @@ object SrukryptVault {
             }
         }
 
+        val masterKey = getMasterKey()
+        val allowedAuthenticators = authenticatorFlagsForKey(masterKey)
         val envelope = readEnvelope(wrappedFile, WRAP_MAGIC)
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.DECRYPT_MODE, masterKey, GCMParameterSpec(TAG_BITS, envelope.first))
@@ -280,21 +296,35 @@ object SrukryptVault {
     }
 
     @Throws(Exception::class)
-    fun loadPreviews(context: Context, dataKey: ByteArray): List<SrukryptEntryPreview> {
+    fun loadPreviews(context: Context, dataKey: ByteArray): List<SrukryptEntryPreview> =
+        loadPreviewsWithReport(context, dataKey).entries
+
+    /**
+     * Load every readable entry while explicitly reporting damaged or unsupported
+     * records. A preview failure never deletes its encrypted source file.
+     */
+    @Throws(Exception::class)
+    fun loadPreviewsWithReport(context: Context, dataKey: ByteArray): SrukryptPreviewLoadResult {
         val dir = SrukryptStorage.vaultDirectory(context)
-        return entryFiles(dir).mapNotNull { file ->
-            val id = file.name.removeSuffix(".srk")
-            try {
-                val plain = decryptEntry(file, id, dataKey)
+        var unreadable = 0
+        val previews = buildList {
+            entryFiles(dir).forEach { file ->
+                val id = file.name.removeSuffix(".srk")
                 try {
-                    decodePreview(id, plain)
-                } finally {
-                    Arrays.fill(plain, 0)
+                    val plain = decryptEntry(file, id, dataKey)
+                    try {
+                        add(decodePreview(id, plain))
+                    } finally {
+                        Arrays.fill(plain, 0)
+                    }
+                } catch (failure: Exception) {
+                    // Keep the ciphertext on disk; never hide this integrity issue.
+                    unreadable++
+                    android.util.Log.e("Srukrypt", "Encrypted vault entry $id could not be opened; file preserved.", failure)
                 }
-            } catch (_: Exception) {
-                null
             }
         }.sortedByDescending { it.createdAtMillis }
+        return SrukryptPreviewLoadResult(previews, unreadable)
     }
 
     @Throws(Exception::class)

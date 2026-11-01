@@ -80,8 +80,10 @@ internal object SrukryptPassphraseEnvelope {
                 runCatching { raw.close() }
             }
 
-            // REPLACE_EXISTING matters when a user changes their fallback passphrase.
-            // Keep source and destination in the same private directory for atomic rename.
+            // First request an atomic same-directory replacement. Some Android
+            // filesystem providers reject ATOMIC_MOVE or REPLACE_EXISTING even
+            // though the file is app-private. Fall back to a rollback-safe rename:
+            // the previous envelope is kept until the new one is in place.
             try {
                 Files.move(
                     temp.toPath(),
@@ -89,8 +91,10 @@ internal object SrukryptPassphraseEnvelope {
                     StandardCopyOption.ATOMIC_MOVE,
                     StandardCopyOption.REPLACE_EXISTING
                 )
-            } catch (_: AtomicMoveNotSupportedException) {
-                Files.move(temp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            } catch (_: IOException) {
+                replaceWithRollback(temp, file)
+            } catch (_: UnsupportedOperationException) {
+                replaceWithRollback(temp, file)
             }
         } finally {
             if (temp.exists()) temp.delete()
@@ -152,6 +156,31 @@ internal object SrukryptPassphraseEnvelope {
                 Arrays.fill(derived, 0)
             }
         }
+    }
+
+    internal fun replaceWithRollback(temp: File, target: File) {
+        val parent = target.absoluteFile.parentFile
+            ?: throw IOException("Unable to prepare the Srukrypt passphrase directory.")
+        val backup = File(parent, ".${target.name}.${UUID.randomUUID()}.bak")
+        val hadOriginal = target.exists()
+
+        if (hadOriginal && !target.renameTo(backup)) {
+            throw IOException("Unable to safely replace the existing Srukrypt passphrase envelope.")
+        }
+
+        try {
+            if (!temp.renameTo(target)) {
+                throw IOException("Unable to commit the new Srukrypt passphrase envelope.")
+            }
+        } catch (failure: Exception) {
+            if (hadOriginal && backup.exists() && !target.exists() && !backup.renameTo(target)) {
+                failure.addSuppressed(IOException("The previous passphrase envelope remains in its protected backup file."))
+            }
+            throw failure
+        }
+
+        // A failed cleanup must not turn a successful commit into an apparent failure.
+        if (backup.exists() && !backup.delete()) backup.deleteOnExit()
     }
 
     private fun derive(passphrase: CharArray, salt: ByteArray, iterations: Int): ByteArray {
