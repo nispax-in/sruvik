@@ -261,6 +261,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
 
     LaunchedEffect(selectedUri, imageLoadRequest) {
         val uri = selectedUri ?: return@LaunchedEffect
+        val requestId = imageLoadRequest
         isLoading = true
         message = "Reading your photo…"
         try {
@@ -280,7 +281,16 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
             original = null
             message = error.message ?: "Couldn't read this image."
         } finally {
-            isLoading = false
+            // A cancelled older decode must not clear the loading state for a
+            // newer image selection.
+            if (imageLoadRequest == requestId) isLoading = false
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            original?.takeUnless { it.isRecycled }?.recycle()
+            result?.takeUnless { it.isRecycled }?.recycle()
         }
     }
 
