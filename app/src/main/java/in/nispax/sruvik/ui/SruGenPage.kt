@@ -88,6 +88,8 @@ fun SruGenPage(memoryEnabled: Boolean) {
     var error by remember { mutableStateOf("") }
     var info by remember { mutableStateOf("") }
     var modelReady by remember { mutableStateOf(false) }
+    var activeModelId by remember { mutableStateOf(SruGenActiveModelStore.activeModelId(context)) }
+    val activeModel = remember(activeModelId) { SruGenGalleryCatalog.find(activeModelId) }
     var downloadId by remember { mutableLongStateOf(-1L) }
     var downloadPercent by remember { mutableIntStateOf(0) }
     var installing by remember { mutableStateOf(false) }
@@ -145,10 +147,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
 
     fun activateInstalledModel() {
         SruGenEngineRegistry.getOrCreate {
-            MediaPipeSruGenEngine(
-                context.applicationContext,
-                File(SruGenModelInstaller.modelDirectory(context), "sd15_bins").absolutePath
-            )
+            SruGenEngineFactory.create(context.applicationContext, activeModelId)
         }
         modelReady = true
     }
@@ -162,8 +161,14 @@ fun SruGenPage(memoryEnabled: Boolean) {
                     ?: error("Unable to open the model archive.")
                 SruGenModelInstaller.importArchive(context, input) { installMessage = it }
             }
+            SruGenEngineRegistry.engine?.let { old ->
+                old.requestStop()
+                withContext(Dispatchers.IO) { SruGenEngineRegistry.closeAndDetach(old) }
+            }
+            SruGenActiveModelStore.setActiveModel(context, "sd15-mediapipe")
+            activeModelId = "sd15-mediapipe"
             activateInstalledModel()
-            info = "Stable Diffusion 1.5 installed. SruGen is ready for offline image generation."
+            info = "Stable Diffusion 1.5 installed and selected. SruGen is ready for offline image generation."
             error = ""
         } finally {
             installing = false
@@ -198,8 +203,14 @@ fun SruGenPage(memoryEnabled: Boolean) {
                             val input = context.contentResolver.openInputStream(uri) ?: error("Unable to read the model archive.")
                             SruGenModelInstaller.importArchive(context, input) { installMessage = it }
                         }
+                        SruGenEngineRegistry.engine?.let { old ->
+                            old.requestStop()
+                            withContext(Dispatchers.IO) { SruGenEngineRegistry.closeAndDetach(old) }
+                        }
+                        SruGenActiveModelStore.setActiveModel(context, "sd15-mediapipe")
+                        activeModelId = "sd15-mediapipe"
                         activateInstalledModel()
-                        info = "Model installed. Generation runs locally and is available offline."
+                        info = "Stable Diffusion 1.5 installed and selected. Generation runs locally."
                         error = ""
                     } catch (failure: Exception) {
                         error = failure.message ?: "Model installation failed."
@@ -227,7 +238,10 @@ fun SruGenPage(memoryEnabled: Boolean) {
             chat.messages.any { it.role == "user" && (it.text.isNotBlank() || it.attachmentId != null) }
         }
         activeId = chats.firstOrNull()?.id ?: draftChat.id
-        modelReady = SruGenModelInstaller.isInstalled(context)
+        activeModelId = SruGenActiveModelStore.activeModelId(context)
+        modelReady = withContext(Dispatchers.IO) {
+            SruGenEngineFactory.isInstalled(context, activeModelId)
+        }
         if (modelReady) activateInstalledModel()
         downloadId = SruGenModelInstaller.savedDownloadId(context)
     }
@@ -475,9 +489,9 @@ fun SruGenPage(memoryEnabled: Boolean) {
                     // Recreate a released engine lazily. Android may have asked
                     // Sruvik to free native resources while the app was backgrounded.
                     val engine = SruGenEngineRegistry.getOrCreate {
-                        MediaPipeSruGenEngine(
+                        SruGenEngineFactory.create(
                             context.applicationContext,
-                            File(SruGenModelInstaller.modelDirectory(context), "sd15_bins").absolutePath
+                            activeModelId
                         )
                     }
                     engine.generate(
@@ -552,7 +566,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
                         text = "Android ran out of memory while loading Stable Diffusion. SruGen released the failed engine. Close other apps and retry; if this keeps happening, this phone may not have enough RAM for this model."
                     )
                 ))
-                modelReady = SruGenModelInstaller.isInstalled(context)
+                modelReady = SruGenEngineFactory.isInstalled(context, activeModelId)
             } catch (failure: Exception) {
                 val newest = chats.firstOrNull { it.id == activeId } ?: updatedChat
                 persist(newest.copy(
