@@ -87,17 +87,23 @@ object SruGenGenerationSession {
                 resultBytes = result.imageBytes
                 val attachmentId = withContext(Dispatchers.IO) {
                     val id = SruGenChatStore.saveAttachment(appContext, result.imageBytes, result.mimeType)
-                    SruGenChatStore.appendMessage(
-                        appContext,
-                        chatWithPrompt.id,
-                        SruGenMessage(
-                            role = "assistant",
-                            text = "Generated locally on this device. No prompt or image was uploaded.",
-                            attachmentId = id,
-                            attachmentMime = result.mimeType,
-                            modelName = result.modelName
+                    try {
+                        SruGenChatStore.appendMessage(
+                            appContext,
+                            chatWithPrompt.id,
+                            SruGenMessage(
+                                role = "assistant",
+                                text = "Generated locally on this device. No prompt or image was uploaded.",
+                                attachmentId = id,
+                                attachmentMime = result.mimeType,
+                                modelName = result.modelName
+                            )
                         )
-                    )
+                    } catch (failure: Exception) {
+                        // Avoid leaving an unreferenced encrypted image if chat commit fails.
+                        SruGenChatStore.deleteAttachment(appContext, id)
+                        throw failure
+                    }
                     id
                 }
                 mutableState.value = SruGenGenerationState(
