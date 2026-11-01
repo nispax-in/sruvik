@@ -331,15 +331,16 @@ fun SrukryptPage(autoLockMinutes: Int) {
     }
 
     fun submitPassphrase() {
+        val operation = passphraseMode
         val typed = passphraseText.toCharArray()
         val confirm = passphraseConfirm.toCharArray()
-        if (passphraseMode != "unlock" && passphraseText.length < 10) {
+        if (operation != "unlock" && passphraseText.length < 10) {
             errorText = "Use at least 10 characters for a Srukrypt passphrase."
             Arrays.fill(typed, '\u0000')
             Arrays.fill(confirm, '\u0000')
             return
         }
-        if (passphraseMode != "unlock" && passphraseText != passphraseConfirm) {
+        if (operation != "unlock" && passphraseText != passphraseConfirm) {
             errorText = "The passphrases do not match."
             Arrays.fill(typed, '\u0000')
             Arrays.fill(confirm, '\u0000')
@@ -353,7 +354,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
             var unlocked: ByteArray? = null
             try {
                 unlocked = withContext(Dispatchers.IO) {
-                    when (passphraseMode) {
+                    when (operation) {
                         "create" -> SrukryptVault.createVaultWithPassphrase(context, typed)
                         "add" -> {
                             val key = currentKey ?: error("Unlock the vault first.")
@@ -363,7 +364,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                         else -> SrukryptVault.unlockWithPassphrase(context, typed)
                     }
                 }
-                if (passphraseMode == "unlock" || passphraseMode == "create") {
+                if (operation == "unlock" || operation == "create") {
                     val previews = withContext(Dispatchers.IO) {
                         SrukryptVault.loadPreviews(context, unlocked)
                     }
