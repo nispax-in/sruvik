@@ -46,6 +46,8 @@ jobs:
       - name: Run storage regression tests
         run: gradle --no-daemon :app:testDebugUnitTest
       # Device-level Srukrypt instrumentation is tracked in a separate emulator run.
+      - name: Run JVM regression tests
+        run: gradle --no-daemon :app:testDebugUnitTest
       - name: Download pinned Real-ESRGAN model
         run: bash scripts/fetch-upscaler-model.sh
       - name: Restore build-101 signing key from its original branch cache
