@@ -265,7 +265,7 @@ object SruGenGalleryCatalog {
             subtitle = "Cinematic and painterly styles",
             runtime = "Nezumi Kiln · MNN",
             availability = SruGenGalleryAvailability.CONVERSION_PENDING,
-            description = "A popular SD1.5 fine-tune with a broad style range. The original checkpoint is not an MNN model pack and needs a reproducible conversion.",
+            description = "A community MNN SD1.5 conversion exists for DreamShaper 8 and supports photorealistic, artistic and anime styles. Sruvik keeps it locked until its exact archive revision and SHA-256 integrity pin are verified for this installer.",
             lore = "A travelling theatre that can stage a photograph, a painted fable or a half-remembered dream with the same cast of light.",
             styleTags = listOf("Cinematic", "Painterly", "Versatile"),
             baseModel = "DreamShaper 8 · SD1.5",
@@ -277,11 +277,11 @@ object SruGenGalleryCatalog {
             archiveMaxBytes = 0L,
             minAndroidApi = 31,
             recommendedRamGb = 8,
-            sourceUrl = "https://huggingface.co/GENMT/dreamshaper-8",
+            sourceUrl = "https://huggingface.co/Mouserat/dreamshaper-8-mnn",
             licenseName = "CreativeML Open RAIL-M",
             licenseUrl = "https://huggingface.co/spaces/CompVis/stable-diffusion-license",
             attribution = "Lykon · DreamShaper",
-            licenseNote = "Sruvik will not download the original safetensors file into an MNN engine. A converted, pinned and tested MNN pack is required."
+            licenseNote = "An unofficial MNN conversion based on Lykon's diffusers-format DreamShaper 8 exists and is tagged CreativeML Open RAIL-M. Sruvik will keep it locked until the archive file's immutable revision and SHA-256 are pinned and device validation is complete. The converter is not affiliated with or endorsed by Lykon."
         ),
         SruGenGalleryModel(
             id = "sd35-mnn",
