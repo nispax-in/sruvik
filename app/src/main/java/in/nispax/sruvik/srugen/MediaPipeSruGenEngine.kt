@@ -64,17 +64,9 @@ class MediaPipeSruGenEngine(
             }
         }
         require(request.prompt.isNotBlank()) { "Describe the image you want to create." }
-        val memory = ActivityManager.MemoryInfo()
-        (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(memory)
-        val minimumDeviceRam = 8L * 1024L * 1024L * 1024L
-        require(memory.totalMem >= minimumDeviceRam) {
-            "This phone has less than 8 GB of physical RAM. Google's MediaPipe image-generation guide recommends at least 8 GB for Stable Diffusion 1.5 on Android, so SruGen stopped before loading the model to protect the app."
-        }
-        val minimumAvailableRam = 3_500_000_000L
-        require(!memory.lowMemory && memory.availMem >= minimumAvailableRam) {
-            val availableGb = String.format(java.util.Locale.US, "%.1f", memory.availMem / 1_000_000_000.0)
-            "SruGen needs at least 3.5 GB of currently available system memory to load Stable Diffusion safely. Only $availableGb GB is available. Close other apps and retry."
-        }
+        // Fail closed before the first native allocation. The guard checks total
+        // RAM, current free headroom, free storage, thermal pressure and Battery Saver.
+        SruGenDeviceGuard.requireSafeToStart(context)
         val generator = getOrCreateGenerator()
         val seed = SecureRandom().nextInt()
         onProgress(3, "Preparing local diffusion model")
@@ -83,6 +75,9 @@ class MediaPipeSruGenEngine(
         generator.setInputs(request.prompt, iterations, seed)
         var finalResult: ImageGeneratorResult? = null
         for (step in 0 until iterations) {
+            // Recheck before every native diffusion step; a device can heat up or
+            // enter low-memory state while the model is running.
+            SruGenDeviceGuard.assertSafeToContinue(context)
             finalResult = generator.execute(step == iterations - 1)
             onProgress(
                 8 + ((step + 1) * 82 / iterations),
