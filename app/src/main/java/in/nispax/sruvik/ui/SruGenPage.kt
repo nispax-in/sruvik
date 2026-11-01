@@ -239,15 +239,33 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
         chats = chats.filter { chat ->
             chat.messages.any { it.role == "user" && (it.text.isNotBlank() || it.attachmentId != null) }
         }
-        activeId = chats.firstOrNull()?.id ?: draftChat.id
+        activeId = generationState.chatId
+            ?.takeIf { id -> generationState.status == SruGenGenerationStatus.RUNNING && chats.any { it.id == id } }
+            ?: chats.firstOrNull()?.id ?: draftChat.id
         activeModelId = SruGenActiveModelStore.activeModelId(context)
         modelReady = withContext(Dispatchers.IO) {
             SruGenEngineFactory.isInstalled(context, activeModelId)
         }
-        if (modelReady) activateInstalledModel()
+        if (modelReady && generationState.status != SruGenGenerationStatus.RUNNING) activateInstalledModel()
         downloadId = SruGenModelInstaller.savedDownloadId(context)
     }
 
+    LaunchedEffect(generationState.status, generationState.chatId, generationState.updatedAt, activeId) {
+        generating = generationState.status == SruGenGenerationStatus.RUNNING && generationState.chatId == activeId
+        if (generating) {
+            progress = generationState.progress
+            progressLabel = generationState.progressLabel
+        }
+        if (generationState.status == SruGenGenerationStatus.COMPLETED ||
+            generationState.status == SruGenGenerationStatus.FAILED
+        ) {
+            progress = 0
+            progressLabel = ""
+            chats = withContext(Dispatchers.IO) { SruGenChatStore.loadChats(context) }
+            if (generationState.chatId == activeId) info = generationState.message
+            generating = false
+        }
+    }
     LaunchedEffect(downloadId) {
         while (downloadId >= 0L) {
             pollDownload(downloadId)
@@ -502,6 +520,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
             Modifier.fillMaxSize()
                 .padding(horizontal = 18.dp)
                 .padding(top = 10.dp, bottom = 104.dp)
+                .imePadding()
         ) {
             Row(
                 Modifier.fillMaxWidth(),
@@ -691,7 +710,8 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
 
             activeChat?.let { chat ->
                 LazyColumn(
-                    Modifier.weight(1f).fillMaxWidth(),
+                    state = messageListState,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
                     contentPadding = PaddingValues(top = 12.dp, bottom = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
@@ -767,6 +787,11 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                 }
             }
 
+            LaunchedEffect(activeChat?.id, activeChat?.messages?.size, generating) {
+                kotlinx.coroutines.yield()
+                val lastItem = messageListState.layoutInfo.totalItemsCount - 1
+                if (lastItem >= 0) messageListState.animateScrollToItem(lastItem)
+            }
             AnimatedVisibility(
                 visible = error.isNotBlank(),
                 enter = fadeIn(tween(180)) + expandVertically(tween(180)),
