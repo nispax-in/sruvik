@@ -28,6 +28,7 @@ class SruvikApplication : Application(), ComponentCallbacks2 {
 
     private fun releaseInferenceEngine(reason: String) {
         val current = SruGenEngineRegistry.engine ?: return
+        current.requestStop()
         val detached = SruGenEngineRegistry.detach(current) ?: return
         if (detached is AutoCloseable) {
             // Native close may wait for the current diffusion step's lock. Never
