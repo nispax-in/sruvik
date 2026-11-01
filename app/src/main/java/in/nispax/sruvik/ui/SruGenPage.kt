@@ -45,6 +45,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -239,8 +240,18 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
         chats = chats.filter { chat ->
             chat.messages.any { it.role == "user" && (it.text.isNotBlank() || it.attachmentId != null) }
         }
+        // Restore the conversation that owns the last generation even when it
+        // finished while this destination was disposed. Otherwise returning from
+        // another tab silently opens a different chat and makes the generated image
+        // look as if it vanished.
         activeId = generationState.chatId
-            ?.takeIf { id -> generationState.status == SruGenGenerationStatus.RUNNING && chats.any { it.id == id } }
+            ?.takeIf { id ->
+                generationState.status in setOf(
+                    SruGenGenerationStatus.RUNNING,
+                    SruGenGenerationStatus.COMPLETED,
+                    SruGenGenerationStatus.FAILED
+                ) && chats.any { it.id == id }
+            }
             ?: chats.firstOrNull()?.id ?: draftChat.id
         activeModelId = SruGenActiveModelStore.activeModelId(context)
         modelReady = withContext(Dispatchers.IO) {
@@ -547,6 +558,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
     Box(Modifier.fillMaxSize().background(studioInk)) {
         Column(
             Modifier.fillMaxSize()
+                .windowInsetsPadding(WindowInsets.statusBars)
                 .padding(horizontal = 18.dp)
                 .padding(top = 10.dp, bottom = 104.dp)
                 .imePadding()
