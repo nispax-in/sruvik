@@ -691,7 +691,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
                 }
             }
             Box(Modifier.fillMaxWidth().height(1.dp).background(SruvikColors.Border))
-            SruGenModelRoadmap(modelReady)
+            SruGenModelRoadmap(modelReady, activeModelId)
             AnimatedVisibility(
                 visible = !modelReady && activeModelId == "sd15-mediapipe",
                 enter = fadeIn(tween(220)) + expandVertically(tween(220)),
@@ -1119,8 +1119,8 @@ fun SruGenPage(memoryEnabled: Boolean) {
 
 
 @Composable
-private fun SruGenModelRoadmap(modelReady: Boolean) {
-    val models = SruGenModelCatalog.models
+private fun SruGenModelRoadmap(modelReady: Boolean, activeModelId: String) {
+    val models = SruGenGalleryCatalog.models
     SruGenGlassPanel(
         Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
@@ -1137,17 +1137,18 @@ private fun SruGenModelRoadmap(modelReady: Boolean) {
                 letterSpacing = .9.sp
             )
             models.forEach { model ->
-                val ready = model.availability == SruGenModelAvailability.READY_IN_APP
+                val ready = model.canInstall
+                val active = model.id == activeModelId && modelReady
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(
-                            "${model.displayName} · ${model.runtime}",
+                            "${model.name} · ${model.runtime}",
                             color = SruvikColors.TextPrimary,
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            model.detail,
+                            model.description,
                             color = SruvikColors.TextMuted,
                             style = MaterialTheme.typography.labelSmall,
                             lineHeight = 15.sp
@@ -1155,8 +1156,8 @@ private fun SruGenModelRoadmap(modelReady: Boolean) {
                     }
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        if (ready) { if (modelReady) "ACTIVE" else "READY" } else "LOCKED",
-                        color = if (ready) Color(0xFF9AE9CC) else Color(0xFFFFC98F),
+                        when { active -> "ACTIVE"; ready -> "AVAILABLE"; else -> "LOCKED" },
+                        color = if (active || ready) Color(0xFF9AE9CC) else Color(0xFFFFC98F),
                         style = MaterialTheme.typography.labelSmall,
                         letterSpacing = .5.sp
                     )
