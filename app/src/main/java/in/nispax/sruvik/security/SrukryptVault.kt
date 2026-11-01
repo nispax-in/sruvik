@@ -53,8 +53,6 @@ object SrukryptVault {
     private const val WRAPPED_KEY_FILE = "master.wrap"
     private const val WRAP_MAGIC = 0x53524B57 // SRKW
     private const val PASSPHRASE_FILE = "passphrase.wrap"
-    private const val PASSPHRASE_MAGIC = 0x53524B50 // SRKP
-    private const val PASSPHRASE_ITERATIONS = 650_000
     private const val ENTRY_MAGIC = 0x53524B31 // SRK1
     private const val FORMAT_VERSION = 1
     private const val IV_BYTES = 12
@@ -113,16 +111,15 @@ object SrukryptVault {
             keyStore.deleteEntry(SrukryptStorage.keyAlias(MASTER_ALIAS_ID))
         }
         val dataKey = ByteArray(32).also { SecureRandom().nextBytes(it) }
-        try {
-            writePassphraseEnvelope(
+        return try {
+            SrukryptPassphraseEnvelope.write(
                 File(SrukryptStorage.vaultDirectory(context), PASSPHRASE_FILE),
                 dataKey,
                 passphrase
             )
-            return dataKey.copyOf()
-        } catch (error: Exception) {
+            dataKey.copyOf()
+        } finally {
             Arrays.fill(dataKey, 0)
-            throw error
         }
     }
 
@@ -131,14 +128,14 @@ object SrukryptVault {
         require(passphrase.size >= 1) { "Enter your Srukrypt passphrase." }
         val file = File(SrukryptStorage.vaultDirectory(context), PASSPHRASE_FILE)
         if (!file.isFile) throw FileNotFoundException("No passphrase fallback has been configured.")
-        return readPassphraseEnvelope(file, passphrase)
+        return SrukryptPassphraseEnvelope.read(file, passphrase)
     }
 
     @Throws(Exception::class)
     fun enablePassphraseFallback(context: Context, dataKey: ByteArray, passphrase: CharArray) {
         require(dataKey.size == 32) { "Invalid vault session key." }
         require(passphrase.size >= 10) { "Use a passphrase with at least 10 characters." }
-        writePassphraseEnvelope(
+        SrukryptPassphraseEnvelope.write(
             File(SrukryptStorage.vaultDirectory(context), PASSPHRASE_FILE),
             dataKey,
             passphrase
@@ -330,92 +327,6 @@ object SrukryptVault {
         return !file.exists() || file.delete()
     }
 
-
-    private fun writePassphraseEnvelope(file: File, dataKey: ByteArray, passphrase: CharArray) {
-        val salt = ByteArray(16).also { SecureRandom().nextBytes(it) }
-        val derived = derivePassphraseKey(passphrase, salt, PASSPHRASE_ITERATIONS)
-        try {
-            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(derived, "AES"))
-            cipher.updateAAD("Srukrypt:passphrase-wrap:v1".toByteArray(Charsets.UTF_8))
-            val encrypted = cipher.doFinal(dataKey)
-            val iv = cipher.iv ?: throw SecurityException("Missing passphrase nonce.")
-            val temp = File(file.parentFile, ".${file.name}.${UUID.randomUUID()}.tmp")
-            try {
-                val stream = FileOutputStream(temp)
-                val output = DataOutputStream(BufferedOutputStream(stream))
-                output.writeInt(PASSPHRASE_MAGIC)
-                output.writeInt(PASSPHRASE_ITERATIONS)
-                output.writeInt(salt.size)
-                output.write(salt)
-                output.writeInt(iv.size)
-                output.write(iv)
-                output.writeInt(encrypted.size)
-                output.write(encrypted)
-                output.flush()
-                stream.fd.sync()
-                output.close()
-                if (!temp.renameTo(file)) throw IOException("Unable to save the passphrase envelope.")
-            } finally {
-                if (temp.exists()) temp.delete()
-                Arrays.fill(encrypted, 0)
-            }
-        } finally {
-            Arrays.fill(derived, 0)
-            Arrays.fill(salt, 0)
-        }
-    }
-
-    private fun readPassphraseEnvelope(file: File, passphrase: CharArray): ByteArray {
-        DataInputStream(BufferedInputStream(FileInputStream(file))).use { input ->
-            if (input.readInt() != PASSPHRASE_MAGIC) throw SecurityException("Unsupported passphrase envelope.")
-            val iterations = input.readInt()
-            if (iterations !in 200_000..1_500_000) throw SecurityException("Invalid passphrase work factor.")
-            val saltLength = input.readInt()
-            if (saltLength != 16) throw SecurityException("Invalid passphrase salt.")
-            val salt = ByteArray(saltLength)
-            input.readFully(salt)
-            val ivLength = input.readInt()
-            if (ivLength != IV_BYTES) throw SecurityException("Invalid passphrase nonce.")
-            val iv = ByteArray(ivLength)
-            input.readFully(iv)
-            val encryptedLength = input.readInt()
-            if (encryptedLength != 48 || encryptedLength > input.available()) {
-                throw SecurityException("Invalid passphrase key envelope.")
-            }
-            val encrypted = ByteArray(encryptedLength)
-            input.readFully(encrypted)
-            val derived = derivePassphraseKey(passphrase, salt, iterations)
-            try {
-                val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-                cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(derived, "AES"), GCMParameterSpec(TAG_BITS, iv))
-                cipher.updateAAD("Srukrypt:passphrase-wrap:v1".toByteArray(Charsets.UTF_8))
-                val dataKey = try {
-                    cipher.doFinal(encrypted)
-                } catch (error: AEADBadTagException) {
-                    throw SecurityException("That passphrase is incorrect.", error)
-                }
-                if (dataKey.size != 32) {
-                    Arrays.fill(dataKey, 0)
-                    throw SecurityException("The passphrase envelope is invalid.")
-                }
-                return dataKey
-            } finally {
-                Arrays.fill(salt, 0)
-                Arrays.fill(derived, 0)
-                Arrays.fill(encrypted, 0)
-            }
-        }
-    }
-
-    private fun derivePassphraseKey(passphrase: CharArray, salt: ByteArray, iterations: Int): ByteArray {
-        val spec = PBEKeySpec(passphrase, salt, iterations, 256)
-        return try {
-            SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
-        } finally {
-            spec.clearPassword()
-        }
-    }
 
     private fun decodePreview(id: String, plain: ByteArray): SrukryptEntryPreview {
         DataInputStream(ByteArrayInputStream(plain)).use { input ->
