@@ -154,7 +154,7 @@ fun ModelDetailPage(
                 status.status == DownloadManager.STATUS_FAILED -> {
                     error = "Download failed (reason ${status.reason}). Check your connection and storage, then retry."
                     withContext(Dispatchers.IO) {
-                        if (legacy) SruGenModelInstaller.cancelDownload(context, model.id, downloadId)
+                        if (legacy) SruGenModelInstaller.cancelDownload(context, downloadId)
                         else SruGenModelPackInstaller.cancelDownload(context, model.id, downloadId)
                     }
                     downloadId = -1L
