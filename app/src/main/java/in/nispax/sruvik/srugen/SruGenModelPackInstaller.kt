@@ -40,6 +40,9 @@ object SruGenModelPackInstaller {
         "pos_emb.bin"
     )
     private val allowedFiles = requiredFiles.toSet() + setOf(
+        // Optional VAE encoder is present in some verified packs (e.g. majicMIX v6).
+        // The current Sruvik engine still uses text-to-image and ignores this file pair.
+        "vae_encoder_fp16.mnn", "vae_encoder_fp16.mnn.weight",
         "README.md", "NOTICE", "LICENSE", "LICENSE.md", "LICENSE.txt",
         "MODEL_LICENSE.md", "model_card.md"
     )
