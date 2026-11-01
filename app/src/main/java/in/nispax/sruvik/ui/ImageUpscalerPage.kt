@@ -420,7 +420,14 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                         Text(if (original == null) "Photo library" else "Change photo")
                     }
                     OutlinedButton(
-                        onClick = { launchImagePicker() },
+                        onClick = {
+                            if (!isProcessing && !isSaving && !isLoading) {
+                                runCatching { filePicker.launch(arrayOf("image/*")) }
+                                    .onFailure { failure ->
+                                        message = "Android couldn't open Files: ${failure.message ?: "unknown error"}"
+                                    }
+                            }
+                        },
                         modifier = Modifier.weight(1f).height(48.dp),
                         shape = RoundedCornerShape(15.dp),
                         enabled = !isProcessing && !isSaving && !isLoading
