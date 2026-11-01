@@ -281,6 +281,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                                     }
                                     errorText = ""
                                 } catch (error: Exception) {
+                                    android.util.Log.e("Srukrypt", "Authenticated vault unwrap failed.", error)
                                     newKey?.let { Arrays.fill(it, 0) }
                                     SrukryptVault.discardChallenge(authChallenge)
                                     errorText = when (error) {
@@ -312,6 +313,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                 )
                 prompt.authenticate(promptInfo, BiometricPrompt.CryptoObject(authChallenge.cipher))
             } catch (error: Exception) {
+                android.util.Log.e("Srukrypt", "Could not prepare the Android Keystore unlock challenge.", error)
                 challenge?.let { SrukryptVault.discardChallenge(it) }
                 busy = false
                 errorText = when (error) {
