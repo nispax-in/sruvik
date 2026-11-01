@@ -426,9 +426,9 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
             when (normalizedText) {
                 "hi", "hii", "hello", "hey", "heyy", "yo", "sup",
                 "good morning", "good afternoon", "good evening" ->
-                    "Hey! I'm here. SruGen is currently your on-device image studio. Describe an image you want to create, or attach a photo and choose an editing mode. Stable Diffusion 1.5 creates images; general conversation needs a separate local language model."
+                    "Hey! I'm here. SruGen creates images locally with your selected model, ${activeModel?.name ?: "installed image model"}. General conversation needs a separate language model."
                 "help", "what can you do", "what can you do here" ->
-                    "I can create images from visual prompts using the installed local Stable Diffusion model. You can also attach an image to a chat. Photo editing, background removal and object erasing still need their separate on-device models."
+                    "I can create images locally with ${activeModel?.name ?: "your installed image model"}. Reference-image editing, background removal and object erasing are not available yet."
                 else -> null
             }
         } else null
@@ -453,7 +453,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
             persist(updatedChat.copy(
                 messages = updatedChat.messages + SruGenMessage(
                     role = "assistant",
-                    text = "Your reference image is saved in this encrypted chat, but the installed Stable Diffusion text-to-image model cannot condition on it. I did not use the image for this generation. Choose Edit to see the current image-editing availability."
+                    text = "Your reference image is saved in this encrypted chat, but ${activeModel?.name ?: "the selected model"} currently supports text-to-image only. I did not use the attachment for this generation."
                 )
             ))
             return
@@ -471,7 +471,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
 
         if (mode != SruGenMode.TEXT_TO_IMAGE) {
             val unavailable = when (mode) {
-                SruGenMode.PROMPT_EDIT -> "The installed Stable Diffusion 1.5 base model currently supports text-to-image. Reference-image editing requires a separate conditioning model."
+                SruGenMode.PROMPT_EDIT -> "Reference-image editing is not available in this build. Your original image remains safely attached to this encrypted conversation."
                 SruGenMode.REMOVE_BACKGROUND -> "Background removal requires a separate on-device segmentation model. It is not installed yet."
                 SruGenMode.REMOVE_OBJECT -> "Object removal requires an inpainting model and selection mask. It is not enabled yet."
                 else -> "This workflow is unavailable."
@@ -844,6 +844,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                     ) { Text("Create", fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
                     Button(
                         onClick = { mode = SruGenMode.PROMPT_EDIT },
+                        enabled = false,
                         modifier = Modifier.weight(1f).height(46.dp),
                         shape = modeButtonShape,
                         colors = ButtonDefaults.buttonColors(
@@ -854,6 +855,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                     ) { Text("Edit", fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
                     Button(
                         onClick = { mode = SruGenMode.REMOVE_BACKGROUND },
+                        enabled = false,
                         modifier = Modifier.weight(1f).height(46.dp),
                         shape = modeButtonShape,
                         colors = ButtonDefaults.buttonColors(
@@ -864,6 +866,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                     ) { Text("Cut out", fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
                     Button(
                         onClick = { mode = SruGenMode.REMOVE_OBJECT },
+                        enabled = false,
                         modifier = Modifier.weight(1f).height(46.dp),
                         shape = modeButtonShape,
                         colors = ButtonDefaults.buttonColors(
