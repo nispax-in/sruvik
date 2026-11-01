@@ -93,6 +93,9 @@ object SruGenModelInstaller {
     }
 
     fun startDownload(context: Context): Long {
+        val galleryModel = requireNotNull(SruGenGalleryCatalog.find("sd15-mediapipe"))
+        val compatibility = SruGenModelCompatibility.assess(context, galleryModel)
+        require(compatibility.canDownload) { compatibility.reasons.joinToString("\n") }
         requireInstallSpace(context)
         val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         val request = DownloadManager.Request(Uri.parse(DOWNLOAD_URL))
@@ -142,8 +145,11 @@ object SruGenModelInstaller {
 
     fun importArchive(context: Context, input: InputStream, onProgress: (String) -> Unit = {}) {
         // The ZIP has already consumed storage when this is invoked from DownloadManager.
-        // Check an initial reserve here, then enforce the 750 MB floor while copying/extracting.
+        // Check device capability and the remaining staging reserve before extraction.
         recoverInterruptedInstall(context)
+        val galleryModel = requireNotNull(SruGenGalleryCatalog.find("sd15-mediapipe"))
+        val compatibility = SruGenModelCompatibility.assessForInstall(context, galleryModel)
+        require(compatibility.canDownload) { compatibility.reasons.joinToString("\n") }
         require(availableBytes(context) >= 1_500_000_000L) {
             "SruGen needs at least 1.5 GB remaining internal storage to stage this model. No existing model was changed."
         }
