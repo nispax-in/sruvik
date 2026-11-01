@@ -29,17 +29,15 @@ class SruvikApplication : Application(), ComponentCallbacks2 {
     private fun releaseInferenceEngine(reason: String) {
         val current = SruGenEngineRegistry.engine ?: return
         current.requestStop()
-        val detached = SruGenEngineRegistry.detach(current) ?: return
-        if (detached is AutoCloseable) {
-            // Native close may wait for the current diffusion step's lock. Never
-            // block Android's main-thread memory callback on that native teardown.
-            Thread({
-                runCatching { detached.close() }
-                    .onFailure { android.util.Log.w("SruvikApplication", "Could not release native SruGen engine ($reason).", it) }
-            }, "SruGen-engine-release").apply {
-                isDaemon = true
-                start()
-            }
+        // Native close can wait for the current inference checkpoint. Run it off
+        // the main thread; the registry lifecycle gate prevents a second model
+        // from being allocated until this one has actually released its memory.
+        Thread({
+            runCatching { SruGenEngineRegistry.closeAndDetach(current) }
+                .onFailure { android.util.Log.w("SruvikApplication", "Could not release native SruGen engine ($reason).", it) }
+        }, "SruGen-engine-release").apply {
+            isDaemon = true
+            start()
         }
     }
 }
