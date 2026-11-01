@@ -38,7 +38,9 @@ data class SruGenGalleryModel(
     val attribution: String,
     val licenseNote: String,
     val maxExtractedBytes: Long = 2_000_000_000L,
-    val requiredAbis: Set<String> = setOf("arm64-v8a")
+    val requiredAbis: Set<String> = setOf("arm64-v8a"),
+    val pinnedRevision: String? = null,
+    val features: List<String> = emptyList()
 ) {
     val canInstall: Boolean
         get() = availability == SruGenGalleryAvailability.INSTALLABLE &&
