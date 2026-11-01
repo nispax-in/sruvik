@@ -141,9 +141,12 @@ object SruGenModelInstaller {
     }
 
     fun importArchive(context: Context, input: InputStream, onProgress: (String) -> Unit = {}) {
-        // Restore any previously committed model before staging a replacement.
+        // The ZIP has already consumed storage when this is invoked from DownloadManager.
+        // Check an initial reserve here, then enforce the 750 MB floor while copying/extracting.
         recoverInterruptedInstall(context)
-        requireInstallSpace(context)
+        require(availableBytes(context) >= 1_500_000_000L) {
+            "SruGen needs at least 1.5 GB remaining internal storage to stage this model. No existing model was changed."
+        }
         val staging = File(context.filesDir, "srugen-model-staging-${UUID.randomUUID()}")
         if (!staging.mkdirs()) throw IllegalStateException("Unable to create model staging directory.")
         val archive = File(staging, "sd15-mediapipe.zip")
