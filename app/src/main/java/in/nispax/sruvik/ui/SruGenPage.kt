@@ -1144,7 +1144,7 @@ private fun SruGenModelRoadmap(modelReady: Boolean) {
                 }
             }
             Text(
-                "MNN SD 3.5, Sana and Wan remain locked until Sruvik ships their native Android runtime and verified packs; DreamShaper also needs a validated conversion. All stay disabled until memory, thermal and device tests pass.",
+                "DreamShaper 8 now has a community MNN conversion and Sruvik includes the pinned Nezumi Kiln arm64 runtime, but the model archive hash and device validation are still pending. SD 3.5, Sana and Wan need separate native pipelines. Nothing is enabled until its exact model files, memory behavior and device tests are verified.",
                 color = SruvikColors.TextSecondary,
                 style = MaterialTheme.typography.labelSmall,
                 lineHeight = 15.sp
