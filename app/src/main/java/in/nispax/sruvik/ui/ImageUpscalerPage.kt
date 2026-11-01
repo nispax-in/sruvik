@@ -239,7 +239,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
 
     LaunchedEffect(session.resultPath, session.status, original) {
         if (session.status == UpscaleStatus.COMPLETED && !session.resultPath.isNullOrBlank()) {
-            val path = session.resultPath
+            val path = requireNotNull(session.resultPath)
             val restored = withContext(Dispatchers.IO) { decodeSavedPreview(path) }
             if (restored != null) {
                 val previous = result
