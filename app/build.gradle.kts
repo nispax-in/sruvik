@@ -67,4 +67,5 @@ dependencies {
     implementation("com.google.protobuf:protobuf-java:4.32.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
+    testImplementation("junit:junit:4.13.2")
 }
