@@ -111,7 +111,10 @@ fun SruvikApp() {
                     }
                 )
                 Destination.Upscaler -> ImageUpscalerPage(onBack = { selected = Destination.Home })
-                Destination.SruGen -> SruGenPage(memoryEnabled = sruGenMemoryEnabled)
+                Destination.SruGen -> SruGenPage(
+                    memoryEnabled = sruGenMemoryEnabled,
+                    onOpenModels = { selected = Destination.Models }
+                )
                 Destination.Srukrypt -> SrukryptPage(SruvikPreferences.vaultAutoLockMinutes(context))
             }
         }
