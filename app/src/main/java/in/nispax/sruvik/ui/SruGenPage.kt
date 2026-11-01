@@ -173,6 +173,7 @@ fun SruGenPage(memoryEnabled: Boolean) {
                 DownloadManager.STATUS_FAILED -> {
                     val reason = it.getInt(it.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))
                     error = "Model download failed (reason $reason). Check your connection and free storage, then retry."
+                    runCatching { manager.remove(id) } // Delete partial archive and return its storage.
                     SruGenModelInstaller.clearDownloadId(context)
                     downloadId = -1L
                 }
@@ -193,6 +194,9 @@ fun SruGenPage(memoryEnabled: Boolean) {
                     } finally {
                         installing = false
                         installMessage = ""
+                        // The model is now unpacked in private storage. Do not keep
+                        // the original ~2 GB ZIP occupying the user's phone.
+                        runCatching { manager.remove(id) }
                         SruGenModelInstaller.clearDownloadId(context)
                         downloadId = -1L
                     }
