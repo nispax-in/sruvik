@@ -545,19 +545,11 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                         letterSpacing = (-1.2).sp
                     )
                 )
-                FilledTonalButton(
-                    onClick = { historyOpen = true },
-                    modifier = Modifier.height(50.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = studioRaised,
-                        contentColor = studioText
-                    ),
-                    contentPadding = PaddingValues(horizontal = 13.dp)
+                IconButton(
+                    onClick = { monitorExpanded = !monitorExpanded },
+                    modifier = Modifier.size(48.dp).clip(CircleShape).background(studioRaised)
                 ) {
-                    Icon(Icons.Rounded.History, null, modifier = Modifier.size(19.dp))
-                    Spacer(Modifier.width(7.dp))
-                    Text("History", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Icon(Icons.Rounded.Tune, "Device performance", tint = studioText, modifier = Modifier.size(23.dp))
                 }
                 Button(
                     onClick = { newChat() },
@@ -575,48 +567,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                 }
             }
 
-            Spacer(Modifier.height(14.dp))
-
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(9.dp)
-            ) {
-                OutlinedButton(
-                    onClick = onOpenModels,
-                    modifier = Modifier.weight(1f).height(54.dp),
-                    shape = RoundedCornerShape(17.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .20f)),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = studioText),
-                    contentPadding = PaddingValues(horizontal = 15.dp)
-                ) {
-                    Icon(Icons.Rounded.AutoAwesome, null, tint = studioAccent, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(10.dp))
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-                        Text(
-                            activeModel?.name ?: "Choose an image model",
-                            color = studioText,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1
-                        )
-                        Text(
-                            if (modelReady) "Ready on this device" else "Tap to browse and install",
-                            color = studioSecondary,
-                            fontSize = 13.sp,
-                            maxLines = 1
-                        )
-                    }
-                    Icon(Icons.Rounded.ChevronRight, null, tint = studioSecondary, modifier = Modifier.size(21.dp))
-                }
-                IconButton(
-                    onClick = { monitorExpanded = !monitorExpanded },
-                    modifier = Modifier.size(54.dp).clip(RoundedCornerShape(17.dp))
-                        .background(studioRaised)
-                ) {
-                    Icon(Icons.Rounded.Tune, "Device performance", tint = studioText, modifier = Modifier.size(23.dp))
-                }
-            }
+            Spacer(Modifier.height(8.dp))
 
             AnimatedVisibility(
                 visible = monitorExpanded,
@@ -636,36 +587,6 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                         color = studioSecondary,
                         fontSize = 13.sp
                     )
-                }
-            }
-
-            AnimatedVisibility(
-                visible = !modelReady,
-                enter = fadeIn(tween(180)) + expandVertically(tween(180)),
-                exit = fadeOut(tween(130)) + shrinkVertically(tween(130))
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(
-                        "An image model is needed before you can create.",
-                        Modifier.weight(1f),
-                        color = studioSecondary,
-                        fontSize = 14.sp
-                    )
-                    Button(
-                        onClick = onOpenModels,
-                        modifier = Modifier.height(46.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = studioAccent,
-                            contentColor = Color(0xFF1A100D)
-                        )
-                    ) {
-                        Text("Browse models", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    }
                 }
             }
 
@@ -726,7 +647,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                                 SruGenCreativeSpark()
                                 Spacer(Modifier.height(27.dp))
                                 Text(
-                                    "Let's make something.",
+                                    "Let's noodle.",
                                     color = studioText,
                                     fontSize = 32.sp,
                                     lineHeight = 38.sp,
@@ -735,7 +656,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                                 )
                                 Spacer(Modifier.height(9.dp))
                                 Text(
-                                    "Describe what you're imagining.",
+                                    "Make something that exists only in your imagination.",
                                     color = studioSecondary,
                                     fontSize = 17.sp,
                                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -828,56 +749,6 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                     .padding(horizontal = 14.dp, vertical = 13.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(7.dp)
-                ) {
-                    val modeButtonShape = RoundedCornerShape(13.dp)
-                    Button(
-                        onClick = { mode = SruGenMode.TEXT_TO_IMAGE },
-                        modifier = Modifier.weight(1f).height(46.dp),
-                        shape = modeButtonShape,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (mode == SruGenMode.TEXT_TO_IMAGE) studioAccent else studioRaised,
-                            contentColor = if (mode == SruGenMode.TEXT_TO_IMAGE) Color(0xFF1A100D) else studioText
-                        ),
-                        contentPadding = PaddingValues(horizontal = 3.dp)
-                    ) { Text("Create", fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
-                    Button(
-                        onClick = { mode = SruGenMode.PROMPT_EDIT },
-                        enabled = false,
-                        modifier = Modifier.weight(1f).height(46.dp),
-                        shape = modeButtonShape,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (mode == SruGenMode.PROMPT_EDIT) studioAccent else studioRaised,
-                            contentColor = if (mode == SruGenMode.PROMPT_EDIT) Color(0xFF1A100D) else studioText
-                        ),
-                        contentPadding = PaddingValues(horizontal = 3.dp)
-                    ) { Text("Edit", fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
-                    Button(
-                        onClick = { mode = SruGenMode.REMOVE_BACKGROUND },
-                        enabled = false,
-                        modifier = Modifier.weight(1f).height(46.dp),
-                        shape = modeButtonShape,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (mode == SruGenMode.REMOVE_BACKGROUND) studioAccent else studioRaised,
-                            contentColor = if (mode == SruGenMode.REMOVE_BACKGROUND) Color(0xFF1A100D) else studioText
-                        ),
-                        contentPadding = PaddingValues(horizontal = 3.dp)
-                    ) { Text("Cut out", fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
-                    Button(
-                        onClick = { mode = SruGenMode.REMOVE_OBJECT },
-                        enabled = false,
-                        modifier = Modifier.weight(1f).height(46.dp),
-                        shape = modeButtonShape,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (mode == SruGenMode.REMOVE_OBJECT) studioAccent else studioRaised,
-                            contentColor = if (mode == SruGenMode.REMOVE_OBJECT) Color(0xFF1A100D) else studioText
-                        ),
-                        contentPadding = PaddingValues(horizontal = 3.dp)
-                    ) { Text("Erase", fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
-                }
-
                 selectedImage?.let { id ->
                     Row(
                         Modifier.fillMaxWidth(),
@@ -949,36 +820,40 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(9.dp)
                 ) {
-                    OutlinedButton(
-                        onClick = {
-                            imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                        },
-                        modifier = Modifier.weight(1f).height(52.dp),
-                        shape = RoundedCornerShape(15.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .18f)),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = studioText),
-                        contentPadding = PaddingValues(horizontal = 10.dp)
+                    IconButton(
+                        onClick = { imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                        modifier = Modifier.size(52.dp).clip(CircleShape).background(studioRaised)
                     ) {
-                        Icon(Icons.Rounded.AddPhotoAlternate, null, modifier = Modifier.size(21.dp))
+                        Icon(Icons.Rounded.Add, "Attach a reference image", tint = studioText, modifier = Modifier.size(25.dp))
+                    }
+                    OutlinedButton(
+                        onClick = onOpenModels,
+                        modifier = Modifier.weight(1f).height(52.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .16f)),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = studioText),
+                        contentPadding = PaddingValues(horizontal = 12.dp)
+                    ) {
+                        Icon(Icons.Rounded.AutoAwesome, null, tint = studioAccent, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("Add image", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Text(activeModel?.name ?: "Choose model", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        Spacer(Modifier.width(4.dp))
+                        Icon(Icons.Rounded.ExpandMore, null, tint = studioSecondary, modifier = Modifier.size(18.dp))
                     }
                     Button(
                         onClick = { sendMessage() },
                         enabled = !generating && (prompt.isNotBlank() || selectedImage != null),
-                        modifier = Modifier.weight(1.15f).height(52.dp),
-                        shape = RoundedCornerShape(15.dp),
+                        modifier = Modifier.size(54.dp),
+                        shape = CircleShape,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = studioAccent,
                             contentColor = Color(0xFF1A100D),
                             disabledContainerColor = Color(0xFF45413F),
                             disabledContentColor = Color(0xFF96918D)
                         ),
-                        contentPadding = PaddingValues(horizontal = 12.dp)
+                        contentPadding = PaddingValues(0.dp)
                     ) {
-                        Text("Create", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.width(8.dp))
-                        Icon(Icons.Rounded.ArrowUpward, null, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Rounded.ArrowUpward, "Create image", modifier = Modifier.size(23.dp))
                     }
                 }
             }
