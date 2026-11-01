@@ -82,7 +82,15 @@ object SruGenModelCompatibility {
                 null -> Long.MAX_VALUE
             }
         } else {
-            model.approximateDownloadBytes + model.maxExtractedBytes + existingModelBytes + MIN_FREE_AFTER_DOWNLOAD
+            when (model.engine) {
+                // The legacy installer copies the user-approved ZIP into private staging,
+                // then enforces the 750 MB reserve continuously while extracting. The
+                // archive's declared max is a hard cap, not a prediction of real expansion.
+                SruGenGalleryEngine.MEDIAPIPE_SD15 -> 1_500_000_000L
+                SruGenGalleryEngine.NEZUMI_MNN_SD15 ->
+                    model.approximateDownloadBytes + model.maxExtractedBytes + existingModelBytes + MIN_FREE_AFTER_DOWNLOAD
+                null -> Long.MAX_VALUE
+            }
         }
         if (freeStorage < minimumStorage) {
             val minimumGb = formatGb(minimumStorage)
