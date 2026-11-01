@@ -8,10 +8,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out gallery source
+      - name: Check out stability-repair source
         uses: actions/checkout@v4
         with:
-          ref: feature/model-library-gallery
+          ref: fix/stability-vault-image-persistence
           submodules: true
       - name: Verify and stage pinned Nezumi Kiln MNN runtime
         shell: bash
@@ -43,8 +43,13 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
-      - name: Run storage regression tests
-        run: gradle --no-daemon :app:testDebugUnitTest
+      - name: Run Srukrypt and image preview tests on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: Pixel_2
+          script: gradle --no-daemon :app:connectedDebugAndroidTest
       # Device-level Srukrypt instrumentation is tracked in a separate emulator run.
       - name: Run JVM regression tests
         run: gradle --no-daemon :app:testDebugUnitTest
@@ -66,7 +71,7 @@ jobs:
           echo "Expected build-101 signer: $EXPECTED"
           echo "Recovered signer: $ACTUAL"
           test "$ACTUAL" = "$EXPECTED"
-      - name: Build gallery APK
+      - name: Build stability-repair APK
         run: gradle --no-daemon :app:assembleDebug
       - name: Verify APK signer matches build 101
         shell: bash
@@ -82,11 +87,7 @@ jobs:
       - name: Upload compatible APK
         uses: actions/upload-artifact@v4
         with:
-          name: sruvik-build101-compatible-apk
+          name: sruvik-stability-repair-build101-compatible
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
-# Trigger a build for the updated SruGen native workspace.
-# Rebuild after SruGen navigation, picker and Srukrypt stability fixes.
-# Run this verification independently so emulator tests are not left queued.
-# Re-run after resolving the Srukrypt typography import compile failure.
