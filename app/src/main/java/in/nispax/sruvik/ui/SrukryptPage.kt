@@ -118,6 +118,17 @@ fun SrukryptPage(autoLockMinutes: Int) {
         }
     }
 
+    suspend fun refreshEntries(key: ByteArray) {
+        val loadResult = withContext(Dispatchers.IO) {
+            SrukryptVault.loadPreviewsWithReport(context, key)
+        }
+        entries.forEach { if (!it.thumbnail.isRecycled) it.thumbnail.recycle() }
+        entries = loadResult.entries
+        if (loadResult.unreadableEntries > 0) {
+            errorText = "Warning: ${loadResult.unreadableEntries} encrypted item(s) could not be opened. Their original encrypted files remain on this device and have not been deleted."
+        }
+    }
+
     /**
      * SruGen can queue an image for the user's private vault. This effect
      * consumes the one-shot request only after Srukrypt has a live, unlocked
@@ -169,16 +180,6 @@ fun SrukryptPage(autoLockMinutes: Int) {
         }
     }
 
-    suspend fun refreshEntries(key: ByteArray) {
-        val loadResult = withContext(Dispatchers.IO) {
-            SrukryptVault.loadPreviewsWithReport(context, key)
-        }
-        entries.forEach { if (!it.thumbnail.isRecycled) it.thumbnail.recycle() }
-        entries = loadResult.entries
-        if (loadResult.unreadableEntries > 0) {
-            errorText = "Warning: ${loadResult.unreadableEntries} encrypted item(s) could not be opened. Their original encrypted files remain on this device and have not been deleted."
-        }
-    }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
         val activeKey = pendingImportKey
