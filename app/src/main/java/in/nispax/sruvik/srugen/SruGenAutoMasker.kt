@@ -75,9 +75,10 @@ object SruGenAutoMasker {
         var mask: SegmentationMask? = null
         var softMask: ByteArray? = null
         try {
-            mask = segment(context, sourceImage) { label -> label == CLOTHES_LABEL }
-            val selected = mask.values.count { (it.toInt() and 0xff) > 0 }
-            val ratio = selected.toFloat() / mask.values.size.toFloat()
+            val segmentMask = segment(context, sourceImage) { label -> label == CLOTHES_LABEL }
+            mask = segmentMask
+            val selected = segmentMask.values.count { (it.toInt() and 0xff) > 0 }
+            val ratio = selected.toFloat() / segmentMask.values.size.toFloat()
             require(ratio >= 0.008f) {
                 "SruGen could not find clothing in this photo. Try a clear, well-lit image showing the person's outfit."
             }
@@ -85,30 +86,33 @@ object SruGenAutoMasker {
                 "The clothing mask was too broad to edit safely. Try a closer photo with one clearly visible person."
             }
 
-            softMask = soften(mask.values, mask.width, mask.height)
-            generatedScaled = if (
+            val smoothMask = soften(segmentMask.values, segmentMask.width, segmentMask.height)
+            softMask = smoothMask
+            val scaledOutput = if (
                 generatedImage.width == sourceWidth && generatedImage.height == sourceHeight
             ) {
                 generatedImage
             } else {
                 Bitmap.createScaledBitmap(generatedImage, sourceWidth, sourceHeight, true)
             }
-            require(!generatedScaled.isRecycled) {
+            generatedScaled = scaledOutput
+            require(!scaledOutput.isRecycled) {
                 "The resized model output was released before it could be composited."
             }
-            generatedPixels = IntArray(originalPixels.size)
-            generatedScaled.getPixels(
-                generatedPixels, 0, sourceWidth, 0, 0, sourceWidth, sourceHeight
+            val renderedPixels = IntArray(originalPixels.size)
+            generatedPixels = renderedPixels
+            scaledOutput.getPixels(
+                renderedPixels, 0, sourceWidth, 0, 0, sourceWidth, sourceHeight
             )
 
             // Segmenter masks are normally source-sized. Map coordinates explicitly
             // so a runtime returning a lower-resolution category mask stays safe.
             for (y in 0 until sourceHeight) {
-                val maskY = (y.toLong() * mask.height / sourceHeight).toInt().coerceIn(0, mask.height - 1)
+                val maskY = (y.toLong() * segmentMask.height / sourceHeight).toInt().coerceIn(0, segmentMask.height - 1)
                 for (x in 0 until sourceWidth) {
-                    val maskX = (x.toLong() * mask.width / sourceWidth).toInt().coerceIn(0, mask.width - 1)
+                    val maskX = (x.toLong() * segmentMask.width / sourceWidth).toInt().coerceIn(0, segmentMask.width - 1)
                     val index = y * sourceWidth + x
-                    val alpha = softMask[maskY * mask.width + maskX].toInt() and 0xff
+                    val alpha = smoothMask[maskY * segmentMask.width + maskX].toInt() and 0xff
                     if (alpha == 0) continue
                     val inverse = 255 - alpha
                     val old = originalPixels[index]
