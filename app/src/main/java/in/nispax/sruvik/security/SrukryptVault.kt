@@ -26,7 +26,9 @@ data class SrukryptUnlockChallenge internal constructor(
     internal val isNewVault: Boolean,
     internal val pendingDataKey: ByteArray?,
     internal val wrappedDataKey: ByteArray?,
-    val allowedAuthenticators: Int
+    val allowedAuthenticators: Int,
+    internal val keyAliasId: String = "master",
+    internal val wrappedFileName: String = "master.wrap"
 )
 
 data class SrukryptEntryPreview(
@@ -57,6 +59,10 @@ data class SrukryptPreviewLoadResult(
 object SrukryptVault {
     private const val MASTER_ALIAS_ID = "master"
     private const val WRAPPED_KEY_FILE = "master.wrap"
+    // A replacement biometric key is written beside the original key envelope.
+    // The original remains usable until a replacement prompt succeeds.
+    private const val REPAIRED_MASTER_ALIAS_ID = "master.repaired"
+    private const val REPAIRED_WRAPPED_KEY_FILE = "master.repaired.wrap"
     private const val WRAP_MAGIC = 0x53524B57 // SRKW
     private const val PASSPHRASE_FILE = "passphrase.wrap"
     private const val ENTRY_MAGIC = 0x53524B31 // SRK1
@@ -89,10 +95,11 @@ object SrukryptVault {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             return BiometricManagerFlags.BIOMETRIC_STRONG
         }
-        if (!hasMasterKey()) {
+        val aliasId = activeMasterAlias(context)
+        if (!hasMasterKey(aliasId)) {
             return BiometricManagerFlags.BIOMETRIC_STRONG or BiometricManagerFlags.DEVICE_CREDENTIAL
         }
-        return authenticatorFlagsForKey(getMasterKey())
+        return authenticatorFlagsForKey(getMasterKey(aliasId))
     }
 
     private object BiometricManagerFlags {
@@ -155,11 +162,14 @@ object SrukryptVault {
     @Throws(Exception::class)
     fun prepareUnlock(context: Context): SrukryptUnlockChallenge {
         val dir = SrukryptStorage.vaultDirectory(context)
-        val wrappedFile = File(dir, WRAPPED_KEY_FILE)
+        val repairedWrappedFile = File(dir, REPAIRED_WRAPPED_KEY_FILE)
+        val useRepairedKey = repairedWrappedFile.isFile && hasMasterKey(REPAIRED_MASTER_ALIAS_ID)
+        val keyAliasId = if (useRepairedKey) REPAIRED_MASTER_ALIAS_ID else MASTER_ALIAS_ID
+        val wrappedFile = if (useRepairedKey) repairedWrappedFile else File(dir, WRAPPED_KEY_FILE)
         if (!wrappedFile.exists() && hasPassphraseFallback(context)) {
             throw IllegalStateException("This vault uses a passphrase. Choose “Use passphrase” to unlock it.")
         }
-        val existingMasterKey = hasMasterKey()
+        val existingMasterKey = hasMasterKey(keyAliasId)
         val hasEntries = entryFiles(dir).isNotEmpty()
 
         // Never mint a replacement Keystore key when ciphertext already exists.
@@ -177,27 +187,77 @@ object SrukryptVault {
         }
 
         if (!wrappedFile.exists()) {
-            val masterKey = if (existingMasterKey) getMasterKey() else createMasterKey()
+            val masterKey = if (existingMasterKey) getMasterKey(keyAliasId) else createMasterKey(keyAliasId)
             val allowedAuthenticators = authenticatorFlagsForKey(masterKey)
             val dataKey = ByteArray(32).also { SecureRandom().nextBytes(it) }
             return try {
                 val cipher = Cipher.getInstance("AES/GCM/NoPadding")
                 cipher.init(Cipher.ENCRYPT_MODE, masterKey)
                 cipher.updateAAD(wrapAad)
-                SrukryptUnlockChallenge(cipher, true, dataKey, null, allowedAuthenticators)
+                SrukryptUnlockChallenge(
+                    cipher, true, dataKey, null, allowedAuthenticators,
+                    keyAliasId, wrappedFile.name
+                )
             } catch (error: Exception) {
                 Arrays.fill(dataKey, 0)
                 throw error
             }
         }
 
-        val masterKey = getMasterKey()
+        val masterKey = getMasterKey(keyAliasId)
         val allowedAuthenticators = authenticatorFlagsForKey(masterKey)
         val envelope = readEnvelope(wrappedFile, WRAP_MAGIC)
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.DECRYPT_MODE, masterKey, GCMParameterSpec(TAG_BITS, envelope.first))
         cipher.updateAAD(wrapAad)
-        return SrukryptUnlockChallenge(cipher, false, null, envelope.second, allowedAuthenticators)
+        return SrukryptUnlockChallenge(
+            cipher, false, null, envelope.second, allowedAuthenticators,
+            keyAliasId, wrappedFile.name
+        )
+    }
+
+    /**
+     * Prepare a second, independent Keystore key after the user has unlocked
+     * with their passphrase. The original master alias and envelope are not
+     * touched; the replacement becomes active only after its CryptoObject
+     * successfully wraps this same data key and the new envelope is committed.
+     */
+    @Throws(Exception::class)
+    fun prepareBiometricRewrap(context: Context, dataKey: ByteArray): SrukryptUnlockChallenge {
+        require(dataKey.size == 32) { "Invalid vault session key." }
+        require(hasPassphraseFallback(context)) {
+            "Save a passphrase fallback before repairing fingerprint unlock. Your encrypted items will remain protected."
+        }
+
+        val alias = SrukryptStorage.keyAlias(REPAIRED_MASTER_ALIAS_ID)
+        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        // This alias is separate from the original key. If the prompt is cancelled,
+        // the original key/envelope and passphrase fallback remain untouched.
+        if (keyStore.containsAlias(alias)) keyStore.deleteEntry(alias)
+
+        val masterKey = createMasterKey(REPAIRED_MASTER_ALIAS_ID)
+        val allowedAuthenticators = authenticatorFlagsForKey(masterKey)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, masterKey)
+        cipher.updateAAD(wrapAad)
+        return SrukryptUnlockChallenge(
+            cipher,
+            true,
+            dataKey.copyOf(),
+            null,
+            allowedAuthenticators,
+            REPAIRED_MASTER_ALIAS_ID,
+            REPAIRED_WRAPPED_KEY_FILE
+        )
+    }
+
+    private fun activeMasterAlias(context: Context): String {
+        val repairedEnvelope = File(SrukryptStorage.vaultDirectory(context), REPAIRED_WRAPPED_KEY_FILE)
+        return if (repairedEnvelope.isFile && hasMasterKey(REPAIRED_MASTER_ALIAS_ID)) {
+            REPAIRED_MASTER_ALIAS_ID
+        } else {
+            MASTER_ALIAS_ID
+        }
     }
 
     private fun authenticatorFlagsForKey(key: SecretKey): Int {
@@ -232,7 +292,7 @@ object SrukryptVault {
             val encryptedKey = authenticatedCipher.doFinal(dataKey)
             val iv = authenticatedCipher.iv ?: throw SecurityException("Missing encryption nonce.")
             writeEnvelopeAtomically(
-                File(SrukryptStorage.vaultDirectory(context), WRAPPED_KEY_FILE),
+                File(SrukryptStorage.vaultDirectory(context), challenge.wrappedFileName),
                 WRAP_MAGIC,
                 iv,
                 encryptedKey
@@ -399,19 +459,19 @@ object SrukryptVault {
     private fun entryAad(id: String) =
         "Srukrypt:entry:v$FORMAT_VERSION:$id".toByteArray(Charsets.UTF_8)
 
-    private fun hasMasterKey(): Boolean {
+    private fun hasMasterKey(aliasId: String = MASTER_ALIAS_ID): Boolean {
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        return keyStore.containsAlias(SrukryptStorage.keyAlias(MASTER_ALIAS_ID))
+        return keyStore.containsAlias(SrukryptStorage.keyAlias(aliasId))
     }
 
-    private fun getMasterKey(): SecretKey {
+    private fun getMasterKey(aliasId: String = MASTER_ALIAS_ID): SecretKey {
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        return keyStore.getKey(SrukryptStorage.keyAlias(MASTER_ALIAS_ID), null) as? SecretKey
+        return keyStore.getKey(SrukryptStorage.keyAlias(aliasId), null) as? SecretKey
             ?: throw SecurityException("The Srukrypt Keystore key is unavailable.")
     }
 
-    private fun createMasterKey(): SecretKey {
-        val alias = SrukryptStorage.keyAlias(MASTER_ALIAS_ID)
+    private fun createMasterKey(aliasId: String = MASTER_ALIAS_ID): SecretKey {
+        val alias = SrukryptStorage.keyAlias(aliasId)
         val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
         val builder = KeyGenParameterSpec.Builder(
             alias,
