@@ -668,10 +668,11 @@ fun SruGenPage(
             ?: draftChat.takeIf { it.id == activeId }
             ?: return
         val rawText = prompt.trim()
-        val text = if (mode == SruGenMode.REMOVE_BACKGROUND && rawText.isBlank()) {
+        val text = if (requestMode == SruGenMode.REMOVE_BACKGROUND && rawText.isBlank()) {
             "Remove the background and keep the visible subject."
         } else rawText
         val attachment = selectedImage
+        val requestMode = mode
         if (text.isBlank() && attachment == null || generating) return
         val userMessage = SruGenMessage(role = "user", text = text, attachmentId = attachment,
             attachmentMime = if (attachment == null) null else "image/*")
@@ -705,7 +706,7 @@ fun SruGenPage(
             return
         }
 
-        if (text.isBlank() && attachment != null && mode == SruGenMode.TEXT_TO_IMAGE) {
+        if (text.isBlank() && attachment != null && requestMode == SruGenMode.TEXT_TO_IMAGE) {
             persist(updatedChat.copy(
                 messages = updatedChat.messages + SruGenMessage(
                     role = "assistant",
@@ -715,7 +716,7 @@ fun SruGenPage(
             return
         }
 
-        if (attachment != null && mode == SruGenMode.TEXT_TO_IMAGE) {
+        if (attachment != null && requestMode == SruGenMode.TEXT_TO_IMAGE) {
             persist(updatedChat.copy(
                 messages = updatedChat.messages + SruGenMessage(
                     role = "assistant",
@@ -725,7 +726,7 @@ fun SruGenPage(
             return
         }
 
-        if (mode != SruGenMode.TEXT_TO_IMAGE && attachment == null) {
+        if (requestMode != SruGenMode.TEXT_TO_IMAGE && attachment == null) {
             persist(updatedChat.copy(
                 messages = updatedChat.messages + SruGenMessage(
                     role = "assistant",
@@ -735,14 +736,14 @@ fun SruGenPage(
             return
         }
 
-        if (mode == SruGenMode.PROMPT_EDIT && text.isBlank()) {
+        if (requestMode == SruGenMode.PROMPT_EDIT && text.isBlank()) {
             persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
                 role = "assistant",
                 text = "Describe the clothing change you want, for example: change the shirt to black. Your original image remains attached in this encrypted chat."
             )))
             return
         }
-        if (mode == SruGenMode.REMOVE_OBJECT) {
+        if (requestMode == SruGenMode.REMOVE_OBJECT) {
             persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
                 role = "assistant",
                 text = "Automatic object removal is not enabled yet. This build has no reliable object-specific segmentation or dedicated inpainting model, so it will not guess at an object or modify your photo."
@@ -750,18 +751,18 @@ fun SruGenPage(
             return
         }
         var generationModelId = activeModelId
-        if (mode == SruGenMode.PROMPT_EDIT) {
+        if (requestMode == SruGenMode.PROMPT_EDIT) {
             val editModel = SruGenEngineFactory.installedImageEditingModel(context, activeModelId)
             if (editModel == null) {
                 persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
                     role = "assistant",
-                    text = "Your photo is safely saved, but the active CyberRealistic pack has no VAE encoder for image editing. Install majicMIX Realistic v6 from Models (about 1.24 GB); it includes the encoder needed for local photo edits. Then attach the photo again and choose Edit clothes. Nothing was generated from the text alone."
+                    text = "Your photo is safely saved, but ${activeModel?.name ?: "the active model"} does not have the VAE encoder required for image editing. Install majicMIX Realistic v6 from Models (about 1.24 GB). After installation, return here, reattach the photo and choose Edit clothes. Nothing was generated from text alone."
                 )))
                 return
             }
             generationModelId = editModel.id
         }
-        if (mode == SruGenMode.TEXT_TO_IMAGE && !modelReady) {
+        if (requestMode == SruGenMode.TEXT_TO_IMAGE && !modelReady) {
             persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
                 role = "assistant",
                 text = "Your prompt and image remain saved in this encrypted chat. The selected model is not installed yet. Open Models to install a compatible model before generating."
@@ -798,7 +799,7 @@ fun SruGenPage(
                         updatedChat,
                         generationPrompt,
                         generationModelId,
-                        mode,
+                        requestMode,
                         attachment
                     )
                 } catch (failure: Exception) {
@@ -812,7 +813,7 @@ fun SruGenPage(
                 updatedChat,
                 generationPrompt,
                 generationModelId,
-                mode,
+                requestMode,
                 attachment
             )
         }
