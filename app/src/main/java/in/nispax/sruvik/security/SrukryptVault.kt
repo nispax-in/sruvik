@@ -171,10 +171,10 @@ object SrukryptVault {
         // a recoverable vault look like a new, empty vault and obscures the real error.
         if (wrappedFile.exists() && !existingMasterKey) {
             throw SecurityException(
-                "The original Srukrypt Keystore key is missing. No replacement key was created and your encrypted files were left untouched. Use your saved passphrase fallback if one was configured."
+                "The original Srukrypt Keystore key is missing. No replacement key was created and your encrypted files were left untouched. A reset passphrase cannot recover these encrypted files."
             )
         }
-        if (!wrappedFile.exists() && !hasPassphraseFallback(context) && hasEntries) {
+        if (!wrappedFile.exists() && hasEntries) {
             throw SecurityException(
                 "The Srukrypt key envelope is missing. Existing encrypted files were left untouched; a new key was not created."
             )
