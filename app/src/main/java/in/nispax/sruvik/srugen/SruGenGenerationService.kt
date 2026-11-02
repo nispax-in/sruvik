@@ -61,7 +61,9 @@ class SruGenGenerationService : Service() {
                         applicationContext,
                         request.chat,
                         request.generationPrompt,
-                        request.modelId
+                        request.modelId,
+                        request.mode,
+                        request.sourceAttachmentId
                     )
                     if (!started && SruGenGenerationSession.state.value.status != SruGenGenerationStatus.RUNNING) {
                         finishNotification(
@@ -211,7 +213,9 @@ class SruGenGenerationService : Service() {
     private data class PendingRequest(
         val chat: SruGenChat,
         val generationPrompt: String,
-        val modelId: String
+        val modelId: String,
+        val mode: SruGenMode,
+        val sourceAttachmentId: String?
     )
 
     companion object {
@@ -237,7 +241,9 @@ class SruGenGenerationService : Service() {
             context: Context,
             chat: SruGenChat,
             generationPrompt: String,
-            modelId: String
+            modelId: String,
+            mode: SruGenMode = SruGenMode.TEXT_TO_IMAGE,
+            sourceAttachmentId: String? = null
         ) {
             check(
                 SruGenGenerationSession.state.value.status != SruGenGenerationStatus.RUNNING &&
@@ -245,7 +251,7 @@ class SruGenGenerationService : Service() {
             ) {
                 "Another image is already being generated."
             }
-            pendingRequest = PendingRequest(chat, generationPrompt, modelId)
+            pendingRequest = PendingRequest(chat, generationPrompt, modelId, mode, sourceAttachmentId)
             try {
                 ContextCompat.startForegroundService(
                     context.applicationContext,
