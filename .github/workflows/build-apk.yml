@@ -73,13 +73,18 @@ jobs:
         run: |
           mkdir -p .ci
           if [ ! -s .ci/sruvik-debug.keystore ]; then
-            keytool -genkeypair -v -keystore .ci/sruvik-debug.keystore -storepass android -alias androiddebugkey -keypass android -dname "CN=Sruvik Debug,O=Nispax,C=IN" -keyalg RSA -keysize 2048 -validity 10000
+            echo "The original Sruvik signing key was not restored. Refusing to generate an incompatible APK." >&2
+            exit 1
           fi
-          keytool -list -v -keystore .ci/sruvik-debug.keystore -storepass android -alias androiddebugkey | grep "SHA256:"
-      - name: Build debug APK
+          REQUIRED="e143f659dd482479778f1da8812d5c8b5b988c420ca580e7915d5c2e893455fe"
+          ACTUAL="$(keytool -list -v -keystore .ci/sruvik-debug.keystore -storepass android -alias androiddebugkey | awk -F': ' '/SHA256:/ { gsub(":", "", $2); print tolower($2) }')"
+          echo "Required signing certificate: $REQUIRED"
+          echo "Restored signing certificate: $ACTUAL"
+          test "$ACTUAL" = "$REQUIRED"
+      - name: Run JVM regression tests and build debug APK
         env:
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
-        run: gradle --no-daemon :app:assembleDebug
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
       - name: Verify native runtime and license files in APK
         shell: bash
         run: |
@@ -95,18 +100,20 @@ jobs:
 
           unzip -p "$APK" "assets/third_party/nezumi-ai/LGPL_LICENSE" | grep -q "GNU LESSER GENERAL PUBLIC LICENSE"
           unzip -p "$APK" "assets/third_party/nezumi-ai/NOTICE" | grep -qi "nezumi"
-      - name: Verify APK signer matches persistent key
+      - name: Verify APK signer matches the #352 update certificate
         shell: bash
         run: |
           APK="app/build/outputs/apk/debug/app-debug.apk"
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          REQUIRED="e143f659dd482479778f1da8812d5c8b5b988c420ca580e7915d5c2e893455fe"
           EXPECTED="$(keytool -list -v -keystore .ci/sruvik-debug.keystore -storepass android -alias androiddebugkey | awk -F': ' '/SHA256:/ { gsub(":", "", $2); print tolower($2) }')"
           SIGNER_OUTPUT="$("$APKSIGNER" verify --print-certs "$APK" 2>&1)"
           printf '%s\n' "$SIGNER_OUTPUT"
           ACTUAL="$(printf '%s\n' "$SIGNER_OUTPUT" | awk '/certificate SHA-256 digest:/ { print tolower($NF); exit }')"
+          echo "Required signing certificate: $REQUIRED"
           echo "Keystore SHA-256: $EXPECTED"
           echo "APK signer SHA-256: $ACTUAL"
-          test -n "$EXPECTED" && test "$ACTUAL" = "$EXPECTED"
+          test "$EXPECTED" = "$REQUIRED" && test "$ACTUAL" = "$REQUIRED"
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
