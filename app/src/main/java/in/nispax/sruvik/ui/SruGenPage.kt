@@ -3,11 +3,15 @@ package `in`.nispax.sruvik.ui
 import android.app.ActivityManager
 import android.app.DownloadManager
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
 import android.net.Uri
+import android.os.Build
 import android.os.Debug
 import android.os.Process
+import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
@@ -66,9 +70,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.cos
+import kotlin.math.min
+import kotlin.math.roundToInt
 import kotlin.math.sin
+import kotlin.math.sqrt
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileInputStream
+import java.io.IOException
+import java.io.InputStream
 
 private data class SruGenResourceStats(
     val cpu: Float = 0f,
@@ -87,6 +97,8 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
     var prompt by remember { mutableStateOf("") }
     var mode by remember { mutableStateOf(SruGenMode.TEXT_TO_IMAGE) }
     var selectedImage by remember { mutableStateOf<String?>(null) }
+    var importingImage by remember { mutableStateOf(false) }
+    var attachMenuExpanded by remember { mutableStateOf(false) }
     var thumbnails by remember { mutableStateOf<Map<String, Bitmap>>(emptyMap()) }
     var generating by remember { mutableStateOf(false) }
     var progress by remember { mutableIntStateOf(0) }
@@ -388,79 +400,86 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
     }
 
     fun importReferenceImage(uri: Uri) {
+        if (importingImage) return
+        importingImage = true
+        attachMenuExpanded = false
+        error = ""
+        info = "Reading and encrypting selected image…"
+        // Photo Picker and OpenDocument provide item-scoped grants. Keep the
+        // grant when the provider allows it, but never request whole-library access.
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(
+                uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        }
         scope.launch {
+            var bytes: ByteArray? = null
+            var preview: Bitmap? = null
             try {
-                val bytes = withContext(Dispatchers.IO) {
-                    context.contentResolver.openInputStream(uri)?.use { input ->
-                        val output = ByteArrayOutputStream()
-                        val buffer = ByteArray(16 * 1024)
-                        var countTotal = 0
-                        while (true) {
-                            val count = input.read(buffer)
-                            if (count < 0) break
-                            countTotal += count
-                            require(countTotal <= 24 * 1024 * 1024) { "Choose an image smaller than 24 MB." }
-                            output.write(buffer, 0, count)
-                        }
-                        output.toByteArray()
-                    } ?: error("SruGen couldn't read that image.")
+                val imported = withContext(Dispatchers.IO) { readSruGenImage(context, uri) }
+                bytes = imported.first
+                val mimeType = imported.second
+                preview = withContext(Dispatchers.Default) {
+                    decodeSruGenImagePreview(context, uri, imported.first)
                 }
-                try {
-                    val bitmap = withContext(Dispatchers.Default) {
-                        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-                        require(bounds.outWidth > 0 && bounds.outHeight > 0) { "This image format cannot be previewed." }
-                        var sample = 1
-                        while (
-                            bounds.outWidth / sample > 2048 ||
-                            bounds.outHeight / sample > 2048 ||
-                            (bounds.outWidth.toLong() / sample) * (bounds.outHeight.toLong() / sample) > 3000000L
-                        ) sample *= 2
-                        BitmapFactory.decodeByteArray(
-                            bytes, 0, bytes.size,
-                            BitmapFactory.Options().apply {
-                                inSampleSize = sample
-                                inPreferredConfig = Bitmap.Config.RGB_565
-                            }
-                        ) ?: error("This image format cannot be previewed.")
-                    }
-                    val id = withContext(Dispatchers.IO) {
-                        SruGenChatStore.saveAttachment(
-                            context, bytes, context.contentResolver.getType(uri) ?: "image/jpeg"
-                        )
-                    }
-                    selectedImage?.let { old ->
-                        SruGenChatStore.deleteAttachment(context, old)
-                        thumbnails[old]?.takeIf { !it.isRecycled }?.recycle()
-                        thumbnails = thumbnails - old
-                    }
-                    thumbnails = thumbnails + (id to bitmap)
-                    selectedImage = id
-                    info = "Image attached and encrypted in local chat storage."
-                    error = ""
-                } finally {
-                    bytes.fill(0)
+                val id = withContext(Dispatchers.IO) {
+                    SruGenChatStore.saveAttachment(context, imported.first, mimeType)
                 }
+                selectedImage?.let { old ->
+                    SruGenChatStore.deleteAttachment(context, old)
+                    thumbnails[old]?.takeIf { !it.isRecycled }?.recycle()
+                    thumbnails = thumbnails - old
+                }
+                thumbnails = thumbnails + (id to requireNotNull(preview))
+                preview = null // Ownership moved into Compose state.
+                selectedImage = id
+                info = "Image attached and encrypted in this local conversation."
+                error = ""
             } catch (failure: OutOfMemoryError) {
                 error = "This image is too large to preview safely. Choose a smaller photo."
+                info = ""
             } catch (failure: Exception) {
-                error = failure.message ?: "Unable to attach image."
+                android.util.Log.e("SruGen", "Reference image import failed for $uri.", failure)
+                error = failure.message ?: "Unable to attach image. Try Browse files or save a copy on this device."
+                info = ""
+            } finally {
+                bytes?.fill(0)
+                preview?.takeUnless { it.isRecycled }?.recycle()
+                importingImage = false
             }
         }
     }
 
-    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
+    val imagePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
         if (uri != null) importReferenceImage(uri)
+        else if (!importingImage) info = "No photo selected."
     }
-    val imageFilePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+    val imageFilePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
         if (uri != null) importReferenceImage(uri)
+        else if (!importingImage) info = "No file selected."
     }
     fun launchImagePicker() {
+        if (importingImage || generating) return
         try {
             imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
         } catch (pickerError: Exception) {
-            runCatching { imageFilePicker.launch(arrayOf("image/*")) }
-                .onFailure { fallbackError -> error = "Unable to open image picker: ${fallbackError.message ?: pickerError.message ?: "unknown error"}" }
+            try {
+                imageFilePicker.launch(arrayOf("image/*"))
+            } catch (fallbackError: Exception) {
+                error = "Unable to open Photo library or Files: ${fallbackError.message ?: pickerError.message ?: "unknown error"}"
+            }
+        }
+    }
+    fun launchImageFilePicker() {
+        if (importingImage || generating) return
+        try {
+            imageFilePicker.launch(arrayOf("image/*"))
+        } catch (failure: Exception) {
+            error = "Unable to open Files: ${failure.message ?: "unknown error"}"
         }
     }
     val modelPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -957,11 +976,43 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(9.dp)
                 ) {
-                    IconButton(
-                        onClick = { launchImagePicker() },
-                        modifier = Modifier.size(52.dp).clip(CircleShape).background(studioRaised)
-                    ) {
-                        Icon(Icons.Rounded.Add, "Attach a reference image", tint = studioText, modifier = Modifier.size(25.dp))
+                    Box {
+                        IconButton(
+                            onClick = { attachMenuExpanded = true },
+                            enabled = !importingImage && !generating,
+                            modifier = Modifier.size(52.dp).clip(CircleShape).background(studioRaised)
+                        ) {
+                            if (importingImage) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(22.dp),
+                                    strokeWidth = 2.dp,
+                                    color = studioAccent
+                                )
+                            } else {
+                                Icon(Icons.Rounded.Add, "Attach a reference image", tint = studioText, modifier = Modifier.size(25.dp))
+                            }
+                        }
+                        DropdownMenu(
+                            expanded = attachMenuExpanded,
+                            onDismissRequest = { attachMenuExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Photo library") },
+                                leadingIcon = { Icon(Icons.Rounded.PhotoLibrary, null) },
+                                onClick = {
+                                    attachMenuExpanded = false
+                                    launchImagePicker()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Browse files") },
+                                leadingIcon = { Icon(Icons.Rounded.FolderOpen, null) },
+                                onClick = {
+                                    attachMenuExpanded = false
+                                    launchImageFilePicker()
+                                }
+                            )
+                        }
                     }
                     Spacer(Modifier.weight(1f))
                     Button(
@@ -1118,6 +1169,122 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
     }
 }
 
+
+
+private const val MAX_SRUGEN_IMAGE_BYTES = 24 * 1024 * 1024
+private const val MAX_SRUGEN_PREVIEW_PIXELS = 3_000_000L
+private const val MAX_SRUGEN_PREVIEW_DIMENSION = 2048
+
+/**
+ * Providers do not all expose content URIs through the same resolver method.
+ * Try the standard stream, typed asset, asset descriptor and file descriptor
+ * paths before reporting a read failure.
+ */
+private fun openSruGenImageStream(context: Context, uri: Uri): InputStream {
+    val resolver = context.contentResolver
+    var lastError: Exception? = null
+
+    fun attempt(open: () -> InputStream?): InputStream? = try {
+        open()
+    } catch (failure: Exception) {
+        lastError = failure
+        null
+    }
+
+    attempt { resolver.openInputStream(uri) }?.let { return it }
+    attempt {
+        resolver.openTypedAssetFileDescriptor(uri, "image/*", null)?.createInputStream()
+    }?.let { return it }
+    attempt { resolver.openAssetFileDescriptor(uri, "r")?.createInputStream() }
+        ?.let { return it }
+    attempt {
+        resolver.openFileDescriptor(uri, "r")?.let { descriptor ->
+            ParcelFileDescriptor.AutoCloseInputStream(descriptor)
+        }
+    }?.let { return it }
+    if (uri.scheme == "file" && !uri.path.isNullOrBlank()) {
+        attempt { FileInputStream(uri.path!!) }?.let { return it }
+    }
+
+    val message = if (lastError is SecurityException) {
+        "Android denied access to the selected image. Re-select it or use Browse files."
+    } else {
+        "The selected provider did not return a readable image. Try Browse files or save a copy on this device."
+    }
+    throw IOException(message, lastError)
+}
+
+private fun readSruGenImage(context: Context, uri: Uri): Pair<ByteArray, String> {
+    val output = ByteArrayOutputStream()
+    openSruGenImageStream(context, uri).use { input ->
+        val buffer = ByteArray(16 * 1024)
+        var total = 0
+        while (true) {
+            val count = input.read(buffer)
+            if (count < 0) break
+            total += count
+            if (total > MAX_SRUGEN_IMAGE_BYTES) {
+                throw IOException("Choose an image smaller than 24 MB.")
+            }
+            output.write(buffer, 0, count)
+        }
+    }
+    val bytes = output.toByteArray()
+    if (bytes.isEmpty()) throw IOException("The selected image is empty.")
+    val mimeType = context.contentResolver.getType(uri)
+        ?.takeIf { it.startsWith("image/", ignoreCase = true) }
+        ?: "image/jpeg"
+    return bytes to mimeType
+}
+
+/** Uses ImageDecoder for modern formats and a bounded BitmapFactory fallback. */
+private fun decodeSruGenImagePreview(context: Context, uri: Uri, bytes: ByteArray): Bitmap {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        try {
+            val source = ImageDecoder.createSource(context.contentResolver, uri)
+            return ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                val width = info.size.width.coerceAtLeast(1)
+                val height = info.size.height.coerceAtLeast(1)
+                val dimensionScale = min(
+                    MAX_SRUGEN_PREVIEW_DIMENSION.toFloat() / width,
+                    MAX_SRUGEN_PREVIEW_DIMENSION.toFloat() / height
+                )
+                val pixelScale = sqrt(
+                    MAX_SRUGEN_PREVIEW_PIXELS.toDouble() /
+                        (width.toLong() * height.toLong()).toDouble()
+                ).toFloat()
+                val scale = min(1f, min(dimensionScale, pixelScale))
+                decoder.setTargetSize(
+                    (width * scale).roundToInt().coerceAtLeast(1),
+                    (height * scale).roundToInt().coerceAtLeast(1)
+                )
+                decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE)
+            }
+        } catch (failure: Exception) {
+            android.util.Log.w("SruGen", "ImageDecoder could not preview the selected URI; trying BitmapFactory.", failure)
+        }
+    }
+
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+        throw IOException("This image format cannot be previewed on this Android version.")
+    }
+    var sample = 1
+    while (
+        bounds.outWidth / sample > MAX_SRUGEN_PREVIEW_DIMENSION ||
+        bounds.outHeight / sample > MAX_SRUGEN_PREVIEW_DIMENSION ||
+        (bounds.outWidth.toLong() / sample) * (bounds.outHeight.toLong() / sample) >
+            MAX_SRUGEN_PREVIEW_PIXELS
+    ) sample *= 2
+    return BitmapFactory.decodeByteArray(
+        bytes, 0, bytes.size,
+        BitmapFactory.Options().apply {
+            inSampleSize = sample
+            inPreferredConfig = Bitmap.Config.RGB_565
+        }
+    ) ?: throw IOException("This image format cannot be previewed. Choose JPG, PNG or WebP.")
+}
 
 @Composable
 private fun SruGenCreativeSpark() {
