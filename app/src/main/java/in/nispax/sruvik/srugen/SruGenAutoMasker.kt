@@ -60,45 +60,78 @@ object SruGenAutoMasker {
         sourceImage: Bitmap,
         generatedImage: Bitmap
     ): Bitmap {
+        require(!sourceImage.isRecycled) { "The original photo was released before editing. Reattach it and retry." }
+        require(!generatedImage.isRecycled) { "The local model returned an image buffer that was already released. Retry the edit." }
         require(sourceImage.width > 0 && sourceImage.height > 0)
-        val mask = segment(context, sourceImage) { label -> label == CLOTHES_LABEL }
-        val selected = mask.values.count { (it.toInt() and 0xff) > 0 }
-        val ratio = selected.toFloat() / mask.values.size.toFloat()
-        require(ratio >= 0.008f) {
-            "SruGen could not find clothing in this photo. Try a clear, well-lit image showing the person's outfit."
-        }
-        require(ratio <= 0.90f) {
-            "The clothing mask was too broad to edit safely. Try a closer photo with one clearly visible person."
-        }
 
-        val softMask = soften(mask.values, mask.width, mask.height)
-        val generatedScaled = Bitmap.createScaledBitmap(
-            generatedImage, sourceImage.width, sourceImage.height, true
-        )
-        val originalPixels = IntArray(sourceImage.width * sourceImage.height)
-        val generatedPixels = IntArray(originalPixels.size)
-        sourceImage.getPixels(originalPixels, 0, sourceImage.width, 0, 0, sourceImage.width, sourceImage.height)
-        generatedScaled.getPixels(generatedPixels, 0, sourceImage.width, 0, 0, sourceImage.width, sourceImage.height)
+        // Snapshot source pixels BEFORE MediaPipe receives its own isolated copy.
+        // This avoids accessing a bitmap after a task/image wrapper has released it.
+        val sourceWidth = sourceImage.width
+        val sourceHeight = sourceImage.height
+        val originalPixels = IntArray(sourceWidth * sourceHeight)
+        sourceImage.getPixels(originalPixels, 0, sourceWidth, 0, 0, sourceWidth, sourceHeight)
+        var generatedPixels: IntArray? = null
+        var generatedScaled: Bitmap? = null
+        var mask: SegmentationMask? = null
+        var softMask: ByteArray? = null
+        try {
+            mask = segment(context, sourceImage) { label -> label == CLOTHES_LABEL }
+            val selected = mask.values.count { (it.toInt() and 0xff) > 0 }
+            val ratio = selected.toFloat() / mask.values.size.toFloat()
+            require(ratio >= 0.008f) {
+                "SruGen could not find clothing in this photo. Try a clear, well-lit image showing the person's outfit."
+            }
+            require(ratio <= 0.90f) {
+                "The clothing mask was too broad to edit safely. Try a closer photo with one clearly visible person."
+            }
 
-        for (index in originalPixels.indices) {
-            val alpha = softMask[index].toInt() and 0xff
-            if (alpha == 0) continue
-            val inverse = 255 - alpha
-            val old = originalPixels[index]
-            val fresh = generatedPixels[index]
-            val red = (((old ushr 16 and 0xff) * inverse) + ((fresh ushr 16 and 0xff) * alpha)) / 255
-            val green = (((old ushr 8 and 0xff) * inverse) + ((fresh ushr 8 and 0xff) * alpha)) / 255
-            val blue = (((old and 0xff) * inverse) + ((fresh and 0xff) * alpha)) / 255
-            originalPixels[index] = (0xff shl 24) or (red shl 16) or (green shl 8) or blue
+            softMask = soften(mask.values, mask.width, mask.height)
+            generatedScaled = if (
+                generatedImage.width == sourceWidth && generatedImage.height == sourceHeight
+            ) {
+                generatedImage
+            } else {
+                Bitmap.createScaledBitmap(generatedImage, sourceWidth, sourceHeight, true)
+            }
+            require(!generatedScaled.isRecycled) {
+                "The resized model output was released before it could be composited."
+            }
+            generatedPixels = IntArray(originalPixels.size)
+            generatedScaled.getPixels(
+                generatedPixels, 0, sourceWidth, 0, 0, sourceWidth, sourceHeight
+            )
+
+            // Segmenter masks are normally source-sized. Map coordinates explicitly
+            // so a runtime returning a lower-resolution category mask stays safe.
+            for (y in 0 until sourceHeight) {
+                val maskY = (y.toLong() * mask.height / sourceHeight).toInt().coerceIn(0, mask.height - 1)
+                for (x in 0 until sourceWidth) {
+                    val maskX = (x.toLong() * mask.width / sourceWidth).toInt().coerceIn(0, mask.width - 1)
+                    val index = y * sourceWidth + x
+                    val alpha = softMask[maskY * mask.width + maskX].toInt() and 0xff
+                    if (alpha == 0) continue
+                    val inverse = 255 - alpha
+                    val old = originalPixels[index]
+                    val fresh = generatedPixels[index]
+                    val red = (((old ushr 16 and 0xff) * inverse) + ((fresh ushr 16 and 0xff) * alpha)) / 255
+                    val green = (((old ushr 8 and 0xff) * inverse) + ((fresh ushr 8 and 0xff) * alpha)) / 255
+                    val blue = (((old and 0xff) * inverse) + ((fresh and 0xff) * alpha)) / 255
+                    originalPixels[index] = (0xff shl 24) or (red shl 16) or (green shl 8) or blue
+                }
+            }
+
+            return Bitmap.createBitmap(sourceWidth, sourceHeight, Bitmap.Config.ARGB_8888).also {
+                it.setPixels(originalPixels, 0, sourceWidth, 0, 0, sourceWidth, sourceHeight)
+            }
+        } finally {
+            if (generatedScaled != null && generatedScaled !== generatedImage && !generatedScaled.isRecycled) {
+                generatedScaled.recycle()
+            }
+            generatedPixels?.fill(0)
+            originalPixels.fill(0)
+            softMask?.fill(0)
+            mask?.values?.fill(0)
         }
-
-        val result = Bitmap.createBitmap(sourceImage.width, sourceImage.height, Bitmap.Config.ARGB_8888)
-        result.setPixels(originalPixels, 0, sourceImage.width, 0, 0, sourceImage.width, sourceImage.height)
-        generatedScaled.recycle()
-        originalPixels.fill(0)
-        generatedPixels.fill(0)
-        softMask.fill(0)
-        return result
     }
 
     fun decodeBounded(imageBytes: ByteArray): Bitmap {
@@ -186,8 +219,11 @@ object SruGenAutoMasker {
             .setOutputCategoryMask(true)
             .setOutputConfidenceMasks(false)
             .build()
+        require(!bitmap.isRecycled) { "The source photo was released before segmentation." }
         val segmenter = ImageSegmenter.createFromOptions(context, options)
-        val mpImage = BitmapImageBuilder(bitmap).build()
+        val segmentationBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, false)
+            ?: throw IllegalStateException("Unable to prepare a private segmentation copy.")
+        val mpImage = BitmapImageBuilder(segmentationBitmap).build()
         try {
             val result = segmenter.segment(mpImage)
             val categoryMask = result.categoryMask().orElseThrow {
@@ -208,6 +244,7 @@ object SruGenAutoMasker {
         } finally {
             mpImage.close()
             segmenter.close()
+            if (!segmentationBitmap.isRecycled) segmentationBitmap.recycle()
         }
     }
 
