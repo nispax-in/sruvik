@@ -116,7 +116,7 @@ object SruGenAutoMasker {
                     if (alpha == 0) continue
                     val inverse = 255 - alpha
                     val old = originalPixels[index]
-                    val fresh = generatedPixels[index]
+                    val fresh = renderedPixels[index]
                     val red = (((old ushr 16 and 0xff) * inverse) + ((fresh ushr 16 and 0xff) * alpha)) / 255
                     val green = (((old ushr 8 and 0xff) * inverse) + ((fresh ushr 8 and 0xff) * alpha)) / 255
                     val blue = (((old and 0xff) * inverse) + ((fresh and 0xff) * alpha)) / 255
