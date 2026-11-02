@@ -285,6 +285,13 @@ fun SrukryptPage(autoLockMinutes: Int) {
 
     fun requestVaultReset() {
         if (busy) return
+        if (SrukryptVault.hasResetPassphrase(context)) {
+            passphraseMode = "reset"
+            passphraseText = ""
+            passphraseConfirm = ""
+            passphraseDialog = true
+            return
+        }
         val keyguard = context.getSystemService(KeyguardManager::class.java)
         if (keyguard != null && keyguard.isDeviceSecure) {
             val credentialIntent = keyguard.createConfirmDeviceCredentialIntent(
@@ -378,15 +385,15 @@ fun SrukryptPage(autoLockMinutes: Int) {
                     val hasPassphrase = SrukryptVault.hasPassphraseFallback(context)
                     errorText = when (availability) {
                         BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED ->
-                            if (hasPassphrase) "No supported screen lock is enrolled. Use your Srukrypt passphrase instead."
-                            else "Set up a strong fingerprint/face or a device PIN, pattern or password. On older Android versions, use the Srukrypt passphrase option."
+                            if (hasPassphrase) "No supported Android device authentication is enrolled. Use the reset phrase only to erase this vault."
+                            else "Set up a strong biometric or device PIN, pattern or password in Android settings."
                         BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE ->
-                            if (hasPassphrase) "No compatible biometric hardware. Use your Srukrypt passphrase."
-                            else "This phone has no compatible biometric hardware. Create a Srukrypt passphrase vault instead."
+                            if (hasPassphrase) "No compatible system authenticator is available. The reset phrase can only erase this vault."
+                            else "This phone has no compatible system authenticator. Configure an Android screen lock or supported biometric."
                         BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE ->
-                            "Android authentication hardware is temporarily unavailable. Try again or use your passphrase."
+                            "Android authentication hardware is temporarily unavailable. Try again or use your device screen lock."
                         else ->
-                            "Android cannot use the configured screen lock for this vault (status $availability). Use your passphrase fallback if configured."
+                            "Android cannot use the configured screen lock for this vault (status $availability). A reset passphrase cannot unlock the vault."
                     }
                     busy = false
                     return@launch
@@ -443,8 +450,8 @@ fun SrukryptPage(autoLockMinutes: Int) {
                                     SrukryptVault.discardChallenge(authChallenge)
                                     errorText = when (error) {
                                         is java.security.KeyStoreException -> "Android Keystore could not access the Srukrypt key: ${error.message}"
-                                        is android.security.keystore.KeyPermanentlyInvalidatedException -> "Android invalidated the old fingerprint key. Unlock with your passphrase, then tap Repair fingerprint unlock. Your encrypted images are unchanged."
-                    is java.security.InvalidKeyException -> "The Srukrypt key is unavailable. Unlock with your passphrase, then tap Repair fingerprint unlock if the key was invalidated. Details: ${error.message}"
+                                        is android.security.keystore.KeyPermanentlyInvalidatedException -> "Android invalidated the old fingerprint key. Android invalidated the previous system-authentication key. A reset passphrase can only erase the vault; it cannot recover these items."
+                    is java.security.InvalidKeyException -> "The Srukrypt key is unavailable. A reset passphrase cannot unlock the vault. It can only authorize a destructive reset. Details: ${error.message}"
                                         is javax.crypto.AEADBadTagException -> "The encrypted vault key failed authentication. This may indicate a damaged key envelope."
                                         else -> error.message ?: "Unable to unlock the vault."
                                     }
@@ -465,7 +472,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
 
                         override fun onAuthenticationFailed() {
                             super.onAuthenticationFailed()
-                            errorText = "Authentication was not recognised. Try again or use your device screen lock."
+                            errorText = "Android did not recognise the device authentication. Try again or use your screen lock PIN, pattern or password."
                         }
                     }
                 )
@@ -477,180 +484,13 @@ fun SrukryptPage(autoLockMinutes: Int) {
                 errorText = when (error) {
                     is java.security.KeyStoreException -> "Android Keystore error: ${error.message}"
                     is android.security.keystore.KeyPermanentlyInvalidatedException -> "Android invalidated the old fingerprint key. Use your saved passphrase, then tap Repair fingerprint unlock. Your encrypted images were not changed."
-                    is java.security.InvalidKeyException -> "The Srukrypt key is not available. Use your saved passphrase, then tap Repair fingerprint unlock if the key was invalidated. ${error.message}"
+                    is java.security.InvalidKeyException -> "The Srukrypt key is not available. A reset passphrase cannot unlock the vault. It can only authorize a destructive reset. ${error.message}"
                     else -> error.message ?: "Unable to prepare the secure vault."
                 }
             }
         }
     }
 
-
-    /**
-     * Repair a legacy/invalidated biometric key without touching the original
-     * key envelope. A passphrase fallback is required before this action appears.
-     */
-    fun addSecondUnlockMethod() {
-        if (busy) return
-        val host = activity
-        val currentKey = sessionKey?.copyOf()
-        if (host == null || currentKey == null) {
-            currentKey?.let { Arrays.fill(it, 0) }
-            errorText = "Unlock Srukrypt before adding another unlock method."
-            return
-        }
-        if (!SrukryptVault.hasPassphraseFallback(context)) {
-            Arrays.fill(currentKey, 0)
-            errorText = "Save a passphrase fallback first. It protects your vault if the platform unlock key is invalidated."
-            return
-        }
-
-        val biometricManager = BiometricManager.from(host)
-        val biometricStatus = biometricManager.canAuthenticate(
-            BiometricManager.Authenticators.BIOMETRIC_STRONG
-        )
-        val deviceCredentialAvailable =
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
-                host.getSystemService(KeyguardManager::class.java)?.isDeviceSecure == true &&
-                biometricManager.canAuthenticate(
-                    BiometricManager.Authenticators.DEVICE_CREDENTIAL
-                ) == BiometricManager.BIOMETRIC_SUCCESS
-
-        if (biometricStatus != BiometricManager.BIOMETRIC_SUCCESS && !deviceCredentialAvailable) {
-            Arrays.fill(currentKey, 0)
-            errorText = when (biometricStatus) {
-                BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE ->
-                    "The biometric sensor is temporarily unavailable. Try later, or configure a secure device lock. Your passphrase still works."
-                BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED ->
-                    "No strong biometric or supported device screen lock is available. Enrol a fingerprint/face or set a PIN, pattern or password. Your passphrase still works."
-                BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE ->
-                    "This device has no strong biometric. On Android 11+, configure a secure screen lock to add that as your second method. Your passphrase remains available."
-                else ->
-                    "Android cannot use a strong biometric or device credential here (biometric status $biometricStatus). Your passphrase remains available."
-            }
-            return
-        }
-
-        busy = true
-        errorText = ""
-        infoText = "Preparing a second unlock method. Your original key, passphrase and encrypted images remain untouched."
-        scope.launch {
-            var challenge: SrukryptUnlockChallenge? = null
-            try {
-                val readyChallenge = withContext(Dispatchers.IO) {
-                    SrukryptVault.prepareBiometricRewrap(context, currentKey)
-                }
-                challenge = readyChallenge
-                val availability = BiometricManager.from(host)
-                    .canAuthenticate(readyChallenge.allowedAuthenticators)
-                if (availability != BiometricManager.BIOMETRIC_SUCCESS) {
-                    throw IllegalStateException(
-                        "Android cannot use the replacement key's authenticator policy (status $availability). The original key and passphrase remain available."
-                    )
-                }
-
-                val builder = BiometricPrompt.PromptInfo.Builder()
-                    .setTitle("Add a second Srukrypt unlock method")
-                    .setSubtitle("Verify with fingerprint or your device screen lock to protect the existing vault key.")
-                    .setAllowedAuthenticators(readyChallenge.allowedAuthenticators)
-                if ((readyChallenge.allowedAuthenticators and
-                        BiometricManager.Authenticators.DEVICE_CREDENTIAL) == 0
-                ) {
-                    builder.setNegativeButtonText("Cancel")
-                }
-
-                val prompt = BiometricPrompt(
-                    host,
-                    ContextCompat.getMainExecutor(host),
-                    object : BiometricPrompt.AuthenticationCallback() {
-                        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                            super.onAuthenticationSucceeded(result)
-                            val authenticatedCipher = result.cryptoObject?.cipher
-                            if (authenticatedCipher == null) {
-                                SrukryptVault.discardChallenge(readyChallenge)
-                                Arrays.fill(currentKey, 0)
-                                busy = false
-                                infoText = ""
-                                errorText = "Android authenticated, but did not return the Keystore cipher. The original key was not replaced. Retry or use your passphrase."
-                                return
-                            }
-
-                            scope.launch {
-                                var rewrappedKey: ByteArray? = null
-                                try {
-                                    val replacementKey = withContext(Dispatchers.IO) {
-                                        SrukryptVault.finishUnlock(context, readyChallenge, authenticatedCipher)
-                                    }
-                                    rewrappedKey = replacementKey
-                                    check(java.security.MessageDigest.isEqual(currentKey, replacementKey)) {
-                                        "The replacement Keystore key did not reproduce the existing vault key. The original key envelope was preserved."
-                                    }
-                                    val loadResult = withContext(Dispatchers.IO) {
-                                        SrukryptVault.loadPreviewsWithReport(context, replacementKey)
-                                    }
-                                    sessionKey?.let { Arrays.fill(it, 0) }
-                                    entries.forEach { if (!it.thumbnail.isRecycled) it.thumbnail.recycle() }
-                                    sessionKey = replacementKey.copyOf()
-                                    entries = loadResult.entries
-                                    lastInteraction = SystemClock.elapsedRealtime()
-                                    infoText = if (loadResult.unreadableEntries > 0) {
-                                        "Second unlock method added. ${loadResult.entries.size} item(s) reopened; ${loadResult.unreadableEntries} unreadable encrypted item(s) were left untouched."
-                                    } else {
-                                        "Second unlock method added. Your existing images and passphrase backup are preserved."
-                                    }
-                                    errorText = ""
-                                } catch (failure: Exception) {
-                                    android.util.Log.e("Srukrypt", "Adding the second unlock method failed.", failure)
-                                    errorText = failure.message ?: "Could not add the second unlock method. Use your passphrase; existing encrypted items were not deleted."
-                                    infoText = ""
-                                } finally {
-                                    rewrappedKey?.let { Arrays.fill(it, 0) }
-                                    SrukryptVault.discardChallenge(readyChallenge)
-                                    Arrays.fill(currentKey, 0)
-                                    busy = false
-                                }
-                            }
-                        }
-
-                        override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                            super.onAuthenticationError(errorCode, errString)
-                            SrukryptVault.discardChallenge(readyChallenge)
-                            Arrays.fill(currentKey, 0)
-                            busy = false
-                            infoText = ""
-                            errorText = if (
-                                errorCode == BiometricPrompt.ERROR_USER_CANCELED ||
-                                errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON
-                            ) {
-                                "Adding the second unlock method was cancelled. Your original vault key and passphrase still work."
-                            } else {
-                                "Adding the second unlock method failed: $errString. Your original key and passphrase remain available."
-                            }
-                        }
-
-                        override fun onAuthenticationFailed() {
-                            super.onAuthenticationFailed()
-                            errorText = "Authentication was not recognised. Try again; your original key is still untouched."
-                        }
-                    }
-                )
-                prompt.authenticate(
-                    builder.build(),
-                    BiometricPrompt.CryptoObject(readyChallenge.cipher)
-                )
-            } catch (failure: Exception) {
-                android.util.Log.e("Srukrypt", "Could not prepare a second vault unlock method.", failure)
-                challenge?.let { SrukryptVault.discardChallenge(it) }
-                Arrays.fill(currentKey, 0)
-                busy = false
-                infoText = ""
-                errorText = when (failure) {
-                    is java.security.InvalidKeyException ->
-                        "Android rejected the replacement platform key. Unlock with your passphrase and try again. ${failure.message}"
-                    else -> failure.message ?: "Could not prepare a second unlock method. Your passphrase still works."
-                }
-            }
-        }
-    }
 
     fun openPassphrase(mode: String) {
         passphraseMode = mode
@@ -663,65 +503,53 @@ fun SrukryptPage(autoLockMinutes: Int) {
         val operation = passphraseMode
         val typed = passphraseText.toCharArray()
         val confirm = passphraseConfirm.toCharArray()
-        if (operation != "unlock" && passphraseText.length < 10) {
-            errorText = "Use at least 10 characters for a Srukrypt passphrase."
+        val setting = operation == "set"
+        if (setting && typed.size < 10) {
+            errorText = "Use at least 10 characters for a reset passphrase."
             Arrays.fill(typed, '\u0000')
             Arrays.fill(confirm, '\u0000')
             return
         }
-        if (operation != "unlock" && passphraseText != passphraseConfirm) {
-            errorText = "The passphrases do not match."
+        if (setting && passphraseText != passphraseConfirm) {
+            errorText = "The reset passphrases do not match."
             Arrays.fill(typed, '\u0000')
             Arrays.fill(confirm, '\u0000')
             return
         }
-        val currentKey = sessionKey?.copyOf()
+        val currentKey = if (setting) sessionKey?.copyOf() else null
+        if (setting && currentKey == null) {
+            Arrays.fill(typed, '\u0000')
+            Arrays.fill(confirm, '\u0000')
+            errorText = "Unlock Srukrypt with your Android device lock before setting a reset passphrase."
+            return
+        }
+
         passphraseDialog = false
         busy = true
         errorText = ""
-        infoText = when (operation) {
-            "create" -> "Creating your encrypted Srukrypt vault…"
-            "add" -> "Saving your passphrase fallback…"
-            else -> "Unlocking your encrypted vault…"
-        }
+        infoText = if (setting) "Saving a reset-only passphrase…" else "Verifying the reset passphrase…"
         scope.launch {
-            var unlocked: ByteArray? = null
             try {
-                unlocked = withContext(Dispatchers.IO) {
-                    when (operation) {
-                        "create" -> SrukryptVault.createVaultWithPassphrase(context, typed)
-                        "add" -> {
-                            val key = currentKey ?: error("Unlock the vault first.")
-                            SrukryptVault.enablePassphraseFallback(context, key, typed)
-                            key.copyOf()
-                        }
-                        else -> SrukryptVault.unlockWithPassphrase(context, typed)
+                withContext(Dispatchers.IO) {
+                    if (setting) {
+                        SrukryptVault.setResetPassphrase(context, requireNotNull(currentKey), typed)
+                    } else {
+                        SrukryptVault.verifyResetPassphrase(context, typed)
                     }
                 }
-                if (operation == "unlock" || operation == "create") {
-                    val loadResult = withContext(Dispatchers.IO) {
-                        SrukryptVault.loadPreviewsWithReport(context, unlocked)
-                    }
-                    val previews = loadResult.entries
-                    sessionKey?.let { Arrays.fill(it, 0) }
-                    entries.forEach { if (!it.thumbnail.isRecycled) it.thumbnail.recycle() }
-                    sessionKey = unlocked
-                    entries = previews
-                    infoText = if (loadResult.unreadableEntries > 0) {
-                        "Vault unlocked with passphrase. ${previews.size} readable item(s); ${loadResult.unreadableEntries} encrypted item(s) could not be verified and were left untouched."
-                    } else if (previews.isEmpty()) "Your private vault is ready. Add an image to encrypt it."
-                    else "Vault unlocked with passphrase. ${previews.size} encrypted item(s) available."
+                if (setting) {
+                    infoText = "Reset passphrase saved. It cannot unlock or decrypt the vault; it only authorizes a destructive reset."
                     errorText = ""
+                    vaultSettingsDialog = false
                 } else {
-                    infoText = "Passphrase fallback saved. Keep it somewhere safe; it cannot be reset without an unlocked vault."
-                    unlocked?.let { Arrays.fill(it, 0) }
+                    infoText = "Reset passphrase verified. Confirm below to permanently erase the vault."
+                    errorText = ""
+                    confirmVaultReset = true
                 }
                 lastInteraction = SystemClock.elapsedRealtime()
-            } catch (error: Exception) {
-                android.util.Log.e("Srukrypt", "Passphrase operation '$operation' failed.", error)
-                unlocked?.let { Arrays.fill(it, 0) }
+            } catch (failure: Exception) {
                 infoText = ""
-                errorText = error.message ?: "Passphrase operation failed."
+                errorText = failure.message ?: "The reset passphrase could not be verified."
             } finally {
                 Arrays.fill(typed, '\u0000')
                 Arrays.fill(confirm, '\u0000')
@@ -849,7 +677,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                     style = MaterialTheme.typography.headlineSmall, color = SruvikColors.TextPrimary
                 )
                 Text(
-                    "Use fingerprint/face or your Android PIN, pattern or password. On unsupported devices, Srukrypt can use a private passphrase instead.",
+                    "Unlock only with Android's system device authentication: your enrolled fingerprint/face or device PIN, pattern or password. A reset passphrase can never unlock this vault.",
                     style = MaterialTheme.typography.bodyMedium, color = SruvikColors.TextSecondary
                 )
                 Button(
@@ -864,31 +692,11 @@ fun SrukryptPage(autoLockMinutes: Int) {
                     Spacer(Modifier.width(8.dp))
                     Text(if (busy) "Preparing secure session..." else if (SrukryptVault.hasVault(context)) "Unlock vault" else "Set up Srukrypt")
                 }
-                if (SrukryptVault.hasPassphraseFallback(context)) {
-                    OutlinedButton(
-                        onClick = { openPassphrase("unlock") },
-                        modifier = Modifier.fillMaxWidth().height(50.dp),
-                        shape = RoundedCornerShape(15.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = SruvikColors.Lime)
-                    ) {
-                        Icon(Icons.Rounded.Key, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Use passphrase instead", fontWeight = FontWeight.SemiBold)
-                    }
-                } else if (!SrukryptVault.hasVault(context)) {
-                    OutlinedButton(
-                        onClick = { openPassphrase("create") },
-                        modifier = Modifier.fillMaxWidth().height(50.dp),
-                        shape = RoundedCornerShape(15.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = SruvikColors.Lime)
-                    ) {
-                        Icon(Icons.Rounded.Key, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Set up with a passphrase", fontWeight = FontWeight.SemiBold)
-                    }
-                }
-                Text("On Android 11+, the device screen lock can authorize the key. On older versions, the passphrase fallback is available. Enrolling biometrics may invalidate older biometric-only keys. Device reset or uninstall destroys access; export important files first.",
-                    style = MaterialTheme.typography.bodySmall, color = SruvikColors.TextMuted)
+                Text(
+                    "Srukrypt never collects fingerprints. Android handles all device authentication. The reset passphrase is optional and only permits erasing the vault after a second confirmation.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = SruvikColors.TextMuted
+                )
                 if (SrukryptVault.hasVault(context)) {
                     TextButton(
                         onClick = { requestVaultReset() },
@@ -1026,104 +834,56 @@ fun SrukryptPage(autoLockMinutes: Int) {
         )
     }    
     if (vaultSettingsDialog) {
-        val hasPassphrase = SrukryptVault.hasPassphraseFallback(context)
-        val hasBiometric = SrukryptVault.hasBiometricUnlock(context)
-        val biometricStatus = activity?.let {
-            BiometricManager.from(it).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-        } ?: BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE
-        val deviceCredentialAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
-            activity?.let {
-                it.getSystemService(KeyguardManager::class.java)?.isDeviceSecure == true &&
-                    BiometricManager.from(it).canAuthenticate(
-                        BiometricManager.Authenticators.DEVICE_CREDENTIAL
-                    ) == BiometricManager.BIOMETRIC_SUCCESS
-            } == true
-        val canAddSecondUnlock = biometricStatus == BiometricManager.BIOMETRIC_SUCCESS ||
-            deviceCredentialAvailable
-        val secondUnlockLabel = if (biometricStatus == BiometricManager.BIOMETRIC_SUCCESS) {
-            "Add fingerprint / device lock"
-        } else {
-            "Add device screen lock"
-        }
+        val hasResetPassphrase = SrukryptVault.hasResetPassphrase(context)
+        val hasDeviceUnlock = SrukryptVault.hasDeviceUnlock(context)
+        val deviceSecure = activity?.getSystemService(KeyguardManager::class.java)?.isDeviceSecure == true
 
         AlertDialog(
             onDismissRequest = { vaultSettingsDialog = false },
             title = { Text("Srukrypt settings", color = SruvikColors.TextPrimary) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("UNLOCK METHODS", color = SruvikColors.LimeMuted,
+                    Text("DEVICE AUTHENTICATION", color = SruvikColors.LimeMuted,
                         style = MaterialTheme.typography.labelLarge, letterSpacing = 1.2.sp)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.Key, null, tint = SruvikColors.Lime)
+                        Icon(Icons.Rounded.Lock, null, tint = SruvikColors.Lime)
                         Spacer(Modifier.width(9.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("Passphrase", color = SruvikColors.TextPrimary)
+                            Text("Android device lock", color = SruvikColors.TextPrimary)
                             Text(
-                                if (hasPassphrase) "Enabled · independent fallback"
-                                else "Not configured",
+                                when {
+                                    hasDeviceUnlock -> "Keystore-protected · system authentication"
+                                    deviceSecure -> "Screen lock configured · unlock key needs recovery"
+                                    else -> "Set a PIN, pattern, password or supported biometric in Android settings"
+                                },
                                 color = SruvikColors.TextSecondary,
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
-                        if (hasPassphrase) Icon(Icons.Rounded.CheckCircle, null, tint = SruvikColors.Lime)
+                        if (hasDeviceUnlock) Icon(Icons.Rounded.CheckCircle, null, tint = SruvikColors.Lime)
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.Fingerprint, null, tint = SruvikColors.Lime)
-                        Spacer(Modifier.width(9.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text("Fingerprint / device screen lock", color = SruvikColors.TextPrimary)
-                            Text(
-                                if (hasBiometric) "Enabled on this device"
-                                else "Not configured",
-                                color = SruvikColors.TextSecondary,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                        if (hasBiometric) Icon(Icons.Rounded.CheckCircle, null, tint = SruvikColors.Lime)
-                    }
+                    Divider(color = SruvikColors.Border)
+                    Text("RESET PASSPHRASE", color = SruvikColors.LimeMuted,
+                        style = MaterialTheme.typography.labelLarge, letterSpacing = 1.2.sp)
                     Text(
-                        if (hasPassphrase && hasBiometric)
-                            "Both unlock methods are enabled. Your passphrase remains an independent fallback."
+                        if (hasResetPassphrase)
+                            "Configured. This phrase can only authorize a destructive vault reset; it cannot unlock or decrypt any item."
                         else
-                            "Use a passphrase plus fingerprint or your Android device screen lock. Adding the second method never removes the first.",
+                            "Optional. Set a phrase so you can reset the vault if you can no longer use your Android device lock. Reset permanently erases every encrypted item.",
                         color = SruvikColors.TextSecondary,
                         style = MaterialTheme.typography.bodySmall
                     )
-                    if (!hasPassphrase) {
-                        OutlinedButton(
-                            onClick = {
-                                vaultSettingsDialog = false
-                                openPassphrase("add")
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Rounded.Key, null)
-                            Spacer(Modifier.width(7.dp))
-                            Text("Add passphrase fallback")
-                        }
-                    }
-                    if (!hasBiometric && hasPassphrase && canAddSecondUnlock) {
-                        OutlinedButton(
-                            onClick = {
-                                vaultSettingsDialog = false
-                                addSecondUnlockMethod()
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(
-                                if (biometricStatus == BiometricManager.BIOMETRIC_SUCCESS)
-                                    Icons.Rounded.Fingerprint else Icons.Rounded.Lock,
-                                null
-                            )
-                            Spacer(Modifier.width(7.dp))
-                            Text(secondUnlockLabel)
-                        }
-                    } else if (!hasBiometric && hasPassphrase) {
-                        Text(
-                            "No strong biometric or secure device lock is available. Your passphrase remains usable; configure a fingerprint or device PIN, pattern or password to add a second method.",
-                            color = SruvikColors.TextMuted,
-                            style = MaterialTheme.typography.bodySmall
-                        )
+                    OutlinedButton(
+                        onClick = {
+                            vaultSettingsDialog = false
+                            openPassphrase("set")
+                        },
+                        enabled = sessionKey != null && !busy,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Rounded.Key, null)
+                        Spacer(Modifier.width(7.dp))
+                        Text(if (hasResetPassphrase) "Change reset passphrase" else "Set reset passphrase")
                     }
                     Divider(color = SruvikColors.Border)
                     Text("DANGER ZONE", color = Color(0xFFFFA0A0),
@@ -1197,9 +957,8 @@ fun SrukryptPage(autoLockMinutes: Int) {
             title = {
                 Text(
                     when (passphraseMode) {
-                        "create" -> "Create a passphrase vault"
-                        "add" -> "Add passphrase fallback"
-                        else -> "Unlock with passphrase"
+                        "set" -> "Set reset passphrase"
+                        else -> "Reset vault with passphrase"
                     },
                     color = SruvikColors.TextPrimary
                 )
@@ -1208,9 +967,9 @@ fun SrukryptPage(autoLockMinutes: Int) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
                         if (creating)
-                            "Use at least 10 characters. Your passphrase wraps the AES data key using PBKDF2-HMAC-SHA256. Sruvik cannot recover it if you forget it."
+                            "Use at least 10 characters. This phrase can only authorize a destructive reset. It never unlocks or decrypts vault contents."
                         else
-                            "Enter the passphrase you set for this vault. It is processed locally and never uploaded.",
+                            "Enter your reset passphrase. If correct, Srukrypt will ask you to confirm permanently erasing every encrypted item and key.",
                         color = SruvikColors.TextSecondary,
                         style = MaterialTheme.typography.bodySmall
                     )
@@ -1241,7 +1000,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                     enabled = passphraseText.isNotBlank() &&
                         (!creating || passphraseText.length >= 10 && passphraseText == passphraseConfirm),
                     onClick = { submitPassphrase() }
-                ) { Text(if (passphraseMode == "unlock") "Unlock" else "Save passphrase", color = SruvikColors.Lime) }
+                ) { Text(if (passphraseMode == "set") "Save reset passphrase" else "Verify passphrase", color = SruvikColors.Lime) }
             },
             dismissButton = {
                 TextButton(onClick = { passphraseDialog = false }) {
