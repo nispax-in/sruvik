@@ -1480,7 +1480,7 @@ private fun SruGenCreativeSpark() {
             center.x + cos(orbitAngle).toFloat() * unit * .39f,
             center.y + sin(orbitAngle).toFloat() * unit * .39f
         )
-        drawCircle(Color(0xFFFFC5AC), radius = unit * .035f, center = orbit)
+        drawCircle(SruvikColors.SecondaryAccent, radius = unit * .035f, center = orbit)
         drawCircle(coral, radius = unit * .062f * breathing, center = center)
     }
 }
