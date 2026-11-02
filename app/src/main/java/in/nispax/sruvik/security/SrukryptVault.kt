@@ -86,6 +86,38 @@ object SrukryptVault {
     fun hasPassphraseFallback(context: Context): Boolean =
         File(SrukryptStorage.vaultDirectory(context), PASSPHRASE_FILE).isFile
 
+    /** True only when a wrapped data key and its matching Keystore key both exist. */
+    fun hasBiometricUnlock(context: Context): Boolean {
+        val directory = SrukryptStorage.vaultDirectory(context)
+        val repaired = File(directory, REPAIRED_WRAPPED_KEY_FILE)
+        if (repaired.isFile && hasMasterKey(REPAIRED_MASTER_ALIAS_ID)) return true
+        val primary = File(directory, WRAPPED_KEY_FILE)
+        return primary.isFile && hasMasterKey(MASTER_ALIAS_ID)
+    }
+
+    /**
+     * Permanently reset the vault. Ciphertext is removed before Keystore aliases;
+     * if deleting any vault file fails, the method stops and reports the failure.
+     * This is a destructive reset, not a recovery operation.
+     */
+    @Throws(Exception::class)
+    fun resetVault(context: Context) {
+        val directory = File(context.noBackupFilesDir, "srukrypt")
+        if (directory.exists()) {
+            directory.walkBottomUp().forEach { entry ->
+                if (entry.exists() && !entry.delete()) {
+                    throw IOException("Unable to remove a Srukrypt vault file. The reset was not completed.")
+                }
+            }
+        }
+
+        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        listOf(MASTER_ALIAS_ID, REPAIRED_MASTER_ALIAS_ID).forEach { aliasId ->
+            val alias = SrukryptStorage.keyAlias(aliasId)
+            if (keyStore.containsAlias(alias)) keyStore.deleteEntry(alias)
+        }
+    }
+
     /**
      * For new vaults Android 11+ can authorize the Keystore cipher with either a
      * strong biometric or the device screen credential (PIN, pattern or password).
