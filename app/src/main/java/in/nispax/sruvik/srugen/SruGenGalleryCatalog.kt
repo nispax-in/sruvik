@@ -164,10 +164,10 @@ object SruGenGalleryCatalog {
         SruGenGalleryModel(
             id = "majicmix-realistic-v6-mnn",
             name = "majicMIX Realistic v6",
-            subtitle = "Photorealistic scenes with detailed light",
+            subtitle = "Photorealistic scenes · photo editing",
             runtime = "Nezumi Kiln · MNN",
             availability = SruGenGalleryAvailability.INSTALLABLE,
-            description = "A photorealistic SD1.5 checkpoint conversion with strong lighting and shadow detail. The archive includes an optional VAE encoder, but Sruvik currently uses its text-to-image path only.",
+            description = "A photorealistic SD1.5 MNN model for local image generation and image-to-image clothing edits. Sruvik checks for the VAE encoder at install time before offering photo editing.",
             lore = "A midnight film laboratory where every scene is developed slowly: soft highlights, deep shadows and details that feel almost tangible.",
             styleTags = listOf("Photorealism", "Cinematic light", "Portraits"),
             baseModel = "emilianJR/majicMIX_realistic_v6",
@@ -185,7 +185,7 @@ object SruGenGalleryCatalog {
             licenseUrl = "https://huggingface.co/spaces/CompVis/stable-diffusion-license",
             attribution = "majicMIX Realistic author · emilianJR diffusers packaging",
             licenseNote = "The source card says this v6 conversion is under CreativeML Open RAIL-M and asks users to verify the upstream licence if commercial use matters. Earlier v3/v4 merges had additional restrictions; this listing is v6 only. Sruvik does not provide legal advice.",
-            features = listOf("Text to image", "Photorealistic style", "MNN int8 block-32", "Offline CPU inference")
+            features = listOf("Text to image", "Image-to-image editing", "Clothing modification", "VAE encoder", "MNN int8 block-32", "Offline CPU inference")
         ),
         SruGenGalleryModel(
             id = "cuteyukimix-mnn",
