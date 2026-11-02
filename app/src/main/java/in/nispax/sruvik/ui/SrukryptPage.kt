@@ -295,7 +295,8 @@ fun SrukryptPage(autoLockMinutes: Int) {
                                     SrukryptVault.discardChallenge(authChallenge)
                                     errorText = when (error) {
                                         is java.security.KeyStoreException -> "Android Keystore could not access the Srukrypt key: ${error.message}"
-                                        is java.security.InvalidKeyException -> "The Srukrypt key is unavailable or invalidated. Try the passphrase fallback if you created one. Details: ${error.message}"
+                                        is android.security.keystore.KeyPermanentlyInvalidatedException -> "Android invalidated the old fingerprint key. Unlock with your passphrase, then tap Repair fingerprint unlock. Your encrypted images are unchanged."
+                    is java.security.InvalidKeyException -> "The Srukrypt key is unavailable. Unlock with your passphrase, then tap Repair fingerprint unlock if the key was invalidated. Details: ${error.message}"
                                         is javax.crypto.AEADBadTagException -> "The encrypted vault key failed authentication. This may indicate a damaged key envelope."
                                         else -> error.message ?: "Unable to unlock the vault."
                                     }
@@ -327,8 +328,168 @@ fun SrukryptPage(autoLockMinutes: Int) {
                 busy = false
                 errorText = when (error) {
                     is java.security.KeyStoreException -> "Android Keystore error: ${error.message}"
-                    is java.security.InvalidKeyException -> "The Srukrypt key is not available. If it was invalidated by Android, only a previously configured passphrase fallback can recover the data. ${error.message}"
+                    is android.security.keystore.KeyPermanentlyInvalidatedException -> "Android invalidated the old fingerprint key. Use your saved passphrase, then tap Repair fingerprint unlock. Your encrypted images were not changed."
+                    is java.security.InvalidKeyException -> "The Srukrypt key is not available. Use your saved passphrase, then tap Repair fingerprint unlock if the key was invalidated. ${error.message}"
                     else -> error.message ?: "Unable to prepare the secure vault."
+                }
+            }
+        }
+    }
+
+
+    /**
+     * Repair a legacy/invalidated biometric key without touching the original
+     * key envelope. A passphrase fallback is required before this action appears.
+     */
+    fun repairFingerprintUnlock() {
+        if (busy) return
+        val host = activity
+        val currentKey = sessionKey?.copyOf()
+        if (host == null || currentKey == null) {
+            currentKey?.let { Arrays.fill(it, 0) }
+            errorText = "Unlock Srukrypt before repairing fingerprint access."
+            return
+        }
+        if (!SrukryptVault.hasPassphraseFallback(context)) {
+            Arrays.fill(currentKey, 0)
+            errorText = "Save a passphrase fallback first. It protects your vault if Android invalidates the replacement biometric key."
+            return
+        }
+
+        val biometricStatus = BiometricManager.from(host)
+            .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+        if (biometricStatus != BiometricManager.BIOMETRIC_SUCCESS) {
+            Arrays.fill(currentKey, 0)
+            errorText = when (biometricStatus) {
+                BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED ->
+                    "No strong fingerprint/face is enrolled. Enrol a supported biometric in Android Settings, then retry. Your passphrase still works."
+                BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE ->
+                    "This device does not expose a strong biometric for cryptographic unlock. Your passphrase remains available."
+                BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE ->
+                    "The biometric sensor is temporarily unavailable. Try again later; your passphrase still works."
+                else ->
+                    "Android cannot use a strong biometric on this device (status $biometricStatus). Your passphrase remains available."
+            }
+            return
+        }
+
+        busy = true
+        errorText = ""
+        infoText = "Preparing a replacement fingerprint key. Your original key and encrypted images remain untouched."
+        scope.launch {
+            var challenge: SrukryptUnlockChallenge? = null
+            try {
+                val readyChallenge = withContext(Dispatchers.IO) {
+                    SrukryptVault.prepareBiometricRewrap(context, currentKey)
+                }
+                challenge = readyChallenge
+                val availability = BiometricManager.from(host)
+                    .canAuthenticate(readyChallenge.allowedAuthenticators)
+                if (availability != BiometricManager.BIOMETRIC_SUCCESS) {
+                    throw IllegalStateException(
+                        "Android cannot use the replacement key's authenticator policy (status $availability). The original key and passphrase remain available."
+                    )
+                }
+
+                val builder = BiometricPrompt.PromptInfo.Builder()
+                    .setTitle("Repair Srukrypt fingerprint unlock")
+                    .setSubtitle("Verify your biometric to re-wrap the existing vault key.")
+                    .setAllowedAuthenticators(readyChallenge.allowedAuthenticators)
+                if ((readyChallenge.allowedAuthenticators and
+                        BiometricManager.Authenticators.DEVICE_CREDENTIAL) == 0
+                ) {
+                    builder.setNegativeButtonText("Cancel")
+                }
+
+                val prompt = BiometricPrompt(
+                    host,
+                    ContextCompat.getMainExecutor(host),
+                    object : BiometricPrompt.AuthenticationCallback() {
+                        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                            super.onAuthenticationSucceeded(result)
+                            val authenticatedCipher = result.cryptoObject?.cipher
+                            if (authenticatedCipher == null) {
+                                SrukryptVault.discardChallenge(readyChallenge)
+                                Arrays.fill(currentKey, 0)
+                                busy = false
+                                infoText = ""
+                                errorText = "Android authenticated, but did not return the Keystore cipher. The original key was not replaced. Retry or use your passphrase."
+                                return
+                            }
+
+                            scope.launch {
+                                var rewrappedKey: ByteArray? = null
+                                try {
+                                    val replacementKey = withContext(Dispatchers.IO) {
+                                        SrukryptVault.finishUnlock(context, readyChallenge, authenticatedCipher)
+                                    }
+                                    rewrappedKey = replacementKey
+                                    check(java.security.MessageDigest.isEqual(currentKey, replacementKey)) {
+                                        "The replacement Keystore key did not reproduce the existing vault key. The original key envelope was preserved."
+                                    }
+                                    val loadResult = withContext(Dispatchers.IO) {
+                                        SrukryptVault.loadPreviewsWithReport(context, replacementKey)
+                                    }
+                                    sessionKey?.let { Arrays.fill(it, 0) }
+                                    entries.forEach { if (!it.thumbnail.isRecycled) it.thumbnail.recycle() }
+                                    sessionKey = replacementKey.copyOf()
+                                    entries = loadResult.entries
+                                    lastInteraction = SystemClock.elapsedRealtime()
+                                    infoText = if (loadResult.unreadableEntries > 0) {
+                                        "Fingerprint unlock repaired. ${loadResult.entries.size} item(s) reopened; ${loadResult.unreadableEntries} unreadable encrypted item(s) were left untouched."
+                                    } else {
+                                        "Fingerprint unlock repaired. Your existing images and passphrase backup are preserved."
+                                    }
+                                    errorText = ""
+                                } catch (failure: Exception) {
+                                    android.util.Log.e("Srukrypt", "Fingerprint key repair failed.", failure)
+                                    errorText = failure.message ?: "Could not repair fingerprint unlock. Use your passphrase; existing encrypted items were not deleted."
+                                    infoText = ""
+                                } finally {
+                                    rewrappedKey?.let { Arrays.fill(it, 0) }
+                                    SrukryptVault.discardChallenge(readyChallenge)
+                                    Arrays.fill(currentKey, 0)
+                                    busy = false
+                                }
+                            }
+                        }
+
+                        override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                            super.onAuthenticationError(errorCode, errString)
+                            SrukryptVault.discardChallenge(readyChallenge)
+                            Arrays.fill(currentKey, 0)
+                            busy = false
+                            infoText = ""
+                            errorText = if (
+                                errorCode == BiometricPrompt.ERROR_USER_CANCELED ||
+                                errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON
+                            ) {
+                                "Fingerprint repair cancelled. Your original vault key and passphrase still work."
+                            } else {
+                                "Fingerprint repair failed: $errString. Your original key and passphrase remain available."
+                            }
+                        }
+
+                        override fun onAuthenticationFailed() {
+                            super.onAuthenticationFailed()
+                            errorText = "Fingerprint not recognised. Try again; your original key is still untouched."
+                        }
+                    }
+                )
+                prompt.authenticate(
+                    builder.build(),
+                    BiometricPrompt.CryptoObject(readyChallenge.cipher)
+                )
+            } catch (failure: Exception) {
+                android.util.Log.e("Srukrypt", "Could not prepare fingerprint key repair.", failure)
+                challenge?.let { SrukryptVault.discardChallenge(it) }
+                Arrays.fill(currentKey, 0)
+                busy = false
+                infoText = ""
+                errorText = when (failure) {
+                    is java.security.InvalidKeyException ->
+                        "Android rejected the replacement biometric key. Unlock with your passphrase and try again. ${failure.message}"
+                    else -> failure.message ?: "Could not prepare fingerprint repair. Your passphrase still works."
                 }
             }
         }
