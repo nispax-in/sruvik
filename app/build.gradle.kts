@@ -10,6 +10,7 @@ android {
         applicationId = "in.nispax.sruvik"
         minSdk = 26
         targetSdk = 36
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
         versionName = "0.1.${System.getenv("GITHUB_RUN_NUMBER") ?: "0"}"
     }
@@ -55,6 +56,8 @@ dependencies {
     implementation(platform("androidx.compose:compose-bom:2025.05.00"))
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.biometric:biometric:1.1.0")
+    // FragmentActivity must support ActivityResultRegistry request codes above 16 bits.
+    implementation("androidx.fragment:fragment:1.9.1")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
@@ -67,4 +70,7 @@ dependencies {
     implementation("com.google.protobuf:protobuf-java:4.32.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }

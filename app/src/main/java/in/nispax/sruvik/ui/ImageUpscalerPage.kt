@@ -1,5 +1,7 @@
 package `in`.nispax.sruvik.ui
 
+import `in`.nispax.sruvik.ui.theme.SruvikColors
+
 import `in`.nispax.sruvik.R
 
 import android.Manifest
@@ -34,6 +36,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,14 +58,14 @@ import java.io.InputStream
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-private val LabInk = Color(0xFF0D1421)
-private val LabViolet = Color(0xFFB6A1FF)
-private val LabCyan = Color(0xFF78DFE4)
-private val LabCoral = Color(0xFFFF9A83)
-private val LabGold = Color(0xFFFFD08A)
-private val LabSurface = Color(0xFF172334)
-private val LabText = Color(0xFFF4F4FA)
-private val LabMuted = Color(0xFFAEB9C9)
+private val LabInk = SruvikColors.Background
+private val LabViolet = SruvikColors.SecondaryAccent
+private val LabCyan = Color(0xFFD1CCC7)
+private val LabCoral = SruvikColors.Primary
+private val LabGold = Color(0xFFF0B58F)
+private val LabSurface = SruvikColors.Surface
+private val LabText = Color(0xFFF5F3F1)
+private val LabMuted = Color(0xFFC5C0BB)
 
 @Composable
 fun ImageUpscalerPage(onBack: () -> Unit) {
@@ -84,9 +87,20 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
     val progress = session.progress
     val progressLabel = session.progressLabel
 
+    // Compose may still be drawing the previous frame when state changes. Recycle
+    // native Bitmap memory only after the next frame has dropped that reference.
+    fun recycleAfterFrame(bitmap: Bitmap?) {
+        if (bitmap == null || bitmap.isRecycled) return
+        scope.launch {
+            withFrameNanos { }
+            if (!bitmap.isRecycled) bitmap.recycle()
+        }
+    }
+
     fun resetResult() {
-        result?.recycle()
+        val previous = result
         result = null
+        recycleAfterFrame(previous)
         optimizedSource = false
         showQuickResize = false
         UpscaleSession.clearResult()
@@ -95,8 +109,10 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
     // Drop the old preview immediately so a replacement image cannot be mistaken
     // for the newly selected file while its content URI is being decoded.
     fun beginImageLoad(uri: Uri, loadingMessage: String) {
-        original?.recycle()
+        val previous = original
         original = null
+        recycleAfterFrame(previous)
+        isLoading = true
         selectedUri = uri
         imageLoadRequest++
         resetResult()
@@ -124,6 +140,19 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
             beginImageLoad(uri, "Loading image from files…")
         } else if (uri == null) {
             message = "No file selected."
+        }
+    }
+    fun launchImagePicker() {
+        if (isProcessing || isSaving || isLoading) return
+        try {
+            picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        } catch (pickerError: Exception) {
+            message = "Photo Picker could not open. Trying Files instead…"
+            try {
+                filePicker.launch(arrayOf("image/*"))
+            } catch (filesError: Exception) {
+                message = "Unable to open an image picker: ${filesError.message ?: pickerError.message ?: "unknown error"}"
+            }
         }
     }
     val saver = rememberLauncherForActivityResult(
@@ -212,11 +241,12 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
 
     LaunchedEffect(session.resultPath, session.status, original) {
         if (session.status == UpscaleStatus.COMPLETED && !session.resultPath.isNullOrBlank()) {
-            val path = session.resultPath
-            val restored = withContext(Dispatchers.IO) { BitmapFactory.decodeFile(path) }
+            val path = requireNotNull(session.resultPath)
+            val restored = withContext(Dispatchers.IO) { decodeSavedPreview(path) }
             if (restored != null) {
-                result?.recycle()
+                val previous = result
                 result = restored
+                recycleAfterFrame(previous)
                 optimizedSource = session.sourceWasOptimized
                 showQuickResize = false
                 message = session.message
@@ -233,25 +263,40 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
 
     LaunchedEffect(selectedUri, imageLoadRequest) {
         val uri = selectedUri ?: return@LaunchedEffect
+        val requestId = imageLoadRequest
         isLoading = true
         message = "Reading your photo…"
         try {
             val decoded = withContext(Dispatchers.IO) { decodeImage(context, uri) }
-            original?.recycle()
+            val previous = original
             original = decoded
+            recycleAfterFrame(previous)
             message = "Photo ready. Choose your AI output size."
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: OutOfMemoryError) {
-            original?.recycle()
+            val previous = original
             original = null
+            recycleAfterFrame(previous)
             message = "This photo is too large to preview safely. Choose a smaller image."
         } catch (error: Exception) {
-            original?.recycle()
+            val previous = original
             original = null
+            recycleAfterFrame(previous)
             message = error.message ?: "Couldn't read this image."
         } finally {
-            isLoading = false
+            // A cancelled older decode must not clear the loading state for a
+            // newer image selection.
+            if (imageLoadRequest == requestId) isLoading = false
+        }
+    }
+
+    val latestOriginalForDispose = rememberUpdatedState(original)
+    val latestResultForDispose = rememberUpdatedState(result)
+    DisposableEffect(Unit) {
+        onDispose {
+            latestOriginalForDispose.value?.takeUnless { it.isRecycled }?.recycle()
+            latestResultForDispose.value?.takeUnless { it.isRecycled }?.recycle()
         }
     }
 
@@ -269,7 +314,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                     letterSpacing = 1.4.sp)
             }
             Spacer(Modifier.weight(1f))
-            Surface(color = Color(0xFF163B3E), shape = CircleShape) {
+            Surface(color = Color(0xFF252525), shape = CircleShape) {
                 Row(Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(6.dp).clip(CircleShape).background(LabCyan))
@@ -312,7 +357,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
         ) {
             Column(
                 Modifier.background(Brush.linearGradient(
-                    listOf(Color(0xFF25344F), Color(0xFF27233F), Color(0xFF17313C))
+                    listOf(Color(0xFF262626), Color(0xFF1D1D1D), Color(0xFF141414))
                 )).padding(17.dp),
                 verticalArrangement = Arrangement.spacedBy(13.dp)
             ) {
@@ -366,10 +411,10 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                     Box(
                         Modifier.fillMaxWidth().height(176.dp).clip(RoundedCornerShape(20.dp))
                             .background(Brush.linearGradient(
-                                listOf(Color(0xFF34435D), Color(0xFF483A5C), Color(0xFF25515B))
+                                listOf(SruvikColors.SurfaceElevated, SruvikColors.Surface, SruvikColors.Background)
                             ))
                             .clickable(enabled = !isProcessing && !isSaving && !isLoading) {
-                                picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                                launchImagePicker()
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -397,7 +442,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                     OutlinedButton(
                         onClick = {
-                            picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                            launchImagePicker()
                         },
                         modifier = Modifier.weight(1f).height(48.dp),
                         shape = RoundedCornerShape(15.dp),
@@ -407,7 +452,14 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                         Text(if (original == null) "Photo library" else "Change photo")
                     }
                     OutlinedButton(
-                        onClick = { filePicker.launch(arrayOf("image/*")) },
+                        onClick = {
+                            if (!isProcessing && !isSaving && !isLoading) {
+                                runCatching { filePicker.launch(arrayOf("image/*")) }
+                                    .onFailure { failure ->
+                                        message = "Android couldn't open Files: ${failure.message ?: "unknown error"}"
+                                    }
+                            }
+                        },
                         modifier = Modifier.weight(1f).height(48.dp),
                         shape = RoundedCornerShape(15.dp),
                         enabled = !isProcessing && !isSaving && !isLoading
@@ -454,7 +506,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = Color(0xFF29253E),
+            color = Color(0xFF2A2A2A),
             shape = RoundedCornerShape(25.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, LabViolet.copy(alpha = .24f))
         ) {
@@ -511,8 +563,8 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                     shape = RoundedCornerShape(17.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = LabViolet, contentColor = LabInk,
-                        disabledContainerColor = Color(0xFF494559),
-                        disabledContentColor = Color(0xFFA7A1B7)
+                        disabledContainerColor = Color(0xFF45413F),
+                        disabledContentColor = Color(0xFF96918D)
                     )
                 ) {
                     if (isProcessing) {
@@ -641,7 +693,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
         }
 
         Surface(
-            color = Color(0xFF1B2A2F), shape = RoundedCornerShape(18.dp),
+            color = SruvikColors.Surface, shape = RoundedCornerShape(18.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, LabCyan.copy(alpha = .14f))
         ) {
             Row(Modifier.padding(13.dp), verticalAlignment = Alignment.Top) {
@@ -667,7 +719,7 @@ private fun ModelTag(label: String) {
 @Composable
 private fun ComparisonCard(title: String, size: String, bitmap: Bitmap, modifier: Modifier, accent: Color) {
     Surface(
-        modifier = modifier, color = Color(0xFF172334), shape = RoundedCornerShape(20.dp),
+        modifier = modifier, color = SruvikColors.Surface, shape = RoundedCornerShape(20.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = .22f))
     ) {
         Column(Modifier.padding(9.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -681,7 +733,7 @@ private fun ComparisonCard(title: String, size: String, bitmap: Bitmap, modifier
 
 @Composable
 private fun ImagePreview(bitmap: Bitmap, modifier: Modifier = Modifier) {
-    Box(modifier.clip(RoundedCornerShape(17.dp)).background(Color(0xFF0A101A)),
+    Box(modifier.clip(RoundedCornerShape(17.dp)).background(Color(0xFF101010)),
         contentAlignment = Alignment.Center) {
         Image(bitmap.asImageBitmap(), "Image preview",
             Modifier.fillMaxSize().padding(4.dp), contentScale = ContentScale.Fit)
@@ -730,7 +782,22 @@ internal fun decodeImage(context: Context, uri: Uri): Bitmap {
     }
 }
 
-private fun previewSampleSize(width: Int, height: Int): Int {
+private fun decodeSavedPreview(path: String): Bitmap? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(path, bounds)
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0 ||
+        bounds.outWidth > MAX_SOURCE_DIMENSION || bounds.outHeight > MAX_SOURCE_DIMENSION
+    ) return null
+    return BitmapFactory.decodeFile(
+        path,
+        BitmapFactory.Options().apply {
+            inSampleSize = previewSampleSize(bounds.outWidth, bounds.outHeight)
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+        }
+    )
+}
+
+internal fun previewSampleSize(width: Int, height: Int): Int {
     var sample = 1
     while (
         (width.toLong() / sample.toLong()) *
@@ -781,8 +848,10 @@ private fun decodeWithBitmapFactory(context: Context, uri: Uri): Bitmap {
     openSelectedImageStream(context, uri).use {
         BitmapFactory.decodeStream(it, null, bounds)
     }
-    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
-        throw IOException("Couldn't decode this image. Choose a JPG, PNG, or WebP photo.")
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0 ||
+        bounds.outWidth > MAX_SOURCE_DIMENSION || bounds.outHeight > MAX_SOURCE_DIMENSION
+    ) {
+        throw IOException("This image has invalid or unsupported dimensions. Choose a smaller JPG, PNG, or WebP photo.")
     }
 
     val decoded = openSelectedImageStream(context, uri).use { stream ->
@@ -853,3 +922,4 @@ private fun quickResize(source: Bitmap, requestedScale: Int, context: Context): 
 
 private const val MAX_PREVIEW_PIXELS = 4_000_000L
 private const val MAX_PREVIEW_DIMENSION = 4096
+private const val MAX_SOURCE_DIMENSION = 100_000
