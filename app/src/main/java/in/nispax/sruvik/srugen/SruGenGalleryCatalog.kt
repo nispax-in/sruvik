@@ -40,7 +40,9 @@ data class SruGenGalleryModel(
     val maxExtractedBytes: Long = 2_000_000_000L,
     val requiredAbis: Set<String> = setOf("arm64-v8a"),
     val pinnedRevision: String? = null,
-    val features: List<String> = emptyList()
+    val features: List<String> = emptyList(),
+    /** This pack must contain both VAE encoder files before it can be installed for photo editing. */
+    val requiresImg2ImgEncoder: Boolean = false
 ) {
     val canInstall: Boolean
         get() = availability == SruGenGalleryAvailability.INSTALLABLE &&
@@ -185,7 +187,8 @@ object SruGenGalleryCatalog {
             licenseUrl = "https://huggingface.co/spaces/CompVis/stable-diffusion-license",
             attribution = "majicMIX Realistic author · emilianJR diffusers packaging",
             licenseNote = "The source card says this v6 conversion is under CreativeML Open RAIL-M and asks users to verify the upstream licence if commercial use matters. Earlier v3/v4 merges had additional restrictions; this listing is v6 only. Sruvik does not provide legal advice.",
-            features = listOf("Text to image", "Image-to-image editing", "Clothing modification", "VAE encoder", "MNN int8 block-32", "Offline CPU inference")
+            features = listOf("Text to image", "Image-to-image editing", "Clothing modification", "VAE encoder", "MNN int8 block-32", "Offline CPU inference"),
+            requiresImg2ImgEncoder = true
         ),
         SruGenGalleryModel(
             id = "cuteyukimix-mnn",
