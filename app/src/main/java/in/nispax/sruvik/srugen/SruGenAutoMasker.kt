@@ -217,38 +217,52 @@ object SruGenAutoMasker {
         bitmap: Bitmap,
         select: (Int) -> Boolean
     ): SegmentationMask {
+        require(!bitmap.isRecycled) { "The source photo was released before segmentation." }
+        val segmentationBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, false)
+            ?: throw IllegalStateException("Unable to prepare a private segmentation copy.")
         val options = ImageSegmenter.ImageSegmenterOptions.builder()
             .setBaseOptions(BaseOptions.builder().setModelAssetPath(MODEL_ASSET).build())
             .setRunningMode(RunningMode.IMAGE)
             .setOutputCategoryMask(true)
             .setOutputConfidenceMasks(false)
             .build()
-        require(!bitmap.isRecycled) { "The source photo was released before segmentation." }
-        val segmenter = ImageSegmenter.createFromOptions(context, options)
-        val segmentationBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, false)
-            ?: throw IllegalStateException("Unable to prepare a private segmentation copy.")
-        val mpImage = BitmapImageBuilder(segmentationBitmap).build()
-        try {
-            val result = segmenter.segment(mpImage)
-            val categoryMask = result.categoryMask().orElseThrow {
-                IllegalStateException("The automatic image segmenter did not return a category mask.")
-            }
-            val width = categoryMask.width
-            val height = categoryMask.height
-            val buffer = ByteBufferExtractor.extract(categoryMask).duplicate()
-            val values = ByteArray(width * height)
-            require(buffer.remaining() >= values.size) {
-                "The automatic image segmenter returned an incomplete mask."
-            }
-            for (index in values.indices) {
-                val label = buffer.get(index).toInt() and 0xff
-                values[index] = if (select(label)) 0xff.toByte() else 0
-            }
-            return SegmentationMask(width, height, values)
-        } finally {
-            mpImage.close()
-            segmenter.close()
+        val segmenter = try {
+            ImageSegmenter.createFromOptions(context, options)
+        } catch (failure: Exception) {
             if (!segmentationBitmap.isRecycled) segmentationBitmap.recycle()
+            throw failure
+        }
+        try {
+            val mpImage = BitmapImageBuilder(segmentationBitmap).build()
+            try {
+                val result = segmenter.segment(mpImage)
+                val categoryMask = result.categoryMask().orElseThrow {
+                    IllegalStateException("The automatic image segmenter did not return a category mask.")
+                }
+                val width = categoryMask.width
+                val height = categoryMask.height
+                require(width > 0 && height > 0) {
+                    "The automatic image segmenter returned an empty category mask."
+                }
+                val buffer = ByteBufferExtractor.extract(categoryMask).duplicate()
+                val values = ByteArray(width * height)
+                require(buffer.remaining() >= values.size) {
+                    "The automatic image segmenter returned an incomplete mask."
+                }
+                for (index in values.indices) {
+                    val label = buffer.get(index).toInt() and 0xff
+                    values[index] = if (select(label)) 0xff.toByte() else 0
+                }
+                return SegmentationMask(width, height, values)
+            } finally {
+                mpImage.close()
+            }
+        } finally {
+            try {
+                segmenter.close()
+            } finally {
+                if (!segmentationBitmap.isRecycled) segmentationBitmap.recycle()
+            }
         }
     }
 
