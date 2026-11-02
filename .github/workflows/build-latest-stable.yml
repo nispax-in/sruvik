@@ -1,4 +1,4 @@
-name: Build Latest Sruvik APK (build-101 signer, Bug 1-4 fixes)
+name: Build Latest Sruvik APK (build-101 signer, vault UI, image viewer and reset)
 on:
   push:
     branches: ['fix/upscaler-image-selection-feedback']
