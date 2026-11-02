@@ -62,7 +62,7 @@ jobs:
           gradle-version: '8.11.1'
       - name: Download pinned Real-ESRGAN model
         run: bash scripts/fetch-upscaler-model.sh
-      - name: Restore debug signing key
+      - name: Download and verify MediaPipe automatic segmentation model\n        run: bash scripts/fetch-srugen-segmentation-model.sh\n      - name: Restore debug signing key
         uses: actions/cache@v4
         with:
           path: .ci/sruvik-debug.keystore
