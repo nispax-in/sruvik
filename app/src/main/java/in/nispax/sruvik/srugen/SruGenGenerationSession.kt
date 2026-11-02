@@ -97,6 +97,9 @@ object SruGenGenerationSession {
                 val attachmentId = withContext(Dispatchers.IO) {
                     val id = SruGenChatStore.saveAttachment(appContext, result.imageBytes, result.mimeType)
                     try {
+                        if (cancelRequested) {
+                            throw CancellationException("Generation stopped before the image was committed.")
+                        }
                         SruGenChatStore.appendMessage(
                             appContext,
                             chatWithPrompt.id,
