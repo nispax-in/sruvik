@@ -35,7 +35,9 @@ object SrukryptStorage {
 
     fun keyAlias(vaultId: String): String {
         require(vaultId.isNotBlank()) { "Vault ID must not be blank." }
-        require(vaultId.matches(Regex("[A-Za-z0-9_-]{1,64}"))) {
+        // Dots are valid in this internal alias namespace: "master.repaired"
+        // is the separate Keystore alias used for biometric-key recovery.
+        require(vaultId.matches(Regex("[A-Za-z0-9_-][A-Za-z0-9_.-]{0,63}"))) {
             "Vault ID contains unsupported characters."
         }
         return "in.nispax.sruvik.srukrypt.$vaultId"
