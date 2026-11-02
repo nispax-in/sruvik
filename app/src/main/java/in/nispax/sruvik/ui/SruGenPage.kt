@@ -667,12 +667,12 @@ fun SruGenPage(
         val chat = chats.firstOrNull { it.id == activeId }
             ?: draftChat.takeIf { it.id == activeId }
             ?: return
+        val requestMode = mode
         val rawText = prompt.trim()
         val text = if (requestMode == SruGenMode.REMOVE_BACKGROUND && rawText.isBlank()) {
             "Remove the background and keep the visible subject."
         } else rawText
         val attachment = selectedImage
-        val requestMode = mode
         if (text.isBlank() && attachment == null || generating) return
         val userMessage = SruGenMessage(role = "user", text = text, attachmentId = attachment,
             attachmentMime = if (attachment == null) null else "image/*")
