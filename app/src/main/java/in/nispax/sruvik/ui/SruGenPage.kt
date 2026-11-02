@@ -686,7 +686,7 @@ fun SruGenPage(
                 "good morning", "good afternoon", "good evening" ->
                     "Hey! I'm here. SruGen creates images locally with your selected model, ${activeModel?.name ?: "installed image model"}. General conversation needs a separate language model."
                 "help", "what can you do", "what can you do here" ->
-                    "I can create images locally with ${activeModel?.name ?: "your installed image model"}. Reference-image editing, background removal and object erasing are not available yet."
+                    "I can create images locally, automatically edit clothing in a compatible model, and remove photo backgrounds. Object-specific removal is not enabled yet."
                 else -> null
             }
         } else null
@@ -727,6 +727,13 @@ fun SruGenPage(
             return
         }
 
+        if (mode == SruGenMode.PROMPT_EDIT && text.isBlank()) {
+            persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
+                role = "assistant",
+                text = "Describe the clothing change you want, for example: change the shirt to black. Your original image remains attached in this encrypted chat."
+            )))
+            return
+        }
         if (mode == SruGenMode.REMOVE_OBJECT) {
             persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
                 role = "assistant",
