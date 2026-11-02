@@ -2,8 +2,10 @@ package `in`.nispax.sruvik.ui
 
 import android.app.ActivityManager
 import android.app.DownloadManager
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
@@ -88,7 +90,11 @@ private data class SruGenResourceStats(
 )
 
 @Composable
-fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
+fun SruGenPage(
+    memoryEnabled: Boolean,
+    onOpenModels: () -> Unit,
+    onOpenVault: () -> Unit
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var chats by remember { mutableStateOf<List<SruGenChat>>(emptyList()) }
@@ -105,6 +111,8 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
     var progressLabel by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
     var info by remember { mutableStateOf("") }
+    var pendingGeneration by remember { mutableStateOf<Triple<SruGenChat, String, String>?>(null) }
+    var pendingGallerySave by remember { mutableStateOf<Pair<String, String>?>(null) }
     var modelReady by remember { mutableStateOf(false) }
     var activeModelId by remember { mutableStateOf(SruGenActiveModelStore.activeModelId(context)) }
     val activeModel = remember(activeModelId) { SruGenGalleryCatalog.find(activeModelId) }
@@ -266,6 +274,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                 generationState.status in setOf(
                     SruGenGenerationStatus.RUNNING,
                     SruGenGenerationStatus.COMPLETED,
+                    SruGenGenerationStatus.CANCELLED,
                     SruGenGenerationStatus.FAILED
                 ) && chats.any { it.id == id }
             }
@@ -304,6 +313,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                 activeId != generationChatId
         val generationFinished =
             generationState.status == SruGenGenerationStatus.COMPLETED ||
+                generationState.status == SruGenGenerationStatus.CANCELLED ||
                 generationState.status == SruGenGenerationStatus.FAILED
         if (shouldRefreshRunningChat || generationFinished) {
             val refreshed = withContext(Dispatchers.IO) { SruGenChatStore.loadChats(context) }
@@ -492,6 +502,113 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
         }
     }
 
+
+    fun startGeneration(request: Triple<SruGenChat, String, String>) {
+        try {
+            SruGenGenerationService.start(context, request.first, request.second, request.third)
+            generating = true
+            progress = 0
+            progressLabel = "Preparing local model"
+            error = ""
+            info = "Generation is running on this device. Stop it here or from its notification."
+        } catch (failure: Exception) {
+            generating = false
+            error = failure.message ?: "Unable to start SruGen generation."
+            info = ""
+        }
+    }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val request = pendingGeneration
+        pendingGeneration = null
+        if (request != null) {
+            startGeneration(request)
+            if (!granted) {
+                info = "Notifications are disabled. Generation continues in Sruvik; the in-app Stop control remains available."
+            }
+        }
+    }
+
+    fun startGenerationWithNotificationPermission(
+        chat: SruGenChat,
+        generationPrompt: String,
+        modelId: String
+    ) {
+        val request = Triple(chat, generationPrompt, modelId)
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            pendingGeneration = request
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            startGeneration(request)
+        }
+    }
+
+    fun saveAttachmentToDeviceNow(attachmentId: String, mimeType: String) {
+        scope.launch {
+            var imageBytes: ByteArray? = null
+            error = ""
+            info = "Saving to Pictures/Sruvik…"
+            try {
+                val savedUri = withContext(Dispatchers.IO) {
+                    imageBytes = SruGenChatStore.readAttachment(context, attachmentId)
+                    SruGenImageGallery.saveToPictures(
+                        context,
+                        requireNotNull(imageBytes),
+                        mimeType
+                    )
+                }
+                info = "Saved to Pictures/Sruvik. Open Gallery or Photos to view it."
+                android.util.Log.i("SruGen", "Image exported to Gallery: $savedUri")
+            } catch (failure: Exception) {
+                android.util.Log.e("SruGen", "Gallery export failed for $attachmentId.", failure)
+                error = failure.message ?: "Unable to save this image to your device."
+                info = ""
+            } finally {
+                imageBytes?.fill(0)
+            }
+        }
+    }
+
+    val legacyGalleryPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val pending = pendingGallerySave
+        pendingGallerySave = null
+        if (pending != null) {
+            if (granted) {
+                saveAttachmentToDeviceNow(pending.first, pending.second)
+            } else {
+                error = "Storage permission was denied. Allow it to save a copy into Pictures/Sruvik."
+            }
+        }
+    }
+
+    fun saveAttachmentToDevice(attachmentId: String, mimeType: String) {
+        if (
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+            context.checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
+        ) {
+            pendingGallerySave = attachmentId to mimeType
+            legacyGalleryPermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        } else {
+            saveAttachmentToDeviceNow(attachmentId, mimeType)
+        }
+    }
+
+    fun saveAttachmentToSrukrypt(attachmentId: String, mimeType: String) {
+        SruGenVaultImportQueue.enqueue(
+            SruGenVaultImportRequest(attachmentId, mimeType, "SruGen image")
+        )
+        error = ""
+        info = "Ready to import. Unlock Srukrypt to save this image into your private vault."
+        onOpenVault()
+    }
+
     fun sendMessage() {
         val chat = chats.firstOrNull { it.id == activeId }
             ?: draftChat.takeIf { it.id == activeId }
@@ -583,29 +700,23 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
         val generationPrompt = if (remembered.isBlank()) text else
             "Use the recent creative context only for style continuity. Follow the current prompt first.\nRecent creative context:\n$remembered\n\nCurrent prompt: $text"
 
-        generating = SruGenGenerationSession.start(
-            context = context,
-            chatWithPrompt = updatedChat,
-            generationPrompt = generationPrompt,
-            modelId = activeModelId
-        )
-        progress = 0
-        progressLabel = "Preparing local model"
-        if (!generating) {
+        if (pendingGeneration != null || generationState.status == SruGenGenerationStatus.RUNNING) {
             persist(updatedChat.copy(
                 messages = updatedChat.messages + SruGenMessage(
                     role = "assistant",
                     text = "Another image is already being generated. Please wait for it to finish."
                 )
             ))
+            return
         }
+        startGenerationWithNotificationPermission(updatedChat, generationPrompt, activeModelId)
     }
-    val studioInk = Color(0xFF0D0D0D)
-    val studioPanel = Color(0xFF202020)
-    val studioRaised = Color(0xFF2D2D2D)
-    val studioAccent = Color(0xFFE47F5D)
-    val studioText = Color(0xFFF4F2EF)
-    val studioSecondary = Color(0xFFBDB9B5)
+    val studioInk = SruvikColors.Background
+    val studioPanel = SruvikColors.Surface
+    val studioRaised = SruvikColors.SurfaceSoft
+    val studioAccent = SruvikColors.Primary
+    val studioText = SruvikColors.TextPrimary
+    val studioSecondary = SruvikColors.TextSecondary
 
     Box(Modifier.fillMaxSize().background(studioInk)) {
         Column(
@@ -649,7 +760,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = studioAccent,
-                        contentColor = Color(0xFF1A100D)
+                        contentColor = SruvikColors.OnPrimary
                     ),
                     contentPadding = PaddingValues(horizontal = 15.dp)
                 ) {
@@ -830,7 +941,12 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                         }
                     }
                     items(chat.messages, key = { it.id }) { message ->
-                        SruGenMessageBubble(message, message.attachmentId?.let { thumbnails[it] })
+                        SruGenMessageBubble(
+                            message = message,
+                            image = message.attachmentId?.let { thumbnails[it] },
+                            onSaveToDevice = ::saveAttachmentToDevice,
+                            onSaveToVault = ::saveAttachmentToSrukrypt
+                        )
                     }
                     if (generating) {
                         item {
@@ -859,6 +975,20 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                                     )
                                     Text(progressLabel, color = studioSecondary, fontSize = 14.sp)
                                 }
+                                OutlinedButton(
+                                    onClick = { SruGenGenerationService.stop(context) },
+                                    modifier = Modifier.height(42.dp),
+                                    shape = RoundedCornerShape(13.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = studioText),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        studioAccent.copy(alpha = .65f)
+                                    )
+                                ) {
+                                    Icon(Icons.Rounded.StopCircle, null, modifier = Modifier.size(17.dp))
+                                    Spacer(Modifier.width(5.dp))
+                                    Text("Stop", fontSize = 13.sp)
+                                }
                             }
                         }
                     }
@@ -878,7 +1008,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                 Text(
                     error,
                     Modifier.fillMaxWidth().padding(vertical = 7.dp),
-                    color = Color(0xFFFFA38E),
+                    color = SruvikColors.Danger,
                     fontSize = 15.sp,
                     lineHeight = 21.sp
                 )
@@ -891,7 +1021,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                 Text(
                     info,
                     Modifier.fillMaxWidth().padding(vertical = 7.dp),
-                    color = Color(0xFFBFD7C8),
+                    color = SruvikColors.Mint,
                     fontSize = 15.sp,
                     lineHeight = 21.sp
                 )
@@ -961,7 +1091,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                                         SruGenMode.REMOVE_BACKGROUND -> "Describe the subject to keep…"
                                         SruGenMode.REMOVE_OBJECT -> "Describe what to remove…"
                                     },
-                                    color = Color(0xFFAAA6A2),
+                                    color = SruvikColors.TextMuted,
                                     fontSize = 18.sp,
                                     lineHeight = 25.sp
                                 )
@@ -1022,9 +1152,9 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                         shape = CircleShape,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = studioAccent,
-                            contentColor = Color(0xFF1A100D),
-                            disabledContainerColor = Color(0xFF45413F),
-                            disabledContentColor = Color(0xFF96918D)
+                            contentColor = SruvikColors.OnPrimary,
+                            disabledContainerColor = SruvikColors.SurfaceElevated,
+                            disabledContentColor = SruvikColors.TextMuted
                         ),
                         contentPadding = PaddingValues(0.dp)
                     ) {
@@ -1070,7 +1200,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                     modelPicker.launch(arrayOf("application/zip", "application/x-zip-compressed"))
                 }) { Text("Import ZIP", color = SruvikColors.TextSecondary) }
             },
-            containerColor = Color(0xFF191A31),
+            containerColor = SruvikColors.Surface,
             shape = RoundedCornerShape(23.dp)
         )
     }
@@ -1085,7 +1215,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                     items(chats.sortedByDescending { it.updatedAt }, key = { it.id }) { item ->
                         Row(
                             Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp))
-                                .background(if (item.id == activeId) Color(0xFF3A3568) else Color.Transparent)
+                                .background(if (item.id == activeId) SruvikColors.PrimaryContainer else Color.Transparent)
                                 .clickable {
                                     followGenerationChat = false
                                     activeId = item.id
@@ -1113,7 +1243,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
             },
             confirmButton = { TextButton(onClick = { historyOpen = false }) { Text("Close", color = SruvikColors.Lime) } },
             dismissButton = { TextButton(onClick = { historyOpen = false; newChat() }) { Text("New chat", color = SruvikColors.TextSecondary) } },
-            containerColor = Color(0xFF191A31)
+            containerColor = SruvikColors.Surface
         )
     }
 
@@ -1138,7 +1268,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                 }) { Text("Save", color = SruvikColors.Lime) }
             },
             dismissButton = { TextButton(onClick = { renameTarget = null }) { Text("Cancel", color = SruvikColors.TextSecondary) } },
-            containerColor = Color(0xFF191A31)
+            containerColor = SruvikColors.Surface
         )
     }
 
@@ -1164,7 +1294,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                 }) { Text("Delete", color = Color(0xFFFF9999)) }
             },
             dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Cancel", color = SruvikColors.TextSecondary) } },
-            containerColor = Color(0xFF191A31)
+            containerColor = SruvikColors.Surface
         )
     }
 }
@@ -1310,7 +1440,7 @@ private fun SruGenCreativeSpark() {
     androidx.compose.foundation.Canvas(Modifier.size(116.dp)) {
         val center = Offset(size.width / 2f, size.height / 2f)
         val unit = size.minDimension
-        val coral = Color(0xFFE47F5D)
+        val coral = SruvikColors.Primary
         drawCircle(
             color = coral.copy(alpha = .055f),
             radius = unit * .49f * breathing
@@ -1455,7 +1585,12 @@ private fun SruGenArtworkSuggestion(
 }
 
 @Composable
-private fun SruGenMessageBubble(message: SruGenMessage, image: Bitmap?) {
+private fun SruGenMessageBubble(
+    message: SruGenMessage,
+    image: Bitmap?,
+    onSaveToDevice: (String, String) -> Unit,
+    onSaveToVault: (String, String) -> Unit
+) {
     val isUser = message.role == "user"
     Row(
         Modifier.fillMaxWidth(),
@@ -1464,39 +1599,70 @@ private fun SruGenMessageBubble(message: SruGenMessage, image: Bitmap?) {
         Column(
             Modifier.widthIn(max = 300.dp)
                 .clip(RoundedCornerShape(20.dp))
-                .background(if (isUser) Color(0xFF303030) else Color(0xFF1B1B1B))
-                .border(1.dp, Color.White.copy(alpha = .10f), RoundedCornerShape(20.dp))
+                .background(if (isUser) SruvikColors.SurfaceSoft else SruvikColors.Surface)
+                .border(1.dp, SruvikColors.Border.copy(alpha = .72f), RoundedCornerShape(20.dp))
                 .padding(horizontal = 13.dp, vertical = 11.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
                 if (isUser) "You" else "SruGen",
-                color = if (isUser) Color(0xFFEBA087) else Color(0xFFBDB9B5),
+                color = if (isUser) SruvikColors.Primary else SruvikColors.SecondaryAccent,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold
             )
             if (message.text.isNotBlank()) {
                 Text(
                     message.text,
-                    color = Color(0xFFF4F2EF),
+                    color = SruvikColors.TextPrimary,
                     style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp, lineHeight = 22.sp)
                 )
             }
             image?.let {
                 Image(
                     it.asImageBitmap(),
-                    "Encrypted chat image",
+                    "Image saved in encrypted SruGen chat",
                     Modifier.fillMaxWidth().heightIn(max = 300.dp),
                     contentScale = ContentScale.Fit
                 )
             }
+            if (!isUser && message.attachmentId != null) {
+                Text(
+                    "Private copy: encrypted SruGen chat only",
+                    color = SruvikColors.TextSecondary,
+                    fontSize = 12.sp
+                )
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    TextButton(
+                        onClick = {
+                            onSaveToDevice(message.attachmentId, message.attachmentMime ?: "image/png")
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Rounded.SaveAlt, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Save to device", fontSize = 11.sp)
+                    }
+                    TextButton(
+                        onClick = {
+                            onSaveToVault(message.attachmentId, message.attachmentMime ?: "image/png")
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Rounded.Security, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Save to Srukrypt", fontSize = 11.sp)
+                    }
+                }
+            }
             message.modelName?.let {
-                Text(it, color = Color(0xFFEBA087), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text(it, color = SruvikColors.Primary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }
         }
     }
 }
-
 @Composable
 private fun StudioModeControl(label: String, selected: Boolean, onClick: () -> Unit) {
     val selectionProgress by animateFloatAsState(
