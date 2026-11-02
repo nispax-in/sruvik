@@ -1,5 +1,7 @@
 package `in`.nispax.sruvik.ui
 
+import `in`.nispax.sruvik.ui.theme.SruvikColors
+
 import `in`.nispax.sruvik.R
 
 import android.Manifest
@@ -56,12 +58,12 @@ import java.io.InputStream
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-private val LabInk = Color(0xFF0B0B0B)
-private val LabViolet = Color(0xFFE98261)
+private val LabInk = SruvikColors.Background
+private val LabViolet = SruvikColors.SecondaryAccent
 private val LabCyan = Color(0xFFD1CCC7)
-private val LabCoral = Color(0xFFE98261)
+private val LabCoral = SruvikColors.Primary
 private val LabGold = Color(0xFFF0B58F)
-private val LabSurface = Color(0xFF1B1B1B)
+private val LabSurface = SruvikColors.Surface
 private val LabText = Color(0xFFF5F3F1)
 private val LabMuted = Color(0xFFC5C0BB)
 
@@ -409,7 +411,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                     Box(
                         Modifier.fillMaxWidth().height(176.dp).clip(RoundedCornerShape(20.dp))
                             .background(Brush.linearGradient(
-                                listOf(Color(0xFF292929), Color(0xFF202020), Color(0xFF161616))
+                                listOf(SruvikColors.SurfaceElevated, SruvikColors.Surface, SruvikColors.Background)
                             ))
                             .clickable(enabled = !isProcessing && !isSaving && !isLoading) {
                                 launchImagePicker()
@@ -691,7 +693,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
         }
 
         Surface(
-            color = Color(0xFF202020), shape = RoundedCornerShape(18.dp),
+            color = SruvikColors.Surface, shape = RoundedCornerShape(18.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, LabCyan.copy(alpha = .14f))
         ) {
             Row(Modifier.padding(13.dp), verticalAlignment = Alignment.Top) {
@@ -717,7 +719,7 @@ private fun ModelTag(label: String) {
 @Composable
 private fun ComparisonCard(title: String, size: String, bitmap: Bitmap, modifier: Modifier, accent: Color) {
     Surface(
-        modifier = modifier, color = Color(0xFF1B1B1B), shape = RoundedCornerShape(20.dp),
+        modifier = modifier, color = SruvikColors.Surface, shape = RoundedCornerShape(20.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = .22f))
     ) {
         Column(Modifier.padding(9.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
