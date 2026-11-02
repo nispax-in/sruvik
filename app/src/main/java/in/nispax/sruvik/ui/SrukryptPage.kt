@@ -46,6 +46,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import `in`.nispax.sruvik.security.SrukryptEntryPreview
 import `in`.nispax.sruvik.security.SrukryptUnlockChallenge
 import `in`.nispax.sruvik.security.SrukryptVault
+import `in`.nispax.sruvik.srugen.SruGenChatStore
+import `in`.nispax.sruvik.srugen.SruGenVaultImportQueue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -112,6 +114,57 @@ fun SrukryptPage(autoLockMinutes: Int) {
             delay(timeout)
             if (SystemClock.elapsedRealtime() - lastInteraction >= timeout && sessionKey != null) {
                 lockVault()
+            }
+        }
+    }
+
+    /**
+     * SruGen can queue an image for the user's private vault. This effect
+     * consumes the one-shot request only after Srukrypt has a live, unlocked
+     * data key; it then creates a normal authenticated Srukrypt entry.
+     */
+    LaunchedEffect(sessionKey) {
+        val unlockedKey = sessionKey?.copyOf() ?: return@LaunchedEffect
+        val request = SruGenVaultImportQueue.consume()
+        if (request == null) {
+            Arrays.fill(unlockedKey, 0)
+            return@LaunchedEffect
+        }
+
+        busy = true
+        errorText = ""
+        infoText = "Importing the encrypted SruGen image into Srukrypt…"
+        scope.launch {
+            var imageBytes: ByteArray? = null
+            try {
+                imageBytes = withContext(Dispatchers.IO) {
+                    SruGenChatStore.readAttachment(context, request.attachmentId)
+                }
+                withContext(Dispatchers.IO) {
+                    SrukryptVault.storeImage(
+                        context,
+                        unlockedKey,
+                        request.title,
+                        request.mimeType,
+                        requireNotNull(imageBytes)
+                    )
+                }
+                if (sessionKey != null) {
+                    refreshEntries(unlockedKey)
+                    lastInteraction = SystemClock.elapsedRealtime()
+                    infoText = "Imported into Srukrypt. The encrypted SruGen chat copy remains unchanged."
+                } else {
+                    errorText = "The vault locked while the image was importing. Unlock it and try again."
+                    infoText = ""
+                }
+            } catch (failure: Exception) {
+                android.util.Log.e("Srukrypt", "SruGen-to-vault import failed.", failure)
+                errorText = failure.message ?: "Unable to import this image into Srukrypt."
+                infoText = ""
+            } finally {
+                imageBytes?.fill(0)
+                Arrays.fill(unlockedKey, 0)
+                busy = false
             }
         }
     }
