@@ -462,7 +462,7 @@ private fun AppRow(icon: ImageVector, title: String, subtitle: String, status: S
 private fun GlassCard(modifier: Modifier, shape: RoundedCornerShape, fill: Brush, content: @Composable BoxScope.() -> Unit) {
     Box(
         modifier.clip(shape)
-            .background(Color(0xFF1B1B1B))
+            .background(SruvikColors.Surface)
             .border(1.dp, Color(0xFF3A3938), shape)
             .animateContentSize()
     ) {
@@ -475,7 +475,7 @@ private fun FloatingDock(selected: Destination, onSelect: (Destination) -> Unit,
     Box(
         modifier.fillMaxWidth().height(76.dp)
             .clip(RoundedCornerShape(38.dp))
-            .background(Color(0xFF1B1B1B))
+            .background(SruvikColors.Surface)
             .border(1.dp, Color(0xFF3A3938), RoundedCornerShape(38.dp))
     ) {
         Row(Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
