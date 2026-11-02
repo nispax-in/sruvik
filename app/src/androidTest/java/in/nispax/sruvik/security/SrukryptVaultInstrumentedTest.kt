@@ -1,5 +1,7 @@
 package `in`.nispax.sruvik.security
 
+import `in`.nispax.sruvik.srugen.SruGenChatStore
+
 import android.graphics.Bitmap
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -72,6 +74,77 @@ class SrukryptVaultInstrumentedTest {
             dataKey?.fill(0)
             passphrase.fill('\u0000')
             directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun sruGenAttachmentCanBeExplicitlyImportedIntoSrukryptVault() {
+        val context = InstrumentationRegistry.getInstrumentation().context
+        val vaultDirectory = SrukryptStorage.vaultDirectory(context)
+        val chatDirectory = java.io.File(context.noBackupFilesDir, "srugen")
+        vaultDirectory.deleteRecursively()
+        chatDirectory.deleteRecursively()
+
+        val passphrase = "vault import integration passphrase".toCharArray()
+        var dataKey: ByteArray? = null
+        var sourceBytes: ByteArray? = null
+        var chatBytes: ByteArray? = null
+        var vaultBytes: ByteArray? = null
+        var preview: Bitmap? = null
+        try {
+            val key = SrukryptVault.createVaultWithPassphrase(context, passphrase)
+            dataKey = key
+
+            val image = Bitmap.createBitmap(12, 10, Bitmap.Config.ARGB_8888)
+            val png = ByteArrayOutputStream()
+            check(image.compress(Bitmap.CompressFormat.PNG, 100, png))
+            image.recycle()
+            val bytes = png.toByteArray()
+            sourceBytes = bytes
+
+            // SruGen keeps its private encrypted conversation copy.
+            val attachmentId = SruGenChatStore.saveAttachment(context, bytes, "image/png")
+            chatBytes = SruGenChatStore.readAttachment(context, attachmentId)
+            assertArrayEquals(bytes, chatBytes)
+
+            // The explicit "Save to Srukrypt" action creates a second encrypted vault entry.
+            val vaultId = SrukryptVault.storeImage(
+                context, key, "SruGen image", "image/png", chatBytes
+            )
+            val loaded = SrukryptVault.loadPreviews(context, key)
+            assertEquals(1, loaded.size)
+            assertEquals("SruGen image", loaded.single().title)
+            preview = loaded.single().thumbnail
+
+            val restored = SrukryptVault.readImage(context, key, vaultId)
+            assertEquals("SruGen image", restored.first)
+            vaultBytes = restored.second
+            assertArrayEquals(bytes, restored.second)
+
+            // Import is a copy; the original encrypted chat attachment remains available.
+            val stillInChat = SruGenChatStore.readAttachment(context, attachmentId)
+            try {
+                assertArrayEquals(bytes, stillInChat)
+            } finally {
+                stillInChat.fill(0)
+            }
+        } finally {
+            dataKey?.fill(0)
+            sourceBytes?.fill(0)
+            chatBytes?.fill(0)
+            vaultBytes?.fill(0)
+            passphrase.fill('\u0000')
+            preview?.takeUnless { it.isRecycled }?.recycle()
+            vaultDirectory.deleteRecursively()
+            chatDirectory.deleteRecursively()
+            runCatching {
+                java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+                    .deleteEntry(SrukryptStorage.keyAlias("master"))
+            }
+            runCatching {
+                java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+                    .deleteEntry("in.nispax.sruvik.srugen.chats.v1")
+            }
         }
     }
 
