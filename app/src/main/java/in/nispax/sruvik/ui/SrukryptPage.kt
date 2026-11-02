@@ -680,7 +680,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
 
         Row(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp))
-                .background(Color(0xFF202020))
+                .background(SruvikColors.Surface)
                 .border(1.dp, Color.White.copy(alpha = .10f), RoundedCornerShape(17.dp))
                 .padding(13.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -693,7 +693,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                 Text("Encrypted image contents and metadata · no cloud sync",
                     style = MaterialTheme.typography.bodySmall, color = SruvikColors.TextSecondary)
             }
-            Surface(shape = RoundedCornerShape(20.dp), color = Color(0xFFE98261).copy(alpha = .15f)) {
+            Surface(shape = RoundedCornerShape(20.dp), color = SruvikColors.Primary.copy(alpha = .15f)) {
                 Text("OFFLINE", modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
                     color = SruvikColors.Lime, style = MaterialTheme.typography.labelSmall)
             }
@@ -702,7 +702,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
         if (busy || errorText.isNotBlank() || infoText.isNotBlank()) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = if (errorText.isNotBlank()) Color(0xFF3A2020) else Color(0xFF242424),
+                color = if (errorText.isNotBlank()) Color(0xFF42282E) else SruvikColors.SurfaceElevated,
                 shape = RoundedCornerShape(16.dp),
                 border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .12f))
             ) {
@@ -729,14 +729,14 @@ fun SrukryptPage(autoLockMinutes: Int) {
             Spacer(Modifier.height(12.dp))
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp))
-                    .background(Brush.linearGradient(listOf(Color(0xFF242424), Color(0xFF1B1B1B), Color(0xFF111111))))
+                    .background(Brush.linearGradient(listOf(SruvikColors.SurfaceElevated, SruvikColors.Surface, SruvikColors.Background)))
                     .border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(28.dp))
                     .padding(22.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(13.dp)
             ) {
                 Box(Modifier.size(76.dp).clip(CircleShape)
-                    .background(Color(0xFFE98261).copy(alpha = .16f)),
+                    .background(SruvikColors.Primary.copy(alpha = .16f)),
                     contentAlignment = Alignment.Center) {
                     Icon(Icons.Rounded.Lock, null, tint = SruvikColors.Lime, modifier = Modifier.size(36.dp))
                 }
@@ -824,7 +824,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
             if (entries.isEmpty()) {
                 Column(
                     Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(24.dp))
-                        .background(Color(0xFF1B1B1B))
+                        .background(SruvikColors.Surface)
                         .border(1.dp, Color.White.copy(alpha = .09f), RoundedCornerShape(24.dp))
                         .padding(22.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -847,7 +847,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                     items(entries, key = { it.id }) { entry ->
                         Column(
                             Modifier.clip(RoundedCornerShape(19.dp))
-                                .background(Color(0xFF242424))
+                                .background(SruvikColors.SurfaceElevated)
                                 .border(1.dp, Color.White.copy(alpha = .10f), RoundedCornerShape(19.dp))
                                 .padding(9.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -903,7 +903,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                 }) { Text("Delete", color = Color(0xFFFF9B9B)) }
             },
             dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text("Cancel") } },
-            containerColor = Color(0xFF1B1B1B),
+            containerColor = SruvikColors.Surface,
             shape = RoundedCornerShape(23.dp)
         )
     }    
