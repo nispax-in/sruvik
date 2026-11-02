@@ -79,6 +79,7 @@ object SrukryptVault {
     fun hasVault(context: Context): Boolean {
         val dir = SrukryptStorage.vaultDirectory(context)
         return File(dir, WRAPPED_KEY_FILE).isFile ||
+            File(dir, REPAIRED_WRAPPED_KEY_FILE).isFile ||
             File(dir, PASSPHRASE_FILE).isFile ||
             entryFiles(dir).isNotEmpty()
     }
@@ -160,7 +161,7 @@ object SrukryptVault {
         // model. Never create a new Keystore key beside legacy ciphertext: doing so
         // would make old entries appear lost. The saved phrase can authorize only a
         // destructive reset of this legacy vault.
-        if (!wrappedFile.exists() && (hasEntries || hasResetPassphrase(context))) {
+        if (!wrappedFile.exists() && hasResetPassphrase(context)) {
             throw SecurityException(
                 "This is a legacy passphrase-only Srukrypt vault. Passphrases can no longer unlock vault contents; they are reset-only. Use “Forgot password? Reset vault” to erase this legacy vault, then create a new one with Android device authentication."
             )
