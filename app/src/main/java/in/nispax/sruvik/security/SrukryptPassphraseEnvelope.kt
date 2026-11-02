@@ -22,10 +22,12 @@ import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
 
 /**
- * Password envelope for Srukrypt's random 256-bit data key.
+ * Password envelope for Srukrypt's random reset-verifier token.
  *
- * This class is deliberately independent of Android Keystore so its file-format,
- * replacement and wrong-password behavior can be exercised in JVM unit tests.
+ * This file never stores or wraps the vault data key. A successful passphrase
+ * check can only authorize a separately confirmed destructive vault reset.
+ * The implementation is deliberately independent of Android Keystore so its
+ * format, replacement and wrong-password behavior can be exercised in JVM tests.
  */
 internal object SrukryptPassphraseEnvelope {
     private const val MAGIC = 0x53524B50 // SRKP
