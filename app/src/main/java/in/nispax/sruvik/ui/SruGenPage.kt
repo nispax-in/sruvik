@@ -111,6 +111,8 @@ fun SruGenPage(
     var progressLabel by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
     var info by remember { mutableStateOf("") }
+    var viewingImage by remember { mutableStateOf<Pair<Bitmap, String>?>(null) }
+    var loadingViewerImage by remember { mutableStateOf(false) }
     var pendingGeneration by remember { mutableStateOf<Triple<SruGenChat, String, String>?>(null) }
     var pendingGallerySave by remember { mutableStateOf<Pair<String, String>?>(null) }
     var modelReady by remember { mutableStateOf(false) }
@@ -390,8 +392,10 @@ fun SruGenPage(
 
     val generationInFlight = rememberUpdatedState(generating)
     val latestThumbnails = rememberUpdatedState(thumbnails)
+    val latestViewerImage = rememberUpdatedState(viewingImage)
     DisposableEffect(Unit) {
         onDispose {
+            latestViewerImage.value?.first?.let { if (!it.isRecycled) it.recycle() }
             latestThumbnails.value.values.forEach { if (!it.isRecycled) it.recycle() }
             // Keep an active inference alive if navigation disposes this screen.
             // Otherwise detach before async close so a later visit cannot reuse
@@ -405,6 +409,29 @@ fun SruGenPage(
                 ).launch {
                     runCatching { SruGenEngineRegistry.closeAndDetach(engineToClose) }
                 }
+            }
+        }
+    }
+
+    fun openAttachmentImage(attachmentId: String) {
+        if (loadingViewerImage || viewingImage != null) return
+        loadingViewerImage = true
+        scope.launch {
+            try {
+                val fullBitmap = withContext(Dispatchers.IO) {
+                    val bytes = SruGenChatStore.readAttachment(context, attachmentId)
+                    try {
+                        decodeSruvikViewerBitmap(bytes)
+                    } finally {
+                        bytes.fill(0)
+                    }
+                }
+                if (fullBitmap == null) error = "This private image could not be decoded."
+                else viewingImage = fullBitmap to "SruGen image"
+            } catch (failure: Exception) {
+                error = failure.message ?: "Unable to open this private image."
+            } finally {
+                loadingViewerImage = false
             }
         }
     }
@@ -945,7 +972,8 @@ fun SruGenPage(
                             message = message,
                             image = message.attachmentId?.let { thumbnails[it] },
                             onSaveToDevice = ::saveAttachmentToDevice,
-                            onSaveToVault = ::saveAttachmentToSrukrypt
+                            onSaveToVault = ::saveAttachmentToSrukrypt,
+                            onViewImage = ::openAttachmentImage
                         )
                     }
                     if (generating) {
@@ -1582,6 +1610,13 @@ private fun SruGenArtworkSuggestion(
             Text(subtitle, color = Color(0xFFD8D7E7), style = MaterialTheme.typography.labelSmall, maxLines = 2)
         }
     }
+    viewingImage?.let { (bitmap, title) ->
+        SruvikImageViewer(bitmap = bitmap, title = title) {
+            if (!bitmap.isRecycled) bitmap.recycle()
+            viewingImage = null
+        }
+    }
+
 }
 
 @Composable
@@ -1589,7 +1624,8 @@ private fun SruGenMessageBubble(
     message: SruGenMessage,
     image: Bitmap?,
     onSaveToDevice: (String, String) -> Unit,
-    onSaveToVault: (String, String) -> Unit
+    onSaveToVault: (String, String) -> Unit,
+    onViewImage: (String) -> Unit
 ) {
     val isUser = message.role == "user"
     Row(
@@ -1597,7 +1633,7 @@ private fun SruGenMessageBubble(
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
     ) {
         Column(
-            Modifier.widthIn(max = 300.dp)
+            Modifier.widthIn(max = 340.dp)
                 .clip(RoundedCornerShape(20.dp))
                 .background(if (isUser) SruvikColors.SurfaceSoft else SruvikColors.Surface)
                 .border(1.dp, SruvikColors.Border.copy(alpha = .72f), RoundedCornerShape(20.dp))
@@ -1620,10 +1656,18 @@ private fun SruGenMessageBubble(
             image?.let {
                 Image(
                     it.asImageBitmap(),
-                    "Image saved in encrypted SruGen chat",
-                    Modifier.fillMaxWidth().heightIn(max = 300.dp),
+                    "Open image in full-screen viewer",
+                    Modifier.fillMaxWidth()
+                        .heightIn(max = 390.dp)
+                        .clip(RoundedCornerShape(13.dp))
+                        .clickable(enabled = message.attachmentId != null) {
+                            message.attachmentId?.let(onViewImage)
+                        },
                     contentScale = ContentScale.Fit
                 )
+                if (message.attachmentId != null) {
+                    Text("Tap image to view and zoom", color = SruvikColors.TextSecondary, fontSize = 11.sp)
+                }
             }
             if (!isUser && message.attachmentId != null) {
                 Text(
