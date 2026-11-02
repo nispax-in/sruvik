@@ -250,7 +250,7 @@ private fun ModelGalleryCard(
     onClick: () -> Unit
 ) {
     val accent = when {
-        active -> Color(0xFFE98261)
+        active -> SruvikColors.Primary
         model.engine == `in`.nispax.sruvik.srugen.SruGenGalleryEngine.NEZUMI_MNN_SD15 -> Color(0xFFBDB9B5)
         else -> Color(0xFFBDB9B5)
     }
@@ -284,7 +284,7 @@ private fun ModelGalleryCard(
                             else -> "COMING SOON"
                         },
                         tint = when {
-                            active || installed -> Color(0xFFE98261)
+                            active || installed -> SruvikColors.Primary
                             model.canInstall && assessment?.canDownload == true -> SruvikColors.Lime
                             model.canInstall -> Color(0xFFF0B58F)
                             else -> SruvikColors.TextMuted
