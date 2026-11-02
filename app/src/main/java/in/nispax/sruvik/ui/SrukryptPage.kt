@@ -382,7 +382,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                 val availability = BiometricManager.from(activity).canAuthenticate(allowed)
                 if (availability != BiometricManager.BIOMETRIC_SUCCESS) {
                     SrukryptVault.discardChallenge(authChallenge)
-                    val hasPassphrase = SrukryptVault.hasPassphraseFallback(context)
+                    val hasPassphrase = SrukryptVault.hasResetPassphrase(context)
                     errorText = when (availability) {
                         BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED ->
                             if (hasPassphrase) "No supported Android device authentication is enrolled. Use the reset phrase only to erase this vault."
@@ -391,7 +391,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                             if (hasPassphrase) "No compatible system authenticator is available. The reset phrase can only erase this vault."
                             else "This phone has no compatible system authenticator. Configure an Android screen lock or supported biometric."
                         BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE ->
-                            "Android authentication hardware is temporarily unavailable. Try again or use your device screen lock."
+                            "Android system authentication is temporarily unavailable. Try again or enter your device PIN, pattern or password."
                         else ->
                             "Android cannot use the configured screen lock for this vault (status $availability). A reset passphrase cannot unlock the vault."
                     }
@@ -401,7 +401,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
 
                 val builder = BiometricPrompt.PromptInfo.Builder()
                     .setTitle("Unlock Srukrypt")
-                    .setSubtitle("Use your fingerprint, face or device screen lock.")
+                    .setSubtitle("Authenticate with your Android device lock.")
                     .setAllowedAuthenticators(allowed)
                 if ((allowed and BiometricManager.Authenticators.DEVICE_CREDENTIAL) == 0) {
                     builder.setNegativeButtonText("Cancel")
@@ -705,7 +705,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                     ) {
                         Icon(Icons.Rounded.DeleteForever, null, tint = Color(0xFFFF9B9B))
                         Spacer(Modifier.width(7.dp))
-                        Text("Forgot passphrase? Reset vault", color = Color(0xFFFF9B9B))
+                        Text(if (SrukryptVault.hasResetPassphrase(context)) "Forgot passphrase? Reset vault" else "Reset vault", color = Color(0xFFFF9B9B))
                     }
                 }
             }
@@ -951,7 +951,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
     }
 
     if (passphraseDialog) {
-        val creating = passphraseMode == "create" || passphraseMode == "add"
+        val creating = passphraseMode == "set"
         AlertDialog(
             onDismissRequest = { passphraseDialog = false },
             title = {
