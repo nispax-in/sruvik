@@ -210,7 +210,7 @@ class NezumiMnnSruGenEngine(
                     "Generation was cancelled to protect device resources. Your encrypted prompt remains saved."
                 }
                 check(packed != null) {
-                    "DreamShaper image operation failed: \${MnnSdNative.getLastError()}"
+                    "DreamShaper image operation failed: ${MnnSdNative.getLastError()}"
                 }
                 SruGenDeviceGuard.assertSafeToContinue(context)
                 onProgress(92, if (editing) "Applying the automatic clothing mask" else "Decoding generated image")
