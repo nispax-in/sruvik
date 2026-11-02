@@ -49,8 +49,11 @@ data class SrukryptPreviewLoadResult(
 /**
  * Envelope encryption for Srukrypt:
  * - A random 256-bit data key encrypts files with AES-256-GCM and a fresh nonce.
- * - An Android Keystore AES key, requiring per-use strong-biometric authentication,
- *   wraps the data key. The Keystore key is non-exportable.
+ * - An Android Keystore AES key, requiring per-use Android system authentication
+ *   (strong enrolled biometric or device PIN/pattern/password), wraps the data key.
+ *   The Keystore key is non-exportable.
+ * - The optional passphrase is a reset-only verifier. It never unwraps or unlocks
+ *   the data key; a successful check only permits a separately confirmed wipe.
  * - The unwrapped data key exists only in memory for the active vault session.
  *
  * The wrapped key and ciphertext live under noBackupFilesDir. Filenames are random IDs;
@@ -83,11 +86,11 @@ object SrukryptVault {
     fun entryCount(context: Context): Int =
         entryFiles(SrukryptStorage.vaultDirectory(context)).size
 
-    fun hasPassphraseFallback(context: Context): Boolean =
+    fun hasResetPassphrase(context: Context): Boolean =
         File(SrukryptStorage.vaultDirectory(context), PASSPHRASE_FILE).isFile
 
-    /** True only when a wrapped data key and its matching Keystore key both exist. */
-    fun hasBiometricUnlock(context: Context): Boolean {
+    /** True only when a wrapped data key and its matching Android Keystore key exist. */
+    fun hasDeviceUnlock(context: Context): Boolean {
         val directory = SrukryptStorage.vaultDirectory(context)
         val repaired = File(directory, REPAIRED_WRAPPED_KEY_FILE)
         if (repaired.isFile && hasMasterKey(REPAIRED_MASTER_ALIAS_ID)) return true
@@ -140,54 +143,6 @@ object SrukryptVault {
     }
 
     /**
-     * Create a vault protected by a user passphrase. PBKDF2-HMAC-SHA256 derives
-     * a 256-bit wrapping key; the actual image data still uses AES-256-GCM.
-     * Use at least 10 characters. This is intended as a fallback for devices
-     * without a compatible strong biometric/system crypto prompt.
-     */
-    @Throws(Exception::class)
-    fun createVaultWithPassphrase(context: Context, passphrase: CharArray): ByteArray {
-        require(passphrase.size >= 10) { "Use a passphrase with at least 10 characters." }
-        require(!hasVault(context)) { "A Srukrypt vault already exists." }
-        // A prior failed biometric setup may have left an empty orphan Keystore alias.
-        // Remove it so this passphrase vault cannot accidentally create a second data key.
-        if (hasMasterKey()) {
-            val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-            keyStore.deleteEntry(SrukryptStorage.keyAlias(MASTER_ALIAS_ID))
-        }
-        val dataKey = ByteArray(32).also { SecureRandom().nextBytes(it) }
-        return try {
-            SrukryptPassphraseEnvelope.write(
-                File(SrukryptStorage.vaultDirectory(context), PASSPHRASE_FILE),
-                dataKey,
-                passphrase
-            )
-            dataKey.copyOf()
-        } finally {
-            Arrays.fill(dataKey, 0)
-        }
-    }
-
-    @Throws(Exception::class)
-    fun unlockWithPassphrase(context: Context, passphrase: CharArray): ByteArray {
-        require(passphrase.size >= 1) { "Enter your Srukrypt passphrase." }
-        val file = File(SrukryptStorage.vaultDirectory(context), PASSPHRASE_FILE)
-        if (!file.isFile) throw FileNotFoundException("No passphrase fallback has been configured.")
-        return SrukryptPassphraseEnvelope.read(file, passphrase)
-    }
-
-    @Throws(Exception::class)
-    fun enablePassphraseFallback(context: Context, dataKey: ByteArray, passphrase: CharArray) {
-        require(dataKey.size == 32) { "Invalid vault session key." }
-        require(passphrase.size >= 10) { "Use a passphrase with at least 10 characters." }
-        SrukryptPassphraseEnvelope.write(
-            File(SrukryptStorage.vaultDirectory(context), PASSPHRASE_FILE),
-            dataKey,
-            passphrase
-        )
-    }
-
-    /**
      * Create a Cipher for BiometricPrompt.CryptoObject. The returned
      * authenticator flags exactly match the Android Keystore key policy.
      */
@@ -198,11 +153,18 @@ object SrukryptVault {
         val useRepairedKey = repairedWrappedFile.isFile && hasMasterKey(REPAIRED_MASTER_ALIAS_ID)
         val keyAliasId = if (useRepairedKey) REPAIRED_MASTER_ALIAS_ID else MASTER_ALIAS_ID
         val wrappedFile = if (useRepairedKey) repairedWrappedFile else File(dir, WRAPPED_KEY_FILE)
-        if (!wrappedFile.exists() && hasPassphraseFallback(context)) {
-            throw IllegalStateException("This vault uses a passphrase. Choose “Use passphrase” to unlock it.")
-        }
         val existingMasterKey = hasMasterKey(keyAliasId)
         val hasEntries = entryFiles(dir).isNotEmpty()
+
+        // Old passphrase-only vaults cannot be opened under the corrected security
+        // model. Never create a new Keystore key beside legacy ciphertext: doing so
+        // would make old entries appear lost. The saved phrase can authorize only a
+        // destructive reset of this legacy vault.
+        if (!wrappedFile.exists() && (hasEntries || hasResetPassphrase(context))) {
+            throw SecurityException(
+                "This is a legacy passphrase-only Srukrypt vault. Passphrases can no longer unlock vault contents; they are reset-only. Use “Forgot password? Reset vault” to erase this legacy vault, then create a new one with Android device authentication."
+            )
+        }
 
         // Never mint a replacement Keystore key when ciphertext already exists.
         // A fresh key cannot decrypt the old envelope; silently creating one makes
@@ -249,47 +211,40 @@ object SrukryptVault {
     }
 
     /**
-     * Prepare a second, independent Keystore key after the user has unlocked
-     * with their passphrase. The original master alias and envelope are not
-     * touched; the replacement becomes active only after its CryptoObject
-     * successfully wraps this same data key and the new envelope is committed.
+     * Save a reset-only passphrase while the vault is already unlocked.
+     * It encrypts a random verifier token, never the vault data key.
      */
     @Throws(Exception::class)
-    fun prepareBiometricRewrap(context: Context, dataKey: ByteArray): SrukryptUnlockChallenge {
-        require(dataKey.size == 32) { "Invalid vault session key." }
-        require(hasPassphraseFallback(context)) {
-            "Save a passphrase fallback before repairing fingerprint unlock. Your encrypted items will remain protected."
+    fun setResetPassphrase(context: Context, sessionKey: ByteArray, passphrase: CharArray) {
+        require(sessionKey.size == 32) { "Unlock the vault before setting a reset passphrase." }
+        require(passphrase.size >= 10) { "Use a passphrase with at least 10 characters." }
+        val verifier = ByteArray(32).also { SecureRandom().nextBytes(it) }
+        try {
+            SrukryptPassphraseEnvelope.write(
+                File(SrukryptStorage.vaultDirectory(context), PASSPHRASE_FILE),
+                verifier,
+                passphrase
+            )
+        } finally {
+            Arrays.fill(verifier, 0)
         }
+    }
 
-        val alias = SrukryptStorage.keyAlias(REPAIRED_MASTER_ALIAS_ID)
-        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        val repairedEnvelope = File(
-            SrukryptStorage.vaultDirectory(context),
-            REPAIRED_WRAPPED_KEY_FILE
-        )
-        // Remove a previous incomplete repair envelope first. The original
-        // master.wrap and its alias remain intact and are still the fallback.
-        if (repairedEnvelope.exists() && !repairedEnvelope.delete()) {
-            throw IOException("Unable to prepare a new fingerprint key. Your original vault key was left unchanged.")
+    /**
+     * Verify a reset passphrase. The decrypted verifier is immediately wiped;
+     * this method never returns or installs a vault data key.
+     */
+    @Throws(Exception::class)
+    fun verifyResetPassphrase(context: Context, passphrase: CharArray) {
+        require(passphrase.isNotEmpty()) { "Enter your Srukrypt reset passphrase." }
+        val file = File(SrukryptStorage.vaultDirectory(context), PASSPHRASE_FILE)
+        if (!file.isFile) throw FileNotFoundException("No reset passphrase has been configured.")
+        val verifier = SrukryptPassphraseEnvelope.read(file, passphrase)
+        try {
+            require(verifier.size == 32) { "The reset passphrase record is invalid." }
+        } finally {
+            Arrays.fill(verifier, 0)
         }
-        // This alias is separate from the original key. If the prompt is cancelled,
-        // the original key/envelope and passphrase fallback remain untouched.
-        if (keyStore.containsAlias(alias)) keyStore.deleteEntry(alias)
-
-        val masterKey = createMasterKey(REPAIRED_MASTER_ALIAS_ID)
-        val allowedAuthenticators = authenticatorFlagsForKey(masterKey)
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.ENCRYPT_MODE, masterKey)
-        cipher.updateAAD(wrapAad)
-        return SrukryptUnlockChallenge(
-            cipher,
-            true,
-            dataKey.copyOf(),
-            null,
-            allowedAuthenticators,
-            REPAIRED_MASTER_ALIAS_ID,
-            REPAIRED_WRAPPED_KEY_FILE
-        )
     }
 
     private fun activeMasterAlias(context: Context): String {
@@ -523,6 +478,9 @@ object SrukryptVault {
             .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
             .setRandomizedEncryptionRequired(true)
             .setUserAuthenticationRequired(true)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            builder.setUnlockedDeviceRequired(true)
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             builder.setUserAuthenticationParameters(
