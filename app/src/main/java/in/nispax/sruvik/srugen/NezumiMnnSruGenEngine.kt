@@ -189,10 +189,15 @@ class NezumiMnnSruGenEngine(
                 }
 
                 onProgress(5, if (editing) "Preparing image-to-image inference · CPU-safe mode" else "Loading $displayName · CPU-safe mode")
+                val diffusionPrompt = if (editing) {
+                    "Faithful photorealistic edit of the supplied original photo. Keep the same person, identity, face, hair, expression, pose, camera framing, background and lighting. Change only the visible clothing as requested: ${request.prompt}. Preserve every non-clothing detail."
+                } else {
+                    request.prompt
+                }
                 packed = MnnSdNative.generate(
                     handle = currentHandle,
-                    prompt = request.prompt,
-                    negativePrompt = "low quality, blurry, deformed, distorted, changed face, changed pose, changed background, watermark",
+                    prompt = diffusionPrompt,
+                    negativePrompt = "low quality, blurry, deformed, distorted, different person, changed identity, changed face, changed hair, changed expression, changed pose, changed camera, changed background, watermark",
                     width = generationWidth,
                     height = generationHeight,
                     steps = 20,
