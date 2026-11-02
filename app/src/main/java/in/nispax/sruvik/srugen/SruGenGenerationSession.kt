@@ -1,6 +1,7 @@
 package `in`.nispax.sruvik.srugen
 
 import android.content.Context
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -10,7 +11,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 
-enum class SruGenGenerationStatus { IDLE, RUNNING, COMPLETED, FAILED }
+enum class SruGenGenerationStatus { IDLE, RUNNING, COMPLETED, CANCELLED, FAILED }
 
 data class SruGenGenerationState(
     val status: SruGenGenerationStatus = SruGenGenerationStatus.IDLE,
@@ -36,15 +37,19 @@ object SruGenGenerationSession {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val mutableState = MutableStateFlow(SruGenGenerationState())
     val state = mutableState.asStateFlow()
+    @Volatile private var cancelRequested = false
 
     @Synchronized
     fun start(
         context: Context,
         chatWithPrompt: SruGenChat,
         generationPrompt: String,
-        modelId: String
+        modelId: String,
+        mode: SruGenMode = SruGenMode.TEXT_TO_IMAGE,
+        sourceAttachmentId: String? = null
     ): Boolean {
         if (mutableState.value.status == SruGenGenerationStatus.RUNNING) return false
+        cancelRequested = false
         val appContext = context.applicationContext
         mutableState.value = SruGenGenerationState(
             status = SruGenGenerationStatus.RUNNING,
@@ -55,6 +60,7 @@ object SruGenGenerationSession {
 
         scope.launch {
             var resultBytes: ByteArray? = null
+            var sourceImageBytes: ByteArray? = null
             try {
                 withContext(Dispatchers.IO) {
                     SruGenChatStore.upsertChat(appContext, chatWithPrompt)
@@ -62,42 +68,83 @@ object SruGenGenerationSession {
                 mutableState.update {
                     it.copy(progressLabel = "Loading the on-device model", updatedAt = System.currentTimeMillis())
                 }
-                val result = withContext(Dispatchers.Default) {
-                    val engine = SruGenEngineRegistry.getOrCreate {
-                        SruGenEngineFactory.create(appContext, modelId)
-                    }
-                    engine.generate(
-                        SruGenRequest(
-                            mode = SruGenMode.TEXT_TO_IMAGE,
-                            prompt = generationPrompt,
-                            style = "Cinematic",
-                            aspectRatio = "1:1",
-                            sourceImage = null
-                        )
-                    ) { value, label ->
-                        mutableState.update {
-                            it.copy(
-                                progress = value.coerceIn(0, 100),
-                                progressLabel = label,
-                                updatedAt = System.currentTimeMillis()
-                            )
-                        }
+                if (mode != SruGenMode.TEXT_TO_IMAGE) {
+                    val attachmentId = sourceAttachmentId
+                        ?: throw IllegalArgumentException("Attach an image before starting this workflow.")
+                    sourceImageBytes = withContext(Dispatchers.IO) {
+                        SruGenChatStore.readAttachment(appContext, attachmentId)
                     }
                 }
+                val progressCallback: (Int, String) -> Unit = { value, label ->
+                    if (cancelRequested) SruGenEngineRegistry.engine?.requestStop()
+                    mutableState.update {
+                        it.copy(
+                            progress = value.coerceIn(0, 100),
+                            progressLabel = label,
+                            updatedAt = System.currentTimeMillis()
+                        )
+                    }
+                }
+                val result = if (mode == SruGenMode.REMOVE_BACKGROUND) {
+                    withContext(Dispatchers.IO) {
+                        if (cancelRequested) throw CancellationException("Generation stopped by you.")
+                        progressCallback(12, "Detecting subject and background locally")
+                        val bytes = SruGenAutoMasker.removeBackground(
+                            appContext,
+                            requireNotNull(sourceImageBytes)
+                        )
+                        progressCallback(94, "Finishing transparent PNG")
+                        SruGenResult(
+                            imageBytes = bytes,
+                            mimeType = "image/png",
+                            modelName = "MediaPipe SelfieMulticlass · Background removal"
+                        )
+                    }
+                } else {
+                    withContext(Dispatchers.Default) {
+                        val engine = SruGenEngineRegistry.getOrCreate {
+                            SruGenEngineFactory.create(appContext, modelId)
+                        }
+                        if (cancelRequested) {
+                            engine.requestStop()
+                            throw CancellationException("Generation stopped by you.")
+                        }
+                        engine.generate(
+                            SruGenRequest(
+                                mode = mode,
+                                prompt = generationPrompt,
+                                style = "Cinematic",
+                                aspectRatio = "1:1",
+                                sourceImage = sourceImageBytes
+                            ),
+                            progressCallback
+                        )
+                    }
+                }
+                if (cancelRequested) throw CancellationException("Generation stopped by you.")
                 resultBytes = result.imageBytes
                 val attachmentId = withContext(Dispatchers.IO) {
                     val id = SruGenChatStore.saveAttachment(appContext, result.imageBytes, result.mimeType)
-                    SruGenChatStore.appendMessage(
-                        appContext,
-                        chatWithPrompt.id,
-                        SruGenMessage(
-                            role = "assistant",
-                            text = "Generated locally on this device. No prompt or image was uploaded.",
-                            attachmentId = id,
-                            attachmentMime = result.mimeType,
-                            modelName = result.modelName
+                    try {
+                        if (cancelRequested) {
+                            throw CancellationException("Generation stopped before the image was committed.")
+                        }
+                        SruGenChatStore.appendMessage(
+                            appContext,
+                            chatWithPrompt.id,
+                            SruGenMessage(
+                                role = "assistant",
+                                text = "Generated locally on this device. Saved in this encrypted SruGen conversation only—not in Srukrypt or the device gallery until you choose a save action.",
+                                attachmentId = id,
+                                attachmentMime = result.mimeType,
+                                modelName = result.modelName
+                            )
                         )
-                    )
+                    } catch (failure: Exception) {
+                        // Avoid leaving an unreferenced encrypted image if chat commit fails.
+                        SruGenChatStore.deleteAttachment(appContext, id)
+                        throw failure
+                    }
                     id
                 }
                 mutableState.value = SruGenGenerationState(
@@ -105,7 +152,7 @@ object SruGenGenerationSession {
                     chatId = chatWithPrompt.id,
                     progress = 100,
                     progressLabel = "Complete",
-                    message = "Your image is saved in this encrypted conversation.",
+                    message = "Your image is saved in the encrypted SruGen conversation only. Use the image card to save a copy to your device or import it into Srukrypt.",
                     updatedAt = System.currentTimeMillis()
                 )
                 android.util.Log.i("SruGen", "Generation completed and encrypted attachment $attachmentId was committed.")
@@ -127,17 +174,61 @@ object SruGenGenerationSession {
                     "Android ran out of memory during image generation. Sruvik stopped the failed engine. Close other apps before retrying; this is a safety limit, not a guarantee against system-level process termination."
                 )
             } catch (failure: Exception) {
-                android.util.Log.e("SruGen", "Local image generation failed.", failure)
-                recordFailure(
-                    appContext,
-                    chatWithPrompt.id,
-                    failure.message ?: "Local image generation failed. Your prompt remains saved in encrypted chat history."
-                )
+                if (cancelRequested || failure is CancellationException) {
+                    android.util.Log.i("SruGen", "Local image generation was stopped by the user.")
+                    recordCancelled(appContext, chatWithPrompt.id)
+                } else {
+                    android.util.Log.e("SruGen", "Local image generation failed.", failure)
+                    recordFailure(
+                        appContext,
+                        chatWithPrompt.id,
+                        failure.message ?: "Local image generation failed. Your prompt remains saved in encrypted chat history."
+                    )
+                }
             } finally {
                 resultBytes?.fill(0)
+                sourceImageBytes?.fill(0)
             }
         }
         return true
+    }
+
+    /**
+     * Requests cooperative cancellation. Native inference stops at the next
+     * engine checkpoint; we do not interrupt JNI from an arbitrary thread.
+     */
+    @Synchronized
+    fun cancel(): Boolean {
+        if (mutableState.value.status != SruGenGenerationStatus.RUNNING) return false
+        cancelRequested = true
+        mutableState.update {
+            it.copy(
+                progressLabel = "Stopping at the next safe checkpoint…",
+                updatedAt = System.currentTimeMillis()
+            )
+        }
+        SruGenEngineRegistry.engine?.requestStop()
+        return true
+    }
+
+    private suspend fun recordCancelled(context: Context, chatId: String) {
+        val message = "Generation stopped by you. Your prompt remains saved in the encrypted conversation; no completed image was added."
+        val stored = runCatching {
+            withContext(Dispatchers.IO) {
+                SruGenChatStore.appendMessage(
+                    context,
+                    chatId,
+                    SruGenMessage(role = "assistant", text = message)
+                )
+            }
+        }.isSuccess
+        mutableState.value = SruGenGenerationState(
+            status = SruGenGenerationStatus.CANCELLED,
+            chatId = chatId,
+            progressLabel = "Stopped",
+            message = if (stored) message else "$message (The stop message could not be saved.)",
+            updatedAt = System.currentTimeMillis()
+        )
     }
 
     private suspend fun recordFailure(context: Context, chatId: String, message: String) {

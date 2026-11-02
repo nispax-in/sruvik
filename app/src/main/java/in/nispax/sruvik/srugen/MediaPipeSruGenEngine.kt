@@ -60,6 +60,7 @@ class MediaPipeSruGenEngine(
         onProgress: (Int, String) -> Unit
     ): SruGenResult = withContext(Dispatchers.Default) {
         inferenceLock.withLock {
+        stopRequested = false
         check(!closed) { "The local SruGen engine was released. Reopen SruGen to initialize it again." }
         require(request.mode == SruGenMode.TEXT_TO_IMAGE) {
             when (request.mode) {

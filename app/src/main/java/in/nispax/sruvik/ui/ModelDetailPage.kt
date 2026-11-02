@@ -268,7 +268,7 @@ fun ModelDetailPage(
                 }
             }
             Spacer(Modifier.weight(1f))
-            if (active) ModelStatusChip("ACTIVE", Color(0xFFE98261))
+            if (active) ModelStatusChip("ACTIVE", SruvikColors.Primary)
             else if (installed) ModelStatusChip("INSTALLED", SruvikColors.Lime)
         }
 
@@ -276,7 +276,7 @@ fun ModelDetailPage(
             Modifier.fillMaxWidth().height(184.dp)
                 .background(
                     Brush.linearGradient(
-                        listOf(Color(0xFF292929), Color(0xFF202020), Color(0xFF151515))
+                        listOf(SruvikColors.SurfaceElevated, SruvikColors.Surface, SruvikColors.Background)
                     ),
                     RoundedCornerShape(25.dp)
                 )
@@ -301,7 +301,7 @@ fun ModelDetailPage(
             border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .08f))
         ) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("“${actualModel.lore}”", color = Color(0xFFEAE6E2),
+                Text("“${actualModel.lore}”", color = SruvikColors.TextPrimary,
                     style = MaterialTheme.typography.titleMedium, lineHeight = 24.sp)
                 Text(actualModel.description, color = SruvikColors.TextSecondary,
                     style = MaterialTheme.typography.bodyMedium, lineHeight = 21.sp)
@@ -367,9 +367,9 @@ fun ModelDetailPage(
                 border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .08f))
             ) {
                 Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Icon(Icons.Rounded.Info, null, tint = Color(0xFFF0B58F))
+                    Icon(Icons.Rounded.Info, null, tint = SruvikColors.SecondaryAccent)
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Not ready for installation", color = Color(0xFFF0B58F), fontWeight = FontWeight.SemiBold)
+                        Text("Not ready for installation", color = SruvikColors.SecondaryAccent, fontWeight = FontWeight.SemiBold)
                         Text(
                             when (actualModel.availability) {
                                 SruGenGalleryAvailability.PACK_VERIFICATION_PENDING -> "The package or model manifest is still being verified."
@@ -403,8 +403,8 @@ fun ModelDetailPage(
         ) {
             Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Icon(Icons.Rounded.Security, null, tint = Color(0xFFF0B58F))
-                    Text("Third-party model warning", color = Color(0xFFF0B58F), fontWeight = FontWeight.SemiBold)
+                    Icon(Icons.Rounded.Security, null, tint = SruvikColors.SecondaryAccent)
+                    Text("Third-party model warning", color = SruvikColors.SecondaryAccent, fontWeight = FontWeight.SemiBold)
                 }
                 Text(
                     "Sruvik's device screening is a best-effort compatibility check, not a guarantee that a model is safe, stable, accurate or suitable for every use. Third-party model weights can behave unexpectedly. You choose to install and run them at your own discretion, and are responsible for reviewing and complying with the source licence. Sruvik and its publisher do not warrant third-party models or accept responsibility for model behaviour, output, device instability, data loss or damage, to the extent permitted by applicable law.",
@@ -500,7 +500,7 @@ fun ModelDetailPage(
                 enabled = canSelectActive && !active && downloadId < 0L && !installing,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE98261), contentColor = Color.White)
+                colors = ButtonDefaults.buttonColors(containerColor = SruvikColors.Primary, contentColor = Color.White)
             ) {
                 Icon(Icons.Rounded.CheckCircle, null)
                 Spacer(Modifier.width(8.dp))
@@ -614,9 +614,9 @@ private fun DeviceAssessmentCard(allowed: Boolean, heading: String, reasons: Lis
                 Icon(
                     if (allowed) Icons.Rounded.CheckCircle else Icons.Rounded.Info,
                     null,
-                    tint = if (allowed) Color(0xFFE98261) else Color(0xFFF0B58F)
+                    tint = if (allowed) SruvikColors.Primary else SruvikColors.SecondaryAccent
                 )
-                Text(heading, color = if (allowed) Color(0xFFE98261) else Color(0xFFF0B58F),
+                Text(heading, color = if (allowed) SruvikColors.Primary else SruvikColors.SecondaryAccent,
                     fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
             }
             reasons.forEach { reason ->

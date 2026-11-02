@@ -2,12 +2,18 @@ package `in`.nispax.sruvik.ui
 
 import android.app.ActivityManager
 import android.app.DownloadManager
+import android.Manifest
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
 import android.net.Uri
+import android.os.Build
 import android.os.Debug
 import android.os.Process
+import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
@@ -66,9 +72,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.cos
+import kotlin.math.min
+import kotlin.math.roundToInt
 import kotlin.math.sin
+import kotlin.math.sqrt
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileInputStream
+import java.io.IOException
+import java.io.InputStream
 
 private data class SruGenResourceStats(
     val cpu: Float = 0f,
@@ -77,8 +89,20 @@ private data class SruGenResourceStats(
     val available: Int = 0
 )
 
+private data class PendingSruGenRequest(
+    val chat: SruGenChat,
+    val generationPrompt: String,
+    val modelId: String,
+    val mode: SruGenMode,
+    val sourceAttachmentId: String?
+)
+
 @Composable
-fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
+fun SruGenPage(
+    memoryEnabled: Boolean,
+    onOpenModels: () -> Unit,
+    onOpenVault: () -> Unit
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var chats by remember { mutableStateOf<List<SruGenChat>>(emptyList()) }
@@ -87,12 +111,18 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
     var prompt by remember { mutableStateOf("") }
     var mode by remember { mutableStateOf(SruGenMode.TEXT_TO_IMAGE) }
     var selectedImage by remember { mutableStateOf<String?>(null) }
+    var importingImage by remember { mutableStateOf(false) }
+    var attachMenuExpanded by remember { mutableStateOf(false) }
     var thumbnails by remember { mutableStateOf<Map<String, Bitmap>>(emptyMap()) }
     var generating by remember { mutableStateOf(false) }
     var progress by remember { mutableIntStateOf(0) }
     var progressLabel by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
     var info by remember { mutableStateOf("") }
+    var viewingImage by remember { mutableStateOf<Pair<Bitmap, String>?>(null) }
+    var loadingViewerImage by remember { mutableStateOf(false) }
+    var pendingGeneration by remember { mutableStateOf<PendingSruGenRequest?>(null) }
+    var pendingGallerySave by remember { mutableStateOf<Pair<String, String>?>(null) }
     var modelReady by remember { mutableStateOf(false) }
     var activeModelId by remember { mutableStateOf(SruGenActiveModelStore.activeModelId(context)) }
     val activeModel = remember(activeModelId) { SruGenGalleryCatalog.find(activeModelId) }
@@ -102,6 +132,10 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
     var installMessage by remember { mutableStateOf("") }
     var showInstallDialog by remember { mutableStateOf(false) }
     var historyOpen by remember { mutableStateOf(false) }
+    // Reopening this destination after a tab switch should follow an in-flight
+    // generation until its chat is restored. Explicit history/new-chat navigation
+    // opts out so the user is never forcibly pulled away from another conversation.
+    var followGenerationChat by remember { mutableStateOf(true) }
     var renameTarget by remember { mutableStateOf<SruGenChat?>(null) }
     var renameText by remember { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<SruGenChat?>(null) }
@@ -138,6 +172,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
     }
 
     fun newChat() {
+        followGenerationChat = false
         // Start a volatile draft. It only enters encrypted history after the first user message.
         val draft = SruGenChat(title = "New chat")
         draftChat = draft
@@ -249,6 +284,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                 generationState.status in setOf(
                     SruGenGenerationStatus.RUNNING,
                     SruGenGenerationStatus.COMPLETED,
+                    SruGenGenerationStatus.CANCELLED,
                     SruGenGenerationStatus.FAILED
                 ) && chats.any { it.id == id }
             }
@@ -261,20 +297,48 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
         downloadId = SruGenModelInstaller.savedDownloadId(context)
     }
 
-    LaunchedEffect(generationState.status, generationState.chatId, generationState.updatedAt, activeId) {
-        generating = generationState.status == SruGenGenerationStatus.RUNNING && generationState.chatId == activeId
+    LaunchedEffect(
+        generationState.status,
+        generationState.chatId,
+        generationState.updatedAt,
+        activeId,
+        followGenerationChat
+    ) {
+        val generationChatId = generationState.chatId
+        generating = generationState.status == SruGenGenerationStatus.RUNNING &&
+            generationChatId == activeId
         if (generating) {
             progress = generationState.progress
             progressLabel = generationState.progressLabel
         }
-        if (generationState.status == SruGenGenerationStatus.COMPLETED ||
-            generationState.status == SruGenGenerationStatus.FAILED
-        ) {
-            progress = 0
-            progressLabel = ""
-            chats = withContext(Dispatchers.IO) { SruGenChatStore.loadChats(context) }
-            if (generationState.chatId == activeId) info = generationState.message
-            generating = false
+
+        // The session writes the prompt asynchronously before model loading. If
+        // the user returns to SruGen during that small window, the first history
+        // read can legitimately be empty. Re-read when the app-scoped session
+        // advances and attach the restored screen to the owning conversation.
+        val shouldRefreshRunningChat =
+            generationState.status == SruGenGenerationStatus.RUNNING &&
+                followGenerationChat &&
+                !generationChatId.isNullOrBlank() &&
+                activeId != generationChatId
+        val generationFinished =
+            generationState.status == SruGenGenerationStatus.COMPLETED ||
+                generationState.status == SruGenGenerationStatus.CANCELLED ||
+                generationState.status == SruGenGenerationStatus.FAILED
+        if (shouldRefreshRunningChat || generationFinished) {
+            val refreshed = withContext(Dispatchers.IO) { SruGenChatStore.loadChats(context) }
+            chats = refreshed
+            if (followGenerationChat && !generationChatId.isNullOrBlank() &&
+                refreshed.any { it.id == generationChatId }
+            ) {
+                activeId = generationChatId
+            }
+            if (generationFinished) {
+                progress = 0
+                progressLabel = ""
+                if (generationChatId == activeId) info = generationState.message
+                generating = false
+            }
         }
     }
     LaunchedEffect(downloadId) {
@@ -335,9 +399,12 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
     }
 
     val generationInFlight = rememberUpdatedState(generating)
+    val latestThumbnails = rememberUpdatedState(thumbnails)
+    val latestViewerImage = rememberUpdatedState(viewingImage)
     DisposableEffect(Unit) {
         onDispose {
-            thumbnails.values.forEach { if (!it.isRecycled) it.recycle() }
+            latestViewerImage.value?.first?.let { if (!it.isRecycled) it.recycle() }
+            latestThumbnails.value.values.forEach { if (!it.isRecycled) it.recycle() }
             // Keep an active inference alive if navigation disposes this screen.
             // Otherwise detach before async close so a later visit cannot reuse
             // an engine instance whose native task has already been released.
@@ -354,80 +421,110 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
         }
     }
 
-    fun importReferenceImage(uri: Uri) {
+    fun openAttachmentImage(attachmentId: String) {
+        if (loadingViewerImage || viewingImage != null) return
+        loadingViewerImage = true
         scope.launch {
             try {
-                val bytes = withContext(Dispatchers.IO) {
-                    context.contentResolver.openInputStream(uri)?.use { input ->
-                        val output = ByteArrayOutputStream()
-                        val buffer = ByteArray(16 * 1024)
-                        var countTotal = 0
-                        while (true) {
-                            val count = input.read(buffer)
-                            if (count < 0) break
-                            countTotal += count
-                            require(countTotal <= 24 * 1024 * 1024) { "Choose an image smaller than 24 MB." }
-                            output.write(buffer, 0, count)
-                        }
-                        output.toByteArray()
-                    } ?: error("SruGen couldn't read that image.")
+                val fullBitmap = withContext(Dispatchers.IO) {
+                    val bytes = SruGenChatStore.readAttachment(context, attachmentId)
+                    try {
+                        decodeSruvikViewerBitmap(bytes)
+                    } finally {
+                        bytes.fill(0)
+                    }
                 }
-                try {
-                    val bitmap = withContext(Dispatchers.Default) {
-                        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-                        require(bounds.outWidth > 0 && bounds.outHeight > 0) { "This image format cannot be previewed." }
-                        var sample = 1
-                        while (
-                            bounds.outWidth / sample > 2048 ||
-                            bounds.outHeight / sample > 2048 ||
-                            (bounds.outWidth.toLong() / sample) * (bounds.outHeight.toLong() / sample) > 3000000L
-                        ) sample *= 2
-                        BitmapFactory.decodeByteArray(
-                            bytes, 0, bytes.size,
-                            BitmapFactory.Options().apply {
-                                inSampleSize = sample
-                                inPreferredConfig = Bitmap.Config.RGB_565
-                            }
-                        ) ?: error("This image format cannot be previewed.")
-                    }
-                    val id = withContext(Dispatchers.IO) {
-                        SruGenChatStore.saveAttachment(
-                            context, bytes, context.contentResolver.getType(uri) ?: "image/jpeg"
-                        )
-                    }
-                    selectedImage?.let { old ->
-                        SruGenChatStore.deleteAttachment(context, old)
-                        thumbnails[old]?.takeIf { !it.isRecycled }?.recycle()
-                        thumbnails = thumbnails - old
-                    }
-                    thumbnails = thumbnails + (id to bitmap)
-                    selectedImage = id
-                    info = "Image attached and encrypted in local chat storage."
-                    error = ""
-                } finally {
-                    bytes.fill(0)
-                }
-            } catch (failure: OutOfMemoryError) {
-                error = "This image is too large to preview safely. Choose a smaller photo."
+                if (fullBitmap == null) error = "This private image could not be decoded."
+                else viewingImage = fullBitmap to "SruGen image"
             } catch (failure: Exception) {
-                error = failure.message ?: "Unable to attach image."
+                error = failure.message ?: "Unable to open this private image."
+            } finally {
+                loadingViewerImage = false
             }
         }
     }
 
-    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
-        if (uri != null) importReferenceImage(uri)
+    fun importReferenceImage(uri: Uri) {
+        if (importingImage) return
+        importingImage = true
+        attachMenuExpanded = false
+        error = ""
+        info = "Reading and encrypting selected image…"
+        // Photo Picker and OpenDocument provide item-scoped grants. Keep the
+        // grant when the provider allows it, but never request whole-library access.
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(
+                uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        }
+        scope.launch {
+            var bytes: ByteArray? = null
+            var preview: Bitmap? = null
+            try {
+                val imported = withContext(Dispatchers.IO) { readSruGenImage(context, uri) }
+                bytes = imported.first
+                val mimeType = imported.second
+                preview = withContext(Dispatchers.Default) {
+                    decodeSruGenImagePreview(context, uri, imported.first)
+                }
+                val id = withContext(Dispatchers.IO) {
+                    SruGenChatStore.saveAttachment(context, imported.first, mimeType)
+                }
+                selectedImage?.let { old ->
+                    SruGenChatStore.deleteAttachment(context, old)
+                    thumbnails[old]?.takeIf { !it.isRecycled }?.recycle()
+                    thumbnails = thumbnails - old
+                }
+                thumbnails = thumbnails + (id to requireNotNull(preview))
+                preview = null // Ownership moved into Compose state.
+                selectedImage = id
+                info = "Image attached and encrypted in this local conversation."
+                error = ""
+            } catch (failure: OutOfMemoryError) {
+                error = "This image is too large to preview safely. Choose a smaller photo."
+                info = ""
+            } catch (failure: Exception) {
+                android.util.Log.e("SruGen", "Reference image import failed for $uri.", failure)
+                error = failure.message ?: "Unable to attach image. Try Browse files or save a copy on this device."
+                info = ""
+            } finally {
+                bytes?.fill(0)
+                preview?.takeUnless { it.isRecycled }?.recycle()
+                importingImage = false
+            }
+        }
     }
-    val imageFilePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+
+    val imagePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
         if (uri != null) importReferenceImage(uri)
+        else if (!importingImage) info = "No photo selected."
+    }
+    val imageFilePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) importReferenceImage(uri)
+        else if (!importingImage) info = "No file selected."
     }
     fun launchImagePicker() {
+        if (importingImage || generating) return
         try {
             imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
         } catch (pickerError: Exception) {
-            runCatching { imageFilePicker.launch(arrayOf("image/*")) }
-                .onFailure { fallbackError -> error = "Unable to open image picker: ${fallbackError.message ?: pickerError.message ?: "unknown error"}" }
+            try {
+                imageFilePicker.launch(arrayOf("image/*"))
+            } catch (fallbackError: Exception) {
+                error = "Unable to open Photo library or Files: ${fallbackError.message ?: pickerError.message ?: "unknown error"}"
+            }
+        }
+    }
+    fun launchImageFilePicker() {
+        if (importingImage || generating) return
+        try {
+            imageFilePicker.launch(arrayOf("image/*"))
+        } catch (failure: Exception) {
+            error = "Unable to open Files: ${failure.message ?: "unknown error"}"
         }
     }
     val modelPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -440,11 +537,132 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
         }
     }
 
+
+    fun startGeneration(request: PendingSruGenRequest) {
+        try {
+            SruGenGenerationService.start(
+                context,
+                request.chat,
+                request.generationPrompt,
+                request.modelId,
+                request.mode,
+                request.sourceAttachmentId
+            )
+            generating = true
+            progress = 0
+            progressLabel = if (request.mode == SruGenMode.PROMPT_EDIT) "Preparing automatic image edit"
+                else if (request.mode == SruGenMode.REMOVE_BACKGROUND) "Preparing subject mask"
+                else "Preparing local model"
+            error = ""
+            info = "Processing is running on this device. Stop it here or from its notification."
+        } catch (failure: Exception) {
+            generating = false
+            error = failure.message ?: "Unable to start SruGen."
+            info = ""
+        }
+    }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val request = pendingGeneration
+        pendingGeneration = null
+        if (request != null) {
+            startGeneration(request)
+            if (!granted) {
+                info = "Notifications are disabled. Processing continues in Sruvik; the in-app Stop control remains available."
+            }
+        }
+    }
+
+    fun startGenerationWithNotificationPermission(
+        chat: SruGenChat,
+        generationPrompt: String,
+        modelId: String,
+        requestMode: SruGenMode = SruGenMode.TEXT_TO_IMAGE,
+        sourceAttachmentId: String? = null
+    ) {
+        val request = PendingSruGenRequest(chat, generationPrompt, modelId, requestMode, sourceAttachmentId)
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            pendingGeneration = request
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            startGeneration(request)
+        }
+    }
+
+    fun saveAttachmentToDeviceNow(attachmentId: String, mimeType: String) {
+        scope.launch {
+            var imageBytes: ByteArray? = null
+            error = ""
+            info = "Saving to Pictures/Sruvik…"
+            try {
+                val savedUri = withContext(Dispatchers.IO) {
+                    imageBytes = SruGenChatStore.readAttachment(context, attachmentId)
+                    SruGenImageGallery.saveToPictures(
+                        context,
+                        requireNotNull(imageBytes),
+                        mimeType
+                    )
+                }
+                info = "Saved to Pictures/Sruvik. Open Gallery or Photos to view it."
+                android.util.Log.i("SruGen", "Image exported to Gallery: $savedUri")
+            } catch (failure: Exception) {
+                android.util.Log.e("SruGen", "Gallery export failed for $attachmentId.", failure)
+                error = failure.message ?: "Unable to save this image to your device."
+                info = ""
+            } finally {
+                imageBytes?.fill(0)
+            }
+        }
+    }
+
+    val legacyGalleryPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val pending = pendingGallerySave
+        pendingGallerySave = null
+        if (pending != null) {
+            if (granted) {
+                saveAttachmentToDeviceNow(pending.first, pending.second)
+            } else {
+                error = "Storage permission was denied. Allow it to save a copy into Pictures/Sruvik."
+            }
+        }
+    }
+
+    fun saveAttachmentToDevice(attachmentId: String, mimeType: String) {
+        if (
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+            context.checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
+        ) {
+            pendingGallerySave = attachmentId to mimeType
+            legacyGalleryPermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        } else {
+            saveAttachmentToDeviceNow(attachmentId, mimeType)
+        }
+    }
+
+    fun saveAttachmentToSrukrypt(attachmentId: String, mimeType: String) {
+        SruGenVaultImportQueue.enqueue(
+            SruGenVaultImportRequest(attachmentId, mimeType, "SruGen image")
+        )
+        error = ""
+        info = "Ready to import. Unlock Srukrypt to save this image into your private vault."
+        onOpenVault()
+    }
+
     fun sendMessage() {
         val chat = chats.firstOrNull { it.id == activeId }
             ?: draftChat.takeIf { it.id == activeId }
             ?: return
-        val text = prompt.trim()
+        val rawText = prompt.trim()
+        val text = if (mode == SruGenMode.REMOVE_BACKGROUND && rawText.isBlank()) {
+            "Remove the background and keep the visible subject."
+        } else rawText
         val attachment = selectedImage
         if (text.isBlank() && attachment == null || generating) return
         val userMessage = SruGenMessage(role = "user", text = text, attachmentId = attachment,
@@ -468,7 +686,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                 "good morning", "good afternoon", "good evening" ->
                     "Hey! I'm here. SruGen creates images locally with your selected model, ${activeModel?.name ?: "installed image model"}. General conversation needs a separate language model."
                 "help", "what can you do", "what can you do here" ->
-                    "I can create images locally with ${activeModel?.name ?: "your installed image model"}. Reference-image editing, background removal and object erasing are not available yet."
+                    "I can create images locally, automatically edit clothing in a compatible model, and remove photo backgrounds. Object-specific removal is not enabled yet."
                 else -> null
             }
         } else null
@@ -479,7 +697,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
             return
         }
 
-        if (text.isBlank() && attachment != null) {
+        if (text.isBlank() && attachment != null && mode == SruGenMode.TEXT_TO_IMAGE) {
             persist(updatedChat.copy(
                 messages = updatedChat.messages + SruGenMessage(
                     role = "assistant",
@@ -509,17 +727,32 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
             return
         }
 
-        if (mode != SruGenMode.TEXT_TO_IMAGE) {
-            val unavailable = when (mode) {
-                SruGenMode.PROMPT_EDIT -> "Reference-image editing is not available in this build. Your original image remains safely attached to this encrypted conversation."
-                SruGenMode.REMOVE_BACKGROUND -> "Background removal requires a separate on-device segmentation model. It is not installed yet."
-                SruGenMode.REMOVE_OBJECT -> "Object removal requires an inpainting model and selection mask. It is not enabled yet."
-                else -> "This workflow is unavailable."
-            }
-            persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(role = "assistant", text = unavailable)))
+        if (mode == SruGenMode.PROMPT_EDIT && text.isBlank()) {
+            persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
+                role = "assistant",
+                text = "Describe the clothing change you want, for example: change the shirt to black. Your original image remains attached in this encrypted chat."
+            )))
             return
         }
-        if (!modelReady) {
+        if (mode == SruGenMode.REMOVE_OBJECT) {
+            persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
+                role = "assistant",
+                text = "Automatic object removal is not enabled yet. This build has no reliable object-specific segmentation or dedicated inpainting model, so it will not guess at an object or modify your photo."
+            )))
+            return
+        }
+        if (mode == SruGenMode.PROMPT_EDIT) {
+            val compatibleModel = activeModel?.engine == SruGenGalleryEngine.NEZUMI_MNN_SD15 &&
+                SruGenModelPackInstaller.hasImg2ImgEncoder(context, activeModelId)
+            if (!modelReady || !compatibleModel) {
+                persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
+                    role = "assistant",
+                    text = "Automatic clothing edits need an installed Nezumi SD 1.5 model pack with its VAE encoder. Choose a compatible MNN model in Models; your source image remains encrypted in this chat."
+                )))
+                return
+            }
+        }
+        if (mode == SruGenMode.TEXT_TO_IMAGE && !modelReady) {
             persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
                 role = "assistant",
                 text = "Your prompt and image remain saved in this encrypted chat. The selected model is not installed yet. Open Models to install a compatible model before generating."
@@ -531,36 +764,36 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
         val generationPrompt = if (remembered.isBlank()) text else
             "Use the recent creative context only for style continuity. Follow the current prompt first.\nRecent creative context:\n$remembered\n\nCurrent prompt: $text"
 
-        generating = SruGenGenerationSession.start(
-            context = context,
-            chatWithPrompt = updatedChat,
-            generationPrompt = generationPrompt,
-            modelId = activeModelId
-        )
-        progress = 0
-        progressLabel = "Preparing local model"
-        if (!generating) {
+        if (pendingGeneration != null || generationState.status == SruGenGenerationStatus.RUNNING) {
             persist(updatedChat.copy(
                 messages = updatedChat.messages + SruGenMessage(
                     role = "assistant",
                     text = "Another image is already being generated. Please wait for it to finish."
                 )
             ))
+            return
         }
+        startGenerationWithNotificationPermission(
+            updatedChat,
+            generationPrompt,
+            activeModelId,
+            mode,
+            attachment
+        )
     }
-    val studioInk = Color(0xFF0D0D0D)
-    val studioPanel = Color(0xFF202020)
-    val studioRaised = Color(0xFF2D2D2D)
-    val studioAccent = Color(0xFFE47F5D)
-    val studioText = Color(0xFFF4F2EF)
-    val studioSecondary = Color(0xFFBDB9B5)
+    val studioInk = SruvikColors.Background
+    val studioPanel = SruvikColors.Surface
+    val studioRaised = SruvikColors.SurfaceSoft
+    val studioAccent = SruvikColors.Primary
+    val studioText = SruvikColors.TextPrimary
+    val studioSecondary = SruvikColors.TextSecondary
 
     Box(Modifier.fillMaxSize().background(studioInk)) {
         Column(
             Modifier.fillMaxSize()
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .padding(horizontal = 18.dp)
-                .padding(top = 10.dp, bottom = 104.dp)
+                .padding(top = 8.dp, bottom = 90.dp)
                 .imePadding()
         ) {
             Row(
@@ -578,9 +811,9 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                     "SruGen",
                     modifier = Modifier.weight(1f),
                     color = studioText,
-                    style = MaterialTheme.typography.displayMedium.copy(
-                        fontSize = 36.sp,
-                        lineHeight = 42.sp,
+                    style = MaterialTheme.typography.headlineLarge.copy(
+                        fontSize = 29.sp,
+                        lineHeight = 34.sp,
                         fontWeight = FontWeight.SemiBold,
                         letterSpacing = (-1.2).sp
                     )
@@ -597,7 +830,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = studioAccent,
-                        contentColor = Color(0xFF1A100D)
+                        contentColor = SruvikColors.OnPrimary
                     ),
                     contentPadding = PaddingValues(horizontal = 15.dp)
                 ) {
@@ -608,6 +841,70 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
             }
 
             Spacer(Modifier.height(8.dp))
+
+            // Keep model choice out of the prompt composer. A full-width status
+            // row gives it a stable place below the title instead of squeezing
+            // it between the attachment and send controls.
+            SruGenGlassPanel(
+                modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenModels),
+                shape = RoundedCornerShape(18.dp),
+                fill = Brush.linearGradient(
+                    listOf(Color(0xCC29264D), Color(0xCC1B2440))
+                )
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
+                            .background(studioAccent.copy(alpha = .15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Rounded.AutoAwesome,
+                            contentDescription = null,
+                            tint = studioAccent,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    Column(
+                        Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Text(
+                            "ACTIVE MODEL",
+                            color = studioSecondary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.1.sp
+                        )
+                        Text(
+                            activeModel?.name ?: "Choose a model",
+                            color = studioText,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1
+                        )
+                        Text(
+                            if (modelReady) "Ready on this device · Local inference"
+                            else "Open the model library to install or select one",
+                            color = studioSecondary,
+                            fontSize = 12.sp,
+                            maxLines = 2
+                        )
+                    }
+                    Icon(
+                        Icons.Rounded.ChevronRight,
+                        contentDescription = "Open model library",
+                        tint = studioSecondary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(4.dp))
 
             AnimatedVisibility(
                 visible = monitorExpanded,
@@ -714,7 +1011,13 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                         }
                     }
                     items(chat.messages, key = { it.id }) { message ->
-                        SruGenMessageBubble(message, message.attachmentId?.let { thumbnails[it] })
+                        SruGenMessageBubble(
+                            message = message,
+                            image = message.attachmentId?.let { thumbnails[it] },
+                            onSaveToDevice = ::saveAttachmentToDevice,
+                            onSaveToVault = ::saveAttachmentToSrukrypt,
+                            onViewImage = ::openAttachmentImage
+                        )
                     }
                     if (generating) {
                         item {
@@ -743,6 +1046,20 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                                     )
                                     Text(progressLabel, color = studioSecondary, fontSize = 14.sp)
                                 }
+                                OutlinedButton(
+                                    onClick = { SruGenGenerationService.stop(context) },
+                                    modifier = Modifier.height(42.dp),
+                                    shape = RoundedCornerShape(13.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = studioText),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        studioAccent.copy(alpha = .65f)
+                                    )
+                                ) {
+                                    Icon(Icons.Rounded.StopCircle, null, modifier = Modifier.size(17.dp))
+                                    Spacer(Modifier.width(5.dp))
+                                    Text("Stop", fontSize = 13.sp)
+                                }
                             }
                         }
                     }
@@ -762,7 +1079,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                 Text(
                     error,
                     Modifier.fillMaxWidth().padding(vertical = 7.dp),
-                    color = Color(0xFFFFA38E),
+                    color = SruvikColors.Danger,
                     fontSize = 15.sp,
                     lineHeight = 21.sp
                 )
@@ -775,7 +1092,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                 Text(
                     info,
                     Modifier.fillMaxWidth().padding(vertical = 7.dp),
-                    color = Color(0xFFBFD7C8),
+                    color = SruvikColors.Mint,
                     fontSize = 15.sp,
                     lineHeight = 21.sp
                 )
@@ -845,7 +1162,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                                         SruGenMode.REMOVE_BACKGROUND -> "Describe the subject to keep…"
                                         SruGenMode.REMOVE_OBJECT -> "Describe what to remove…"
                                     },
-                                    color = Color(0xFFAAA6A2),
+                                    color = SruvikColors.TextMuted,
                                     fontSize = 18.sp,
                                     lineHeight = 25.sp
                                 )
@@ -860,26 +1177,45 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(9.dp)
                 ) {
-                    IconButton(
-                        onClick = { launchImagePicker() },
-                        modifier = Modifier.size(52.dp).clip(CircleShape).background(studioRaised)
-                    ) {
-                        Icon(Icons.Rounded.Add, "Attach a reference image", tint = studioText, modifier = Modifier.size(25.dp))
+                    Box {
+                        IconButton(
+                            onClick = { attachMenuExpanded = true },
+                            enabled = !importingImage && !generating,
+                            modifier = Modifier.size(52.dp).clip(CircleShape).background(studioRaised)
+                        ) {
+                            if (importingImage) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(22.dp),
+                                    strokeWidth = 2.dp,
+                                    color = studioAccent
+                                )
+                            } else {
+                                Icon(Icons.Rounded.Add, "Attach a reference image", tint = studioText, modifier = Modifier.size(25.dp))
+                            }
+                        }
+                        DropdownMenu(
+                            expanded = attachMenuExpanded,
+                            onDismissRequest = { attachMenuExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Photo library") },
+                                leadingIcon = { Icon(Icons.Rounded.PhotoLibrary, null) },
+                                onClick = {
+                                    attachMenuExpanded = false
+                                    launchImagePicker()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Browse files") },
+                                leadingIcon = { Icon(Icons.Rounded.FolderOpen, null) },
+                                onClick = {
+                                    attachMenuExpanded = false
+                                    launchImageFilePicker()
+                                }
+                            )
+                        }
                     }
-                    OutlinedButton(
-                        onClick = onOpenModels,
-                        modifier = Modifier.weight(1f).height(52.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .16f)),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = studioText),
-                        contentPadding = PaddingValues(horizontal = 12.dp)
-                    ) {
-                        Icon(Icons.Rounded.AutoAwesome, null, tint = studioAccent, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(activeModel?.name ?: "Choose model", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                        Spacer(Modifier.width(4.dp))
-                        Icon(Icons.Rounded.ExpandMore, null, tint = studioSecondary, modifier = Modifier.size(18.dp))
-                    }
+                    Spacer(Modifier.weight(1f))
                     Button(
                         onClick = { sendMessage() },
                         enabled = !generating && (prompt.isNotBlank() || selectedImage != null),
@@ -887,9 +1223,9 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                         shape = CircleShape,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = studioAccent,
-                            contentColor = Color(0xFF1A100D),
-                            disabledContainerColor = Color(0xFF45413F),
-                            disabledContentColor = Color(0xFF96918D)
+                            contentColor = SruvikColors.OnPrimary,
+                            disabledContainerColor = SruvikColors.SurfaceElevated,
+                            disabledContentColor = SruvikColors.TextMuted
                         ),
                         contentPadding = PaddingValues(0.dp)
                     ) {
@@ -935,7 +1271,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                     modelPicker.launch(arrayOf("application/zip", "application/x-zip-compressed"))
                 }) { Text("Import ZIP", color = SruvikColors.TextSecondary) }
             },
-            containerColor = Color(0xFF191A31),
+            containerColor = SruvikColors.Surface,
             shape = RoundedCornerShape(23.dp)
         )
     }
@@ -950,8 +1286,13 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                     items(chats.sortedByDescending { it.updatedAt }, key = { it.id }) { item ->
                         Row(
                             Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp))
-                                .background(if (item.id == activeId) Color(0xFF3A3568) else Color.Transparent)
-                                .clickable { activeId = item.id; selectedImage = null; historyOpen = false }
+                                .background(if (item.id == activeId) SruvikColors.PrimaryContainer else Color.Transparent)
+                                .clickable {
+                                    followGenerationChat = false
+                                    activeId = item.id
+                                    selectedImage = null
+                                    historyOpen = false
+                                }
                                 .padding(start = 10.dp, end = 2.dp, top = 7.dp, bottom = 7.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -973,7 +1314,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
             },
             confirmButton = { TextButton(onClick = { historyOpen = false }) { Text("Close", color = SruvikColors.Lime) } },
             dismissButton = { TextButton(onClick = { historyOpen = false; newChat() }) { Text("New chat", color = SruvikColors.TextSecondary) } },
-            containerColor = Color(0xFF191A31)
+            containerColor = SruvikColors.Surface
         )
     }
 
@@ -998,7 +1339,7 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                 }) { Text("Save", color = SruvikColors.Lime) }
             },
             dismissButton = { TextButton(onClick = { renameTarget = null }) { Text("Cancel", color = SruvikColors.TextSecondary) } },
-            containerColor = Color(0xFF191A31)
+            containerColor = SruvikColors.Surface
         )
     }
 
@@ -1024,11 +1365,134 @@ fun SruGenPage(memoryEnabled: Boolean, onOpenModels: () -> Unit) {
                 }) { Text("Delete", color = Color(0xFFFF9999)) }
             },
             dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Cancel", color = SruvikColors.TextSecondary) } },
-            containerColor = Color(0xFF191A31)
+            containerColor = SruvikColors.Surface
         )
+    }
+
+    viewingImage?.let { (bitmap, title) ->
+        SruvikImageViewer(bitmap = bitmap, title = title) {
+            if (!bitmap.isRecycled) bitmap.recycle()
+            viewingImage = null
+        }
     }
 }
 
+
+
+private const val MAX_SRUGEN_IMAGE_BYTES = 24 * 1024 * 1024
+private const val MAX_SRUGEN_PREVIEW_PIXELS = 3_000_000L
+private const val MAX_SRUGEN_PREVIEW_DIMENSION = 2048
+
+/**
+ * Providers do not all expose content URIs through the same resolver method.
+ * Try the standard stream, typed asset, asset descriptor and file descriptor
+ * paths before reporting a read failure.
+ */
+private fun openSruGenImageStream(context: Context, uri: Uri): InputStream {
+    val resolver = context.contentResolver
+    var lastError: Exception? = null
+
+    fun attempt(open: () -> InputStream?): InputStream? = try {
+        open()
+    } catch (failure: Exception) {
+        lastError = failure
+        null
+    }
+
+    attempt { resolver.openInputStream(uri) }?.let { return it }
+    attempt {
+        resolver.openTypedAssetFileDescriptor(uri, "image/*", null)?.createInputStream()
+    }?.let { return it }
+    attempt { resolver.openAssetFileDescriptor(uri, "r")?.createInputStream() }
+        ?.let { return it }
+    attempt {
+        resolver.openFileDescriptor(uri, "r")?.let { descriptor ->
+            ParcelFileDescriptor.AutoCloseInputStream(descriptor)
+        }
+    }?.let { return it }
+    if (uri.scheme == "file" && !uri.path.isNullOrBlank()) {
+        attempt { FileInputStream(uri.path!!) }?.let { return it }
+    }
+
+    val message = if (lastError is SecurityException) {
+        "Android denied access to the selected image. Re-select it or use Browse files."
+    } else {
+        "The selected provider did not return a readable image. Try Browse files or save a copy on this device."
+    }
+    throw IOException(message, lastError)
+}
+
+private fun readSruGenImage(context: Context, uri: Uri): Pair<ByteArray, String> {
+    val output = ByteArrayOutputStream()
+    openSruGenImageStream(context, uri).use { input ->
+        val buffer = ByteArray(16 * 1024)
+        var total = 0
+        while (true) {
+            val count = input.read(buffer)
+            if (count < 0) break
+            total += count
+            if (total > MAX_SRUGEN_IMAGE_BYTES) {
+                throw IOException("Choose an image smaller than 24 MB.")
+            }
+            output.write(buffer, 0, count)
+        }
+    }
+    val bytes = output.toByteArray()
+    if (bytes.isEmpty()) throw IOException("The selected image is empty.")
+    val mimeType = context.contentResolver.getType(uri)
+        ?.takeIf { it.startsWith("image/", ignoreCase = true) }
+        ?: "image/jpeg"
+    return bytes to mimeType
+}
+
+/** Uses ImageDecoder for modern formats and a bounded BitmapFactory fallback. */
+private fun decodeSruGenImagePreview(context: Context, uri: Uri, bytes: ByteArray): Bitmap {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        try {
+            val source = ImageDecoder.createSource(context.contentResolver, uri)
+            return ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                val width = info.size.width.coerceAtLeast(1)
+                val height = info.size.height.coerceAtLeast(1)
+                val dimensionScale = min(
+                    MAX_SRUGEN_PREVIEW_DIMENSION.toFloat() / width,
+                    MAX_SRUGEN_PREVIEW_DIMENSION.toFloat() / height
+                )
+                val pixelScale = sqrt(
+                    MAX_SRUGEN_PREVIEW_PIXELS.toDouble() /
+                        (width.toLong() * height.toLong()).toDouble()
+                ).toFloat()
+                val scale = min(1f, min(dimensionScale, pixelScale))
+                decoder.setTargetSize(
+                    (width * scale).roundToInt().coerceAtLeast(1),
+                    (height * scale).roundToInt().coerceAtLeast(1)
+                )
+                decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE)
+            }
+        } catch (failure: Exception) {
+            android.util.Log.w("SruGen", "ImageDecoder could not preview the selected URI; trying BitmapFactory.", failure)
+        }
+    }
+
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+        throw IOException("This image format cannot be previewed on this Android version.")
+    }
+    var sample = 1
+    while (
+        bounds.outWidth / sample > MAX_SRUGEN_PREVIEW_DIMENSION ||
+        bounds.outHeight / sample > MAX_SRUGEN_PREVIEW_DIMENSION ||
+        (bounds.outWidth.toLong() / sample) * (bounds.outHeight.toLong() / sample) >
+            MAX_SRUGEN_PREVIEW_PIXELS
+    ) sample *= 2
+    return BitmapFactory.decodeByteArray(
+        bytes, 0, bytes.size,
+        BitmapFactory.Options().apply {
+            inSampleSize = sample
+            inPreferredConfig = Bitmap.Config.RGB_565
+        }
+    ) ?: throw IOException("This image format cannot be previewed. Choose JPG, PNG or WebP.")
+}
 
 @Composable
 private fun SruGenCreativeSpark() {
@@ -1054,7 +1518,7 @@ private fun SruGenCreativeSpark() {
     androidx.compose.foundation.Canvas(Modifier.size(116.dp)) {
         val center = Offset(size.width / 2f, size.height / 2f)
         val unit = size.minDimension
-        val coral = Color(0xFFE47F5D)
+        val coral = SruvikColors.Primary
         drawCircle(
             color = coral.copy(alpha = .055f),
             radius = unit * .49f * breathing
@@ -1094,7 +1558,7 @@ private fun SruGenCreativeSpark() {
             center.x + cos(orbitAngle).toFloat() * unit * .39f,
             center.y + sin(orbitAngle).toFloat() * unit * .39f
         )
-        drawCircle(Color(0xFFFFC5AC), radius = unit * .035f, center = orbit)
+        drawCircle(SruvikColors.SecondaryAccent, radius = unit * .035f, center = orbit)
         drawCircle(coral, radius = unit * .062f * breathing, center = center)
     }
 }
@@ -1199,48 +1663,93 @@ private fun SruGenArtworkSuggestion(
 }
 
 @Composable
-private fun SruGenMessageBubble(message: SruGenMessage, image: Bitmap?) {
+private fun SruGenMessageBubble(
+    message: SruGenMessage,
+    image: Bitmap?,
+    onSaveToDevice: (String, String) -> Unit,
+    onSaveToVault: (String, String) -> Unit,
+    onViewImage: (String) -> Unit
+) {
     val isUser = message.role == "user"
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
     ) {
         Column(
-            Modifier.widthIn(max = 324.dp)
+            Modifier.widthIn(max = 340.dp)
                 .clip(RoundedCornerShape(20.dp))
-                .background(if (isUser) Color(0xFF303030) else Color(0xFF1B1B1B))
-                .border(1.dp, Color.White.copy(alpha = .10f), RoundedCornerShape(20.dp))
-                .padding(horizontal = 15.dp, vertical = 13.dp),
+                .background(if (isUser) SruvikColors.SurfaceSoft else SruvikColors.Surface)
+                .border(1.dp, SruvikColors.Border.copy(alpha = .72f), RoundedCornerShape(20.dp))
+                .padding(horizontal = 13.dp, vertical = 11.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
                 if (isUser) "You" else "SruGen",
-                color = if (isUser) Color(0xFFEBA087) else Color(0xFFBDB9B5),
+                color = if (isUser) SruvikColors.Primary else SruvikColors.SecondaryAccent,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold
             )
             if (message.text.isNotBlank()) {
                 Text(
                     message.text,
-                    color = Color(0xFFF4F2EF),
-                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp, lineHeight = 23.sp)
+                    color = SruvikColors.TextPrimary,
+                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp, lineHeight = 22.sp)
                 )
             }
             image?.let {
                 Image(
                     it.asImageBitmap(),
-                    "Encrypted chat image",
-                    Modifier.fillMaxWidth().heightIn(max = 300.dp),
+                    "Open image in full-screen viewer",
+                    Modifier.fillMaxWidth()
+                        .heightIn(max = 390.dp)
+                        .clip(RoundedCornerShape(13.dp))
+                        .clickable(enabled = message.attachmentId != null) {
+                            message.attachmentId?.let(onViewImage)
+                        },
                     contentScale = ContentScale.Fit
                 )
+                if (message.attachmentId != null) {
+                    Text("Tap image to view and zoom", color = SruvikColors.TextSecondary, fontSize = 11.sp)
+                }
+            }
+            if (!isUser && message.attachmentId != null) {
+                Text(
+                    "Private copy: encrypted SruGen chat only",
+                    color = SruvikColors.TextSecondary,
+                    fontSize = 12.sp
+                )
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    TextButton(
+                        onClick = {
+                            onSaveToDevice(message.attachmentId, message.attachmentMime ?: "image/png")
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Rounded.SaveAlt, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Save to device", fontSize = 11.sp)
+                    }
+                    TextButton(
+                        onClick = {
+                            onSaveToVault(message.attachmentId, message.attachmentMime ?: "image/png")
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Rounded.Security, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Save to Srukrypt", fontSize = 11.sp)
+                    }
+                }
             }
             message.modelName?.let {
-                Text(it, color = Color(0xFFEBA087), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text(it, color = SruvikColors.Primary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }
         }
     }
 }
-
 @Composable
 private fun StudioModeControl(label: String, selected: Boolean, onClick: () -> Unit) {
     val selectionProgress by animateFloatAsState(

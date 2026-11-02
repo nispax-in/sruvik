@@ -5,8 +5,7 @@ import android.graphics.Bitmap
 import com.nezumi_ai.sd.MnnSdNative
 import java.io.ByteArrayOutputStream
 import java.io.File
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
+import org.json.JSONObject
 import java.security.SecureRandom
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -114,113 +113,133 @@ class NezumiMnnSruGenEngine(
         request: SruGenRequest,
         onProgress: (Int, String) -> Unit
     ): SruGenResult = withContext(Dispatchers.IO) {
-        require(request.mode == SruGenMode.TEXT_TO_IMAGE) {
-            "$displayName currently supports text-to-image only in Sruvik."
+        require(request.mode == SruGenMode.TEXT_TO_IMAGE || request.mode == SruGenMode.PROMPT_EDIT) {
+            "$displayName does not support this image workflow."
         }
-        require(request.prompt.isNotBlank()) { "Describe the image you want to create." }
+        require(request.prompt.isNotBlank()) { "Describe the image you want to create or how you want to edit it." }
+        val editing = request.mode == SruGenMode.PROMPT_EDIT
+        require(!editing || request.sourceImage?.isNotEmpty() == true) {
+            "Attach an image before starting a prompt edit."
+        }
+
         nativeLock.withLock {
             check(!closed) { "The MNN engine has been released." }
             stopRequested = false
             stopReason = null
-            SruGenDeviceGuard.requireSafeToStart(context)
-            onProgress(2, "Checking $displayName model pack")
-            ensureLoaded()
-            check(!stopRequested) {
-                "DreamShaper loading was cancelled to protect device resources. Your encrypted prompt remains saved."
-            }
-            SruGenDeviceGuard.assertSafeToContinue(context)
-            val currentHandle = handle
-            check(currentHandle != 0L && loaded) { "Nezumi Kiln did not finish loading the model." }
-
-            val progress = object : MnnSdNative.NativeProgressListener {
-                override fun onNativeProgress(step: Int, totalSteps: Int, elapsedSec: Float) {
-                    if (stopRequested) {
-                        runCatching { MnnSdNative.cancel(currentHandle) }
-                        return
-                    }
-                    val assessment = runCatching {
-                        SruGenDeviceGuard.assertSafeToContinue(context)
-                    }
-                    if (assessment.isFailure) {
-                        stopReason = assessment.exceptionOrNull()?.message
-                            ?: "Device resource safety threshold reached."
-                        stopRequested = true
-                        runCatching { MnnSdNative.cancel(currentHandle) }
-                        return
-                    }
-                    val percent = if (totalSteps > 0) {
-                        8 + (step.coerceIn(0, totalSteps) * 82 / totalSteps)
-                    } else 8
-                    runCatching { onProgress(percent, "Generating locally · $step/$totalSteps") }
-                }
-            }
-
-            onProgress(5, "Loading $displayName · CPU-safe mode")
-            val packed = MnnSdNative.generate(
-                handle = currentHandle,
-                prompt = request.prompt,
-                negativePrompt = "low quality, blurry, deformed, distorted",
-                width = 512,
-                height = 512,
-                steps = 20,
-                cfg = 7.0f,
-                seed = SecureRandom().nextLong().and(Long.MAX_VALUE),
-                scheduler = 4, // DPM++ 2M Karras in the pinned Nezumi JNI enum.
-                progressListener = progress
-            )
-            stopReason?.let { throw IllegalStateException(it) }
-            check(!stopRequested) {
-                "Generation was cancelled to protect device resources. Your encrypted prompt remains saved."
-            }
-            check(packed != null) {
-                "DreamShaper generation failed: ${MnnSdNative.getLastError()}"
-            }
-            SruGenDeviceGuard.assertSafeToContinue(context)
-            onProgress(92, "Decoding generated image")
-            val bitmap = decodePackedRgb(packed)
+            var sourceBitmap: Bitmap? = null
+            var resizedSource: Bitmap? = null
+            var sourceRgb: ByteArray? = null
+            var packed: ByteArray? = null
+            var generatedBitmap: Bitmap? = null
+            var finalBitmap: Bitmap? = null
             try {
-                val png = ByteArrayOutputStream().use { output ->
-                    check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) {
-                        "Unable to encode the generated image."
-                    }
-                    output.toByteArray()
+                SruGenDeviceGuard.requireSafeToStart(context)
+                onProgress(2, "Checking $displayName model pack")
+                ensureLoaded()
+                check(!stopRequested) {
+                    "DreamShaper loading was cancelled to protect device resources. Your encrypted prompt remains saved."
                 }
-                onProgress(100, "Done · generated locally")
+                SruGenDeviceGuard.assertSafeToContinue(context)
+                val currentHandle = handle
+                check(currentHandle != 0L && loaded) { "Nezumi Kiln did not finish loading the model." }
+
+                var generationWidth = 512
+                var generationHeight = 512
+                if (editing) {
+                    onProgress(4, "Preparing your private reference image")
+                    sourceBitmap = SruGenAutoMasker.decodeBounded(requireNotNull(request.sourceImage))
+                    resizedSource = SruGenAutoMasker.resizeForDiffusion(requireNotNull(sourceBitmap))
+                    generationWidth = resizedSource!!.width
+                    generationHeight = resizedSource!!.height
+                    sourceRgb = SruGenAutoMasker.toPackedRgb(resizedSource!!)
+
+                    val capabilities = JSONObject(MnnSdNative.getCapabilities(currentHandle) ?: "{}")
+                    require(capabilities.optInt("supports_img2img", 0) == 1) {
+                        "This installed model does not include a compatible VAE encoder. Install a verified SD1.5 model pack with vae_encoder_fp16.mnn to enable image editing."
+                    }
+                }
+
+                val progress = object : MnnSdNative.NativeProgressListener {
+                    override fun onNativeProgress(step: Int, totalSteps: Int, elapsedSec: Float) {
+                        if (stopRequested) {
+                            runCatching { MnnSdNative.cancel(currentHandle) }
+                            return
+                        }
+                        val assessment = runCatching {
+                            SruGenDeviceGuard.assertSafeToContinue(context)
+                        }
+                        if (assessment.isFailure) {
+                            stopReason = assessment.exceptionOrNull()?.message
+                                ?: "Device resource safety threshold reached."
+                            stopRequested = true
+                            runCatching { MnnSdNative.cancel(currentHandle) }
+                            return
+                        }
+                        val percent = if (totalSteps > 0) {
+                            8 + (step.coerceIn(0, totalSteps) * 82 / totalSteps)
+                        } else 8
+                        runCatching {
+                            onProgress(
+                                percent,
+                                if (editing) "Editing image locally · $step/$totalSteps"
+                                else "Generating locally · $step/$totalSteps"
+                            )
+                        }
+                    }
+                }
+
+                onProgress(5, if (editing) "Preparing image-to-image inference · CPU-safe mode" else "Loading $displayName · CPU-safe mode")
+                packed = MnnSdNative.generate(
+                    handle = currentHandle,
+                    prompt = request.prompt,
+                    negativePrompt = "low quality, blurry, deformed, distorted, changed face, changed pose, changed background, watermark",
+                    width = generationWidth,
+                    height = generationHeight,
+                    steps = 20,
+                    cfg = 7.0f,
+                    seed = SecureRandom().nextLong().and(Long.MAX_VALUE),
+                    scheduler = 4, // DPM++ 2M Karras in the pinned Nezumi JNI enum.
+                    initImageRgb = sourceRgb,
+                    initImageWidth = if (editing) generationWidth else 0,
+                    initImageHeight = if (editing) generationHeight else 0,
+                    denoiseStrength = if (editing) 0.76f else 0.0f,
+                    progressListener = progress
+                )
+                stopReason?.let { throw IllegalStateException(it) }
+                check(!stopRequested) {
+                    "Generation was cancelled to protect device resources. Your encrypted prompt remains saved."
+                }
+                check(packed != null) {
+                    "DreamShaper image operation failed: ${MnnSdNative.getLastError()}"
+                }
+                SruGenDeviceGuard.assertSafeToContinue(context)
+                onProgress(92, if (editing) "Applying the automatic clothing mask" else "Decoding generated image")
+                generatedBitmap = SruGenAutoMasker.decodePackedRgb(requireNotNull(packed))
+                finalBitmap = if (editing) {
+                    SruGenAutoMasker.editClothing(
+                        context,
+                        requireNotNull(sourceBitmap),
+                        requireNotNull(generatedBitmap)
+                    )
+                } else {
+                    generatedBitmap
+                }
+
+                val png = SruGenAutoMasker.encodePng(requireNotNull(finalBitmap))
+                onProgress(100, if (editing) "Done · clothing edited locally" else "Done · generated locally")
                 SruGenResult(
                     imageBytes = png,
                     mimeType = "image/png",
-                    modelName = displayName
+                    modelName = if (editing) "$displayName · automatic clothing edit" else displayName
                 )
             } finally {
-                bitmap.recycle()
-                packed.fill(0)
+                sourceBitmap?.recycle()
+                resizedSource?.recycle()
+                generatedBitmap?.takeIf { it !== finalBitmap }?.recycle()
+                finalBitmap?.recycle()
+                sourceRgb?.fill(0)
+                packed?.fill(0)
             }
-        }
-    }
-
-    private fun decodePackedRgb(packed: ByteArray): Bitmap {
-        require(packed.size >= 8) { "Nezumi Kiln returned an invalid image buffer." }
-        val header = ByteBuffer.wrap(packed, 0, 8).order(ByteOrder.LITTLE_ENDIAN)
-        val width = header.int
-        val height = header.int
-        require(width == 512 && height == 512) {
-            "Nezumi Kiln returned an unexpected image size ($width × $height); expected 512 × 512."
-        }
-        val pixelCount = Math.multiplyExact(width, height)
-        val expectedBytes = Math.addExact(8, Math.multiplyExact(pixelCount, 3))
-        require(packed.size == expectedBytes) { "Nezumi Kiln returned a truncated or oversized image buffer." }
-
-        val pixels = IntArray(pixelCount)
-        var source = 8
-        for (index in pixels.indices) {
-            val red = packed[source++].toInt() and 0xff
-            val green = packed[source++].toInt() and 0xff
-            val blue = packed[source++].toInt() and 0xff
-            pixels[index] = (0xff shl 24) or (red shl 16) or (green shl 8) or blue
-        }
-        return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also {
-            it.setPixels(pixels, 0, width, 0, 0, width, height)
-            pixels.fill(0)
         }
     }
 

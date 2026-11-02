@@ -62,6 +62,8 @@ jobs:
           gradle-version: '8.11.1'
       - name: Download pinned Real-ESRGAN model
         run: bash scripts/fetch-upscaler-model.sh
+      - name: Download and verify MediaPipe automatic segmentation model
+        run: bash scripts/fetch-srugen-segmentation-model.sh
       - name: Restore debug signing key
         uses: actions/cache@v4
         with:
@@ -74,10 +76,10 @@ jobs:
             keytool -genkeypair -v -keystore .ci/sruvik-debug.keystore -storepass android -alias androiddebugkey -keypass android -dname "CN=Sruvik Debug,O=Nispax,C=IN" -keyalg RSA -keysize 2048 -validity 10000
           fi
           keytool -list -v -keystore .ci/sruvik-debug.keystore -storepass android -alias androiddebugkey | grep "SHA256:"
-      - name: Build debug APK
+      - name: Run JVM regression tests and build debug APK
         env:
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
-        run: gradle --no-daemon :app:assembleDebug
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
       - name: Verify native runtime and license files in APK
         shell: bash
         run: |

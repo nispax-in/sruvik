@@ -35,7 +35,9 @@ object SrukryptStorage {
 
     fun keyAlias(vaultId: String): String {
         require(vaultId.isNotBlank()) { "Vault ID must not be blank." }
-        require(vaultId.matches(Regex("[A-Za-z0-9_-]{1,64}"))) {
+        // A period is needed by the stable "master.repaired" Keystore alias.
+        // These values are internal alias IDs, not filesystem paths.
+        require(vaultId.matches(Regex("[A-Za-z0-9_-][A-Za-z0-9_.-]{0,63}"))) {
             "Vault ID contains unsupported characters."
         }
         return "in.nispax.sruvik.srukrypt.$vaultId"
