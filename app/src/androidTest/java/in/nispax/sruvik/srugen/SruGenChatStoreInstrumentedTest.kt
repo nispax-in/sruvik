@@ -64,6 +64,54 @@ class SruGenChatStoreInstrumentedTest {
     }
 
     @Test
+    fun saveToDevicePublishesImageInPicturesSruvik() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val bitmap = Bitmap.createBitmap(12, 10, Bitmap.Config.ARGB_8888)
+        val output = ByteArrayOutputStream()
+        check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output))
+        bitmap.recycle()
+        val bytes = output.toByteArray()
+        var savedUri: android.net.Uri? = null
+        try {
+            savedUri = SruGenImageGallery.saveToPictures(context, bytes, "image/png")
+            val resolver = context.contentResolver
+            resolver.query(
+                savedUri!!,
+                arrayOf(
+                    android.provider.MediaStore.Images.Media.DISPLAY_NAME,
+                    android.provider.MediaStore.Images.Media.RELATIVE_PATH
+                ),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                assertTrue("Gallery row should be queryable", cursor.moveToFirst())
+                val name = cursor.getString(
+                    cursor.getColumnIndexOrThrow(android.provider.MediaStore.Images.Media.DISPLAY_NAME)
+                )
+                assertTrue(name.startsWith("Sruvik-"))
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val relativePath = cursor.getString(
+                        cursor.getColumnIndexOrThrow(android.provider.MediaStore.Images.Media.RELATIVE_PATH)
+                    )
+                    assertTrue(relativePath.startsWith("Pictures/Sruvik"))
+                }
+            } ?: throw AssertionError("Android did not return the saved Gallery item.")
+
+            val storedBytes = resolver.openInputStream(savedUri!!)?.use { it.readBytes() }
+                ?: throw AssertionError("The saved Gallery image could not be opened.")
+            try {
+                assertArrayEquals(bytes, storedBytes)
+            } finally {
+                storedBytes.fill(0)
+            }
+        } finally {
+            savedUri?.let { runCatching { context.contentResolver.delete(it, null, null) } }
+            bytes.fill(0)
+        }
+    }
+
+    @Test
     fun generatedImageAttachmentSurvivesEncryptedChatReload() {
         val context = InstrumentationRegistry.getInstrumentation().context
         val directory = File(context.noBackupFilesDir, "srugen")
