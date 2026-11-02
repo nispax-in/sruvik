@@ -9,6 +9,8 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -122,9 +124,9 @@ fun SruvikImageViewer(
             Row(
                 Modifier
                     .align(Alignment.TopCenter)
-                    .fillMaxSize()
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-                    .then(Modifier),
+                    .fillMaxWidth()
+                    .height(60.dp)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.Top
             ) {
                 IconButton(onClick = onDismiss, modifier = Modifier.size(44.dp)) {
