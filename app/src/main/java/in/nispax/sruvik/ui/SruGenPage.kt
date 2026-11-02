@@ -179,6 +179,7 @@ fun SruGenPage(
         activeId = draft.id
         prompt = ""
         selectedImage = null
+        mode = SruGenMode.TEXT_TO_IMAGE
         error = ""
         info = ""
     }
@@ -478,7 +479,14 @@ fun SruGenPage(
                 thumbnails = thumbnails + (id to requireNotNull(preview))
                 preview = null // Ownership moved into Compose state.
                 selectedImage = id
-                info = "Image attached and encrypted in this local conversation."
+                if (mode == SruGenMode.TEXT_TO_IMAGE) {
+                    mode = SruGenMode.PROMPT_EDIT
+                }
+                info = if (mode == SruGenMode.PROMPT_EDIT) {
+                    "Image attached. Edit clothes mode selected; choose Create to use text-to-image instead."
+                } else {
+                    "Image attached and encrypted in this local conversation."
+                }
                 error = ""
             } catch (failure: OutOfMemoryError) {
                 error = "This image is too large to preview safely. Choose a smaller photo."
@@ -741,16 +749,17 @@ fun SruGenPage(
             )))
             return
         }
+        var generationModelId = activeModelId
         if (mode == SruGenMode.PROMPT_EDIT) {
-            val compatibleModel = activeModel?.engine == SruGenGalleryEngine.NEZUMI_MNN_SD15 &&
-                SruGenModelPackInstaller.hasImg2ImgEncoder(context, activeModelId)
-            if (!modelReady || !compatibleModel) {
+            val editModel = SruGenEngineFactory.installedImageEditingModel(context, activeModelId)
+            if (editModel == null) {
                 persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
                     role = "assistant",
-                    text = "Automatic clothing edits need an installed Nezumi SD 1.5 model pack with its VAE encoder. Choose a compatible MNN model in Models; your source image remains encrypted in this chat."
+                    text = "Your photo is safely saved, but the active CyberRealistic pack has no VAE encoder for image editing. Install majicMIX Realistic v6 from Models (about 1.24 GB); it includes the encoder needed for local photo edits. Then attach the photo again and choose Edit clothes. Nothing was generated from the text alone."
                 )))
                 return
             }
+            generationModelId = editModel.id
         }
         if (mode == SruGenMode.TEXT_TO_IMAGE && !modelReady) {
             persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
@@ -773,13 +782,40 @@ fun SruGenPage(
             ))
             return
         }
-        startGenerationWithNotificationPermission(
-            updatedChat,
-            generationPrompt,
-            activeModelId,
-            mode,
-            attachment
-        )
+        if (generationModelId != activeModelId) {
+            val oldEngine = SruGenEngineRegistry.engine
+            activeModelId = generationModelId
+            SruGenActiveModelStore.setActiveModel(context, generationModelId)
+            modelReady = false
+            scope.launch {
+                try {
+                    oldEngine?.requestStop()
+                    withContext(Dispatchers.IO) {
+                        SruGenEngineRegistry.closeAndDetach(oldEngine)
+                    }
+                    activateInstalledModel()
+                    startGenerationWithNotificationPermission(
+                        updatedChat,
+                        generationPrompt,
+                        generationModelId,
+                        mode,
+                        attachment
+                    )
+                } catch (failure: Exception) {
+                    modelReady = false
+                    error = failure.message ?: "Unable to switch to the image-editing model."
+                    info = ""
+                }
+            }
+        } else {
+            startGenerationWithNotificationPermission(
+                updatedChat,
+                generationPrompt,
+                generationModelId,
+                mode,
+                attachment
+            )
+        }
     }
     val studioInk = SruvikColors.Background
     val studioPanel = SruvikColors.Surface
@@ -888,8 +924,13 @@ fun SruGenPage(
                             maxLines = 1
                         )
                         Text(
-                            if (modelReady) "Ready on this device · Local inference"
-                            else "Open the model library to install or select one",
+                            if (modelReady && SruGenEngineFactory.supportsImageEditing(context, activeModelId)) {
+                                "Ready on this device · Local generation and photo editing"
+                            } else if (modelReady) {
+                                "Ready on this device · Text-to-image"
+                            } else {
+                                "Open the model library to install or select one"
+                            },
                             color = studioSecondary,
                             fontSize = 12.sp,
                             maxLines = 2
@@ -1106,6 +1147,25 @@ fun SruGenPage(
                     .padding(horizontal = 14.dp, vertical = 13.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    StudioModeControl(
+                        "Create",
+                        mode == SruGenMode.TEXT_TO_IMAGE
+                    ) { mode = SruGenMode.TEXT_TO_IMAGE }
+                    StudioModeControl(
+                        "Edit clothes",
+                        mode == SruGenMode.PROMPT_EDIT
+                    ) { mode = SruGenMode.PROMPT_EDIT }
+                    StudioModeControl(
+                        "Remove BG",
+                        mode == SruGenMode.REMOVE_BACKGROUND
+                    ) { mode = SruGenMode.REMOVE_BACKGROUND }
+                }
+
                 selectedImage?.let { id ->
                     Row(
                         Modifier.fillMaxWidth(),
@@ -1130,6 +1190,7 @@ fun SruGenPage(
                         IconButton(
                             onClick = {
                                 selectedImage = null
+                                if (mode == SruGenMode.PROMPT_EDIT) mode = SruGenMode.TEXT_TO_IMAGE
                                 SruGenChatStore.deleteAttachment(context, id)
                                 thumbnails[id]?.takeIf { !it.isRecycled }?.recycle()
                                 thumbnails = thumbnails - id
@@ -1158,7 +1219,7 @@ fun SruGenPage(
                                 Text(
                                     when (mode) {
                                         SruGenMode.TEXT_TO_IMAGE -> "Describe what you want to create…"
-                                        SruGenMode.PROMPT_EDIT -> "Describe how to change the image…"
+                                        SruGenMode.PROMPT_EDIT -> "Describe how to change clothing…"
                                         SruGenMode.REMOVE_BACKGROUND -> "Describe the subject to keep…"
                                         SruGenMode.REMOVE_OBJECT -> "Describe what to remove…"
                                     },
@@ -1291,6 +1352,7 @@ fun SruGenPage(
                                     followGenerationChat = false
                                     activeId = item.id
                                     selectedImage = null
+                                    mode = SruGenMode.TEXT_TO_IMAGE
                                     historyOpen = false
                                 }
                                 .padding(start = 10.dp, end = 2.dp, top = 7.dp, bottom = 7.dp),
