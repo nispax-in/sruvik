@@ -150,65 +150,104 @@ object SrukryptVault {
     @Throws(Exception::class)
     fun prepareUnlock(context: Context): SrukryptUnlockChallenge {
         val dir = SrukryptStorage.vaultDirectory(context)
-        val repairedWrappedFile = File(dir, REPAIRED_WRAPPED_KEY_FILE)
-        val useRepairedKey = repairedWrappedFile.isFile && hasMasterKey(REPAIRED_MASTER_ALIAS_ID)
-        val keyAliasId = if (useRepairedKey) REPAIRED_MASTER_ALIAS_ID else MASTER_ALIAS_ID
-        val wrappedFile = if (useRepairedKey) repairedWrappedFile else File(dir, WRAPPED_KEY_FILE)
-        val existingMasterKey = hasMasterKey(keyAliasId)
-        val hasEntries = entryFiles(dir).isNotEmpty()
+        val candidates = listOf(
+            MASTER_ALIAS_ID to File(dir, WRAPPED_KEY_FILE),
+            REPAIRED_MASTER_ALIAS_ID to File(dir, REPAIRED_WRAPPED_KEY_FILE)
+        ).filter { (aliasId, file) ->
+            file.isFile && hasMasterKey(aliasId)
+        }.sortedByDescending { (aliasId, _) ->
+            // Prefer a key authorized by Android's device credential so a legacy
+            // biometric-only repair envelope cannot hide the PIN/pattern/password key.
+            val flags = runCatching { authenticatorFlagsForKey(getMasterKey(aliasId)) }
+                .getOrDefault(0)
+            (flags and BiometricManagerFlags.DEVICE_CREDENTIAL) != 0
+        }
+
+        var lastCandidateFailure: Exception? = null
+        for ((keyAliasId, wrappedFile) in candidates) {
+            var envelope: Pair<ByteArray, ByteArray>? = null
+            try {
+                val masterKey = getMasterKey(keyAliasId)
+                val allowedAuthenticators = authenticatorFlagsForKey(masterKey)
+                envelope = readEnvelope(wrappedFile, WRAP_MAGIC)
+                val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+                cipher.init(
+                    Cipher.DECRYPT_MODE,
+                    masterKey,
+                    GCMParameterSpec(TAG_BITS, envelope.first)
+                )
+                cipher.updateAAD(wrapAad)
+                return SrukryptUnlockChallenge(
+                    cipher,
+                    false,
+                    null,
+                    envelope.second,
+                    allowedAuthenticators,
+                    keyAliasId,
+                    wrappedFile.name
+                )
+            } catch (failure: Exception) {
+                envelope?.first?.let { Arrays.fill(it, 0) }
+                envelope?.second?.let { Arrays.fill(it, 0) }
+                lastCandidateFailure = failure
+                android.util.Log.w(
+                    "Srukrypt",
+                    "A preserved Srukrypt system-authentication key could not be initialized; trying the other preserved envelope.",
+                    failure
+                )
+            }
+        }
+        if (lastCandidateFailure != null) throw lastCandidateFailure
+
+        val hasAnyWrappedKey = File(dir, WRAPPED_KEY_FILE).isFile ||
+            File(dir, REPAIRED_WRAPPED_KEY_FILE).isFile
+        if (hasAnyWrappedKey) {
+            throw SecurityException(
+                "The original Srukrypt Keystore key is missing. No replacement key was created and your encrypted files were left untouched. A reset passphrase cannot recover these encrypted files."
+            )
+        }
 
         // Old passphrase-only vaults cannot be opened under the corrected security
-        // model. Never create a new Keystore key beside legacy ciphertext: doing so
-        // would make old entries appear lost. The saved phrase can authorize only a
-        // destructive reset of this legacy vault.
-        if (!wrappedFile.exists() && hasResetPassphrase(context)) {
+        // model. Never mint a new Keystore key beside legacy ciphertext. The saved
+        // phrase can authorize only a destructive reset of this legacy vault.
+        if (hasResetPassphrase(context)) {
             throw SecurityException(
                 "This is a legacy passphrase-only Srukrypt vault. Passphrases can no longer unlock vault contents; they are reset-only. Use “Forgot password? Reset vault” to erase this legacy vault, then create a new one with Android device authentication."
             )
         }
 
-        // Never mint a replacement Keystore key when ciphertext already exists.
-        // A fresh key cannot decrypt the old envelope; silently creating one makes
-        // a recoverable vault look like a new, empty vault and obscures the real error.
-        if (wrappedFile.exists() && !existingMasterKey) {
-            throw SecurityException(
-                "The original Srukrypt Keystore key is missing. No replacement key was created and your encrypted files were left untouched. A reset passphrase cannot recover these encrypted files."
-            )
-        }
-        if (!wrappedFile.exists() && hasEntries) {
+        if (entryFiles(dir).isNotEmpty()) {
             throw SecurityException(
                 "The Srukrypt key envelope is missing. Existing encrypted files were left untouched; a new key was not created."
             )
         }
 
-        if (!wrappedFile.exists()) {
-            val masterKey = if (existingMasterKey) getMasterKey(keyAliasId) else createMasterKey(keyAliasId)
-            val allowedAuthenticators = authenticatorFlagsForKey(masterKey)
-            val dataKey = ByteArray(32).also { SecureRandom().nextBytes(it) }
-            return try {
-                val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-                cipher.init(Cipher.ENCRYPT_MODE, masterKey)
-                cipher.updateAAD(wrapAad)
-                SrukryptUnlockChallenge(
-                    cipher, true, dataKey, null, allowedAuthenticators,
-                    keyAliasId, wrappedFile.name
-                )
-            } catch (error: Exception) {
-                Arrays.fill(dataKey, 0)
-                throw error
-            }
+        // New vault or an interrupted first setup with no encrypted entries.
+        // Reuse an orphan primary alias rather than accumulating Keystore keys.
+        val masterKey = if (hasMasterKey(MASTER_ALIAS_ID)) {
+            getMasterKey(MASTER_ALIAS_ID)
+        } else {
+            createMasterKey(MASTER_ALIAS_ID)
         }
-
-        val masterKey = getMasterKey(keyAliasId)
         val allowedAuthenticators = authenticatorFlagsForKey(masterKey)
-        val envelope = readEnvelope(wrappedFile, WRAP_MAGIC)
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.DECRYPT_MODE, masterKey, GCMParameterSpec(TAG_BITS, envelope.first))
-        cipher.updateAAD(wrapAad)
-        return SrukryptUnlockChallenge(
-            cipher, false, null, envelope.second, allowedAuthenticators,
-            keyAliasId, wrappedFile.name
-        )
+        val dataKey = ByteArray(32).also { SecureRandom().nextBytes(it) }
+        return try {
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.ENCRYPT_MODE, masterKey)
+            cipher.updateAAD(wrapAad)
+            SrukryptUnlockChallenge(
+                cipher,
+                true,
+                dataKey,
+                null,
+                allowedAuthenticators,
+                MASTER_ALIAS_ID,
+                WRAPPED_KEY_FILE
+            )
+        } catch (failure: Exception) {
+            Arrays.fill(dataKey, 0)
+            throw failure
+        }
     }
 
     /**
