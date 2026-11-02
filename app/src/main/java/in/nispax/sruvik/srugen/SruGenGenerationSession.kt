@@ -44,7 +44,9 @@ object SruGenGenerationSession {
         context: Context,
         chatWithPrompt: SruGenChat,
         generationPrompt: String,
-        modelId: String
+        modelId: String,
+        mode: SruGenMode = SruGenMode.TEXT_TO_IMAGE,
+        sourceAttachmentId: String? = null
     ): Boolean {
         if (mutableState.value.status == SruGenGenerationStatus.RUNNING) return false
         cancelRequested = false
@@ -58,6 +60,7 @@ object SruGenGenerationSession {
 
         scope.launch {
             var resultBytes: ByteArray? = null
+            var sourceImageBytes: ByteArray? = null
             try {
                 withContext(Dispatchers.IO) {
                     SruGenChatStore.upsertChat(appContext, chatWithPrompt)
@@ -65,31 +68,57 @@ object SruGenGenerationSession {
                 mutableState.update {
                     it.copy(progressLabel = "Loading the on-device model", updatedAt = System.currentTimeMillis())
                 }
-                val result = withContext(Dispatchers.Default) {
-                    val engine = SruGenEngineRegistry.getOrCreate {
-                        SruGenEngineFactory.create(appContext, modelId)
+                if (mode != SruGenMode.TEXT_TO_IMAGE) {
+                    val attachmentId = sourceAttachmentId
+                        ?: throw IllegalArgumentException("Attach an image before starting this workflow.")
+                    sourceImageBytes = withContext(Dispatchers.IO) {
+                        SruGenChatStore.readAttachment(appContext, attachmentId)
                     }
-                    if (cancelRequested) {
-                        engine.requestStop()
-                        throw CancellationException("Generation stopped by you.")
-                    }
-                    engine.generate(
-                        SruGenRequest(
-                            mode = SruGenMode.TEXT_TO_IMAGE,
-                            prompt = generationPrompt,
-                            style = "Cinematic",
-                            aspectRatio = "1:1",
-                            sourceImage = null
+                }
+                val progressCallback: (Int, String) -> Unit = { value, label ->
+                    if (cancelRequested) SruGenEngineRegistry.engine?.requestStop()
+                    mutableState.update {
+                        it.copy(
+                            progress = value.coerceIn(0, 100),
+                            progressLabel = label,
+                            updatedAt = System.currentTimeMillis()
                         )
-                    ) { value, label ->
-                        if (cancelRequested) engine.requestStop()
-                        mutableState.update {
-                            it.copy(
-                                progress = value.coerceIn(0, 100),
-                                progressLabel = label,
-                                updatedAt = System.currentTimeMillis()
-                            )
+                    }
+                }
+                val result = if (mode == SruGenMode.REMOVE_BACKGROUND) {
+                    withContext(Dispatchers.IO) {
+                        if (cancelRequested) throw CancellationException("Generation stopped by you.")
+                        progressCallback(12, "Detecting subject and background locally")
+                        val bytes = SruGenAutoMasker.removeBackground(
+                            appContext,
+                            requireNotNull(sourceImageBytes)
+                        )
+                        progressCallback(94, "Finishing transparent PNG")
+                        SruGenResult(
+                            imageBytes = bytes,
+                            mimeType = "image/png",
+                            modelName = "MediaPipe SelfieMulticlass · Background removal"
+                        )
+                    }
+                } else {
+                    withContext(Dispatchers.Default) {
+                        val engine = SruGenEngineRegistry.getOrCreate {
+                            SruGenEngineFactory.create(appContext, modelId)
                         }
+                        if (cancelRequested) {
+                            engine.requestStop()
+                            throw CancellationException("Generation stopped by you.")
+                        }
+                        engine.generate(
+                            SruGenRequest(
+                                mode = mode,
+                                prompt = generationPrompt,
+                                style = "Cinematic",
+                                aspectRatio = "1:1",
+                                sourceImage = sourceImageBytes
+                            ),
+                            progressCallback
+                        )
                     }
                 }
                 if (cancelRequested) throw CancellationException("Generation stopped by you.")
@@ -158,6 +187,7 @@ object SruGenGenerationSession {
                 }
             } finally {
                 resultBytes?.fill(0)
+                sourceImageBytes?.fill(0)
             }
         }
         return true
