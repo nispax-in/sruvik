@@ -231,6 +231,15 @@ object SrukryptVault {
 
         val alias = SrukryptStorage.keyAlias(REPAIRED_MASTER_ALIAS_ID)
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        val repairedEnvelope = File(
+            SrukryptStorage.vaultDirectory(context),
+            REPAIRED_WRAPPED_KEY_FILE
+        )
+        // Remove a previous incomplete repair envelope first. The original
+        // master.wrap and its alias remain intact and are still the fallback.
+        if (repairedEnvelope.exists() && !repairedEnvelope.delete()) {
+            throw IOException("Unable to prepare a new fingerprint key. Your original vault key was left unchanged.")
+        }
         // This alias is separate from the original key. If the prompt is cancelled,
         // the original key/envelope and passphrase fallback remain untouched.
         if (keyStore.containsAlias(alias)) keyStore.deleteEntry(alias)
