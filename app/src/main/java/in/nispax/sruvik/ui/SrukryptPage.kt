@@ -2,6 +2,9 @@ package `in`.nispax.sruvik.ui
 
 import `in`.nispax.sruvik.ui.theme.SruvikColors
 
+import android.app.Activity
+import android.app.KeyguardManager
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.SystemClock
 import android.view.WindowManager
@@ -11,6 +14,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -75,12 +79,18 @@ fun SrukryptPage(autoLockMinutes: Int) {
     var passphraseMode by remember { mutableStateOf("unlock") }
     var passphraseText by remember { mutableStateOf("") }
     var passphraseConfirm by remember { mutableStateOf("") }
+    var vaultSettingsDialog by remember { mutableStateOf(false) }
+    var confirmVaultReset by remember { mutableStateOf(false) }
+    var viewingEntryImage by remember { mutableStateOf<Pair<Bitmap, String>?>(null) }
+    var loadingEntryImage by remember { mutableStateOf(false) }
 
     fun lockVault() {
         sessionKey?.let { Arrays.fill(it, 0) }
         sessionKey = null
         entries.forEach { if (!it.thumbnail.isRecycled) it.thumbnail.recycle() }
         entries = emptyList()
+        viewingEntryImage?.first?.let { if (!it.isRecycled) it.recycle() }
+        viewingEntryImage = null
         confirmDelete = null
         errorText = ""
         infoText = "Vault locked. Your files remain encrypted."
@@ -259,6 +269,89 @@ fun SrukryptPage(autoLockMinutes: Int) {
             }
         } else {
             activeKey?.let { Arrays.fill(it, 0) }
+        }
+    }
+
+    val resetAuthLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            confirmVaultReset = true
+        } else if (result.resultCode != Activity.RESULT_CANCELED) {
+            errorText = "Device authentication was not completed. The vault has not been reset."
+        }
+    }
+
+    fun requestVaultReset() {
+        if (busy) return
+        val keyguard = context.getSystemService(KeyguardManager::class.java)
+        if (keyguard != null && keyguard.isDeviceSecure) {
+            val credentialIntent = keyguard.createConfirmDeviceCredentialIntent(
+                "Confirm Srukrypt reset",
+                "Authenticate with your device PIN, pattern or password to continue."
+            )
+            if (credentialIntent == null) {
+                errorText = "Android could not open device authentication. The vault has not been reset."
+            } else {
+                resetAuthLauncher.launch(credentialIntent)
+            }
+        } else {
+            // No secure lock is configured, so proceed directly to the explicit
+            // in-app destructive confirmation.
+            confirmVaultReset = true
+        }
+    }
+
+    fun performVaultReset() {
+        if (busy) return
+        confirmVaultReset = false
+        busy = true
+        errorText = ""
+        infoText = "Permanently removing encrypted vault contents and keys…"
+        scope.launch {
+            try {
+                withContext(Dispatchers.IO) { SrukryptVault.resetVault(context) }
+                lockVault()
+                infoText = "Vault reset complete. All encrypted items and vault keys were removed."
+                errorText = ""
+            } catch (failure: Exception) {
+                errorText = failure.message ?: "The vault reset could not be completed."
+                infoText = ""
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    fun openVaultImage(entry: SrukryptEntryPreview) {
+        if (loadingEntryImage || viewingEntryImage != null) return
+        val key = sessionKey?.copyOf()
+        if (key == null) {
+            errorText = "Unlock Srukrypt before viewing this image."
+            return
+        }
+        loadingEntryImage = true
+        scope.launch {
+            try {
+                val bitmap = withContext(Dispatchers.IO) {
+                    val (_, bytes) = SrukryptVault.readImage(context, key, entry.id)
+                    try {
+                        decodeSruvikViewerBitmap(bytes)
+                    } finally {
+                        Arrays.fill(bytes, 0)
+                    }
+                }
+                if (bitmap == null) errorText = "This encrypted image could not be decoded."
+                else {
+                    viewingEntryImage = bitmap to entry.title
+                    lastInteraction = SystemClock.elapsedRealtime()
+                }
+            } catch (failure: Exception) {
+                errorText = failure.message ?: "Unable to open this encrypted image."
+            } finally {
+                Arrays.fill(key, 0)
+                loadingEntryImage = false
+            }
         }
     }
 
@@ -786,6 +879,17 @@ fun SrukryptPage(autoLockMinutes: Int) {
                 }
                 Text("On Android 11+, the device screen lock can authorize the key. On older versions, the passphrase fallback is available. Enrolling biometrics may invalidate older biometric-only keys. Device reset or uninstall destroys access; export important files first.",
                     style = MaterialTheme.typography.bodySmall, color = SruvikColors.TextMuted)
+                if (SrukryptVault.hasVault(context)) {
+                    TextButton(
+                        onClick = { requestVaultReset() },
+                        enabled = !busy,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Rounded.DeleteForever, null, tint = Color(0xFFFF9B9B))
+                        Spacer(Modifier.width(7.dp))
+                        Text("Forgot passphrase? Reset vault", color = Color(0xFFFF9B9B))
+                    }
+                }
             }
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -794,6 +898,12 @@ fun SrukryptPage(autoLockMinutes: Int) {
                         color = SruvikColors.Lime, letterSpacing = 1.2.sp)
                     Text(entries.size.toString() + " private item(s)", style = MaterialTheme.typography.bodySmall,
                         color = SruvikColors.TextSecondary)
+                }
+                IconButton(
+                    onClick = { vaultSettingsDialog = true },
+                    modifier = Modifier.size(42.dp)
+                ) {
+                    Icon(Icons.Rounded.Settings, "Srukrypt settings", tint = SruvikColors.TextPrimary)
                 }
                 OutlinedButton(onClick = { lockVault() }, shape = RoundedCornerShape(14.dp)) {
                     Icon(Icons.Rounded.Lock, null, modifier = Modifier.size(16.dp))
@@ -809,17 +919,6 @@ fun SrukryptPage(autoLockMinutes: Int) {
                     Icon(Icons.Rounded.Add, null)
                     Text("Add")
                 }
-            }
-
-            OutlinedButton(
-                onClick = { openPassphrase("add") },
-                modifier = Modifier.fillMaxWidth().height(48.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = SruvikColors.Lime)
-            ) {
-                Icon(Icons.Rounded.Key, null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Add passphrase fallback", fontWeight = FontWeight.SemiBold)
             }
 
             if (entries.isEmpty()) {
@@ -855,9 +954,17 @@ fun SrukryptPage(autoLockMinutes: Int) {
                         ) {
                             Image(
                                 entry.thumbnail.asImageBitmap(),
-                                contentDescription = entry.title,
-                                modifier = Modifier.fillMaxWidth().height(128.dp).clip(RoundedCornerShape(13.dp)),
+                                contentDescription = "Open ${entry.title} in full-screen viewer",
+                                modifier = Modifier.fillMaxWidth()
+                                    .height(148.dp)
+                                    .clip(RoundedCornerShape(13.dp))
+                                    .clickable { openVaultImage(entry) },
                                 contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            )
+                            Text(
+                                "Tap image to view and zoom",
+                                color = SruvikColors.TextMuted,
+                                style = MaterialTheme.typography.labelSmall
                             )
                             Text(entry.title, color = SruvikColors.TextPrimary,
                                 style = MaterialTheme.typography.titleSmall, maxLines = 1)
@@ -908,6 +1015,153 @@ fun SrukryptPage(autoLockMinutes: Int) {
             shape = RoundedCornerShape(23.dp)
         )
     }    
+    if (vaultSettingsDialog) {
+        val hasPassphrase = SrukryptVault.hasPassphraseFallback(context)
+        val hasBiometric = SrukryptVault.hasBiometricUnlock(context)
+        val biometricStatus = activity?.let {
+            BiometricManager.from(it).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+        } ?: BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE
+
+        AlertDialog(
+            onDismissRequest = { vaultSettingsDialog = false },
+            title = { Text("Srukrypt settings", color = SruvikColors.TextPrimary) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("UNLOCK METHODS", color = SruvikColors.LimeMuted,
+                        style = MaterialTheme.typography.labelLarge, letterSpacing = 1.2.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.Key, null, tint = SruvikColors.Lime)
+                        Spacer(Modifier.width(9.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Passphrase", color = SruvikColors.TextPrimary)
+                            Text(
+                                if (hasPassphrase) "Enabled · works independently of biometrics"
+                                else "Not configured",
+                                color = SruvikColors.TextSecondary,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                        if (hasPassphrase) Icon(Icons.Rounded.CheckCircle, null, tint = SruvikColors.Lime)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.Fingerprint, null, tint = SruvikColors.Lime)
+                        Spacer(Modifier.width(9.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Fingerprint / strong biometric", color = SruvikColors.TextPrimary)
+                            Text(
+                                if (hasBiometric) "Enabled on this device"
+                                else "Not configured",
+                                color = SruvikColors.TextSecondary,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                        if (hasBiometric) Icon(Icons.Rounded.CheckCircle, null, tint = SruvikColors.Lime)
+                    }
+                    Text(
+                        if (hasPassphrase && hasBiometric)
+                            "Both unlock methods are enabled. Keep your passphrase safe as an independent fallback."
+                        else
+                            "For two independent ways into the vault, configure both a passphrase and a strong biometric. Adding one never removes the other.",
+                        color = SruvikColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    if (!hasPassphrase) {
+                        OutlinedButton(
+                            onClick = {
+                                vaultSettingsDialog = false
+                                openPassphrase("add")
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Rounded.Key, null)
+                            Spacer(Modifier.width(7.dp))
+                            Text("Add passphrase fallback")
+                        }
+                    }
+                    if (!hasBiometric && hasPassphrase && biometricStatus == BiometricManager.BIOMETRIC_SUCCESS) {
+                        OutlinedButton(
+                            onClick = {
+                                vaultSettingsDialog = false
+                                repairFingerprintUnlock()
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Rounded.Fingerprint, null)
+                            Spacer(Modifier.width(7.dp))
+                            Text("Add fingerprint unlock")
+                        }
+                    } else if (!hasBiometric && hasPassphrase) {
+                        Text(
+                            "A strong biometric is not available or enrolled on this device. Your passphrase remains available.",
+                            color = SruvikColors.TextMuted,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    Divider(color = SruvikColors.Border)
+                    Text("DANGER ZONE", color = Color(0xFFFFA0A0),
+                        style = MaterialTheme.typography.labelLarge, letterSpacing = 1.2.sp)
+                    Text(
+                        "Resetting permanently removes every encrypted item, vault metadata and key. It cannot be undone.",
+                        color = SruvikColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            vaultSettingsDialog = false
+                            requestVaultReset()
+                        },
+                        enabled = !busy,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF9B9B))
+                    ) {
+                        Icon(Icons.Rounded.DeleteForever, null)
+                        Spacer(Modifier.width(7.dp))
+                        Text("Reset and erase vault")
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { vaultSettingsDialog = false }) {
+                    Text("Done", color = SruvikColors.Lime)
+                }
+            },
+            containerColor = SruvikColors.Surface,
+            shape = RoundedCornerShape(23.dp)
+        )
+    }
+
+    if (confirmVaultReset) {
+        AlertDialog(
+            onDismissRequest = { confirmVaultReset = false },
+            title = { Text("Permanently reset Srukrypt?", color = Color(0xFFFFB0A8)) },
+            text = {
+                Text(
+                    "This permanently deletes ALL encrypted vault images, metadata, passphrase data and vault keys from this app. There is no recovery after confirmation. This is not a certified secure erase of old flash-storage blocks.",
+                    color = SruvikColors.TextSecondary
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { performVaultReset() }, enabled = !busy) {
+                    Text("Erase everything", color = Color(0xFFFF9B9B))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmVaultReset = false }) {
+                    Text("Cancel", color = SruvikColors.TextSecondary)
+                }
+            },
+            containerColor = SruvikColors.Surface,
+            shape = RoundedCornerShape(23.dp)
+        )
+    }
+
+    viewingEntryImage?.let { (bitmap, title) ->
+        SruvikImageViewer(bitmap = bitmap, title = title) {
+            if (!bitmap.isRecycled) bitmap.recycle()
+            viewingEntryImage = null
+        }
+    }
+
     if (passphraseDialog) {
         val creating = passphraseMode == "create" || passphraseMode == "add"
         AlertDialog(
