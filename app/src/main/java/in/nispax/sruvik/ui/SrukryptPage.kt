@@ -6,6 +6,7 @@ import android.app.Activity
 import android.app.KeyguardManager
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import android.os.SystemClock
 import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -488,41 +489,50 @@ fun SrukryptPage(autoLockMinutes: Int) {
      * Repair a legacy/invalidated biometric key without touching the original
      * key envelope. A passphrase fallback is required before this action appears.
      */
-    fun repairFingerprintUnlock() {
+    fun addSecondUnlockMethod() {
         if (busy) return
         val host = activity
         val currentKey = sessionKey?.copyOf()
         if (host == null || currentKey == null) {
             currentKey?.let { Arrays.fill(it, 0) }
-            errorText = "Unlock Srukrypt before repairing fingerprint access."
+            errorText = "Unlock Srukrypt before adding another unlock method."
             return
         }
         if (!SrukryptVault.hasPassphraseFallback(context)) {
             Arrays.fill(currentKey, 0)
-            errorText = "Save a passphrase fallback first. It protects your vault if Android invalidates the replacement biometric key."
+            errorText = "Save a passphrase fallback first. It protects your vault if the platform unlock key is invalidated."
             return
         }
 
-        val biometricStatus = BiometricManager.from(host)
-            .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-        if (biometricStatus != BiometricManager.BIOMETRIC_SUCCESS) {
+        val biometricManager = BiometricManager.from(host)
+        val biometricStatus = biometricManager.canAuthenticate(
+            BiometricManager.Authenticators.BIOMETRIC_STRONG
+        )
+        val deviceCredentialAvailable =
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+                host.getSystemService(KeyguardManager::class.java)?.isDeviceSecure == true &&
+                biometricManager.canAuthenticate(
+                    BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                ) == BiometricManager.BIOMETRIC_SUCCESS
+
+        if (biometricStatus != BiometricManager.BIOMETRIC_SUCCESS && !deviceCredentialAvailable) {
             Arrays.fill(currentKey, 0)
             errorText = when (biometricStatus) {
-                BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED ->
-                    "No strong fingerprint/face is enrolled. Enrol a supported biometric in Android Settings, then retry. Your passphrase still works."
-                BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE ->
-                    "This device does not expose a strong biometric for cryptographic unlock. Your passphrase remains available."
                 BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE ->
-                    "The biometric sensor is temporarily unavailable. Try again later; your passphrase still works."
+                    "The biometric sensor is temporarily unavailable. Try later, or configure a secure device lock. Your passphrase still works."
+                BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED ->
+                    "No strong biometric or supported device screen lock is available. Enrol a fingerprint/face or set a PIN, pattern or password. Your passphrase still works."
+                BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE ->
+                    "This device has no strong biometric. On Android 11+, configure a secure screen lock to add that as your second method. Your passphrase remains available."
                 else ->
-                    "Android cannot use a strong biometric on this device (status $biometricStatus). Your passphrase remains available."
+                    "Android cannot use a strong biometric or device credential here (biometric status $biometricStatus). Your passphrase remains available."
             }
             return
         }
 
         busy = true
         errorText = ""
-        infoText = "Preparing a replacement fingerprint key. Your original key and encrypted images remain untouched."
+        infoText = "Preparing a second unlock method. Your original key, passphrase and encrypted images remain untouched."
         scope.launch {
             var challenge: SrukryptUnlockChallenge? = null
             try {
@@ -539,8 +549,8 @@ fun SrukryptPage(autoLockMinutes: Int) {
                 }
 
                 val builder = BiometricPrompt.PromptInfo.Builder()
-                    .setTitle("Repair Srukrypt fingerprint unlock")
-                    .setSubtitle("Verify your biometric to re-wrap the existing vault key.")
+                    .setTitle("Add a second Srukrypt unlock method")
+                    .setSubtitle("Verify with fingerprint or your device screen lock to protect the existing vault key.")
                     .setAllowedAuthenticators(readyChallenge.allowedAuthenticators)
                 if ((readyChallenge.allowedAuthenticators and
                         BiometricManager.Authenticators.DEVICE_CREDENTIAL) == 0
@@ -583,14 +593,14 @@ fun SrukryptPage(autoLockMinutes: Int) {
                                     entries = loadResult.entries
                                     lastInteraction = SystemClock.elapsedRealtime()
                                     infoText = if (loadResult.unreadableEntries > 0) {
-                                        "Fingerprint unlock repaired. ${loadResult.entries.size} item(s) reopened; ${loadResult.unreadableEntries} unreadable encrypted item(s) were left untouched."
+                                        "Second unlock method added. ${loadResult.entries.size} item(s) reopened; ${loadResult.unreadableEntries} unreadable encrypted item(s) were left untouched."
                                     } else {
-                                        "Fingerprint unlock repaired. Your existing images and passphrase backup are preserved."
+                                        "Second unlock method added. Your existing images and passphrase backup are preserved."
                                     }
                                     errorText = ""
                                 } catch (failure: Exception) {
-                                    android.util.Log.e("Srukrypt", "Fingerprint key repair failed.", failure)
-                                    errorText = failure.message ?: "Could not repair fingerprint unlock. Use your passphrase; existing encrypted items were not deleted."
+                                    android.util.Log.e("Srukrypt", "Adding the second unlock method failed.", failure)
+                                    errorText = failure.message ?: "Could not add the second unlock method. Use your passphrase; existing encrypted items were not deleted."
                                     infoText = ""
                                 } finally {
                                     rewrappedKey?.let { Arrays.fill(it, 0) }
@@ -611,15 +621,15 @@ fun SrukryptPage(autoLockMinutes: Int) {
                                 errorCode == BiometricPrompt.ERROR_USER_CANCELED ||
                                 errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON
                             ) {
-                                "Fingerprint repair cancelled. Your original vault key and passphrase still work."
+                                "Adding the second unlock method was cancelled. Your original vault key and passphrase still work."
                             } else {
-                                "Fingerprint repair failed: $errString. Your original key and passphrase remain available."
+                                "Adding the second unlock method failed: $errString. Your original key and passphrase remain available."
                             }
                         }
 
                         override fun onAuthenticationFailed() {
                             super.onAuthenticationFailed()
-                            errorText = "Fingerprint not recognised. Try again; your original key is still untouched."
+                            errorText = "Authentication was not recognised. Try again; your original key is still untouched."
                         }
                     }
                 )
@@ -628,15 +638,15 @@ fun SrukryptPage(autoLockMinutes: Int) {
                     BiometricPrompt.CryptoObject(readyChallenge.cipher)
                 )
             } catch (failure: Exception) {
-                android.util.Log.e("Srukrypt", "Could not prepare fingerprint key repair.", failure)
+                android.util.Log.e("Srukrypt", "Could not prepare a second vault unlock method.", failure)
                 challenge?.let { SrukryptVault.discardChallenge(it) }
                 Arrays.fill(currentKey, 0)
                 busy = false
                 infoText = ""
                 errorText = when (failure) {
                     is java.security.InvalidKeyException ->
-                        "Android rejected the replacement biometric key. Unlock with your passphrase and try again. ${failure.message}"
-                    else -> failure.message ?: "Could not prepare fingerprint repair. Your passphrase still works."
+                        "Android rejected the replacement platform key. Unlock with your passphrase and try again. ${failure.message}"
+                    else -> failure.message ?: "Could not prepare a second unlock method. Your passphrase still works."
                 }
             }
         }
@@ -1021,6 +1031,20 @@ fun SrukryptPage(autoLockMinutes: Int) {
         val biometricStatus = activity?.let {
             BiometricManager.from(it).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
         } ?: BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE
+        val deviceCredentialAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+            activity?.let {
+                it.getSystemService(KeyguardManager::class.java)?.isDeviceSecure == true &&
+                    BiometricManager.from(it).canAuthenticate(
+                        BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                    ) == BiometricManager.BIOMETRIC_SUCCESS
+            } == true
+        val canAddSecondUnlock = biometricStatus == BiometricManager.BIOMETRIC_SUCCESS ||
+            deviceCredentialAvailable
+        val secondUnlockLabel = if (biometricStatus == BiometricManager.BIOMETRIC_SUCCESS) {
+            "Add fingerprint / device lock"
+        } else {
+            "Add device screen lock"
+        }
 
         AlertDialog(
             onDismissRequest = { vaultSettingsDialog = false },
@@ -1035,7 +1059,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                         Column(Modifier.weight(1f)) {
                             Text("Passphrase", color = SruvikColors.TextPrimary)
                             Text(
-                                if (hasPassphrase) "Enabled · works independently of biometrics"
+                                if (hasPassphrase) "Enabled · independent fallback"
                                 else "Not configured",
                                 color = SruvikColors.TextSecondary,
                                 style = MaterialTheme.typography.bodySmall
@@ -1047,7 +1071,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                         Icon(Icons.Rounded.Fingerprint, null, tint = SruvikColors.Lime)
                         Spacer(Modifier.width(9.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("Fingerprint / strong biometric", color = SruvikColors.TextPrimary)
+                            Text("Fingerprint / device screen lock", color = SruvikColors.TextPrimary)
                             Text(
                                 if (hasBiometric) "Enabled on this device"
                                 else "Not configured",
@@ -1059,9 +1083,9 @@ fun SrukryptPage(autoLockMinutes: Int) {
                     }
                     Text(
                         if (hasPassphrase && hasBiometric)
-                            "Both unlock methods are enabled. Keep your passphrase safe as an independent fallback."
+                            "Both unlock methods are enabled. Your passphrase remains an independent fallback."
                         else
-                            "For two independent ways into the vault, configure both a passphrase and a strong biometric. Adding one never removes the other.",
+                            "Use a passphrase plus fingerprint or your Android device screen lock. Adding the second method never removes the first.",
                         color = SruvikColors.TextSecondary,
                         style = MaterialTheme.typography.bodySmall
                     )
@@ -1078,21 +1102,25 @@ fun SrukryptPage(autoLockMinutes: Int) {
                             Text("Add passphrase fallback")
                         }
                     }
-                    if (!hasBiometric && hasPassphrase && biometricStatus == BiometricManager.BIOMETRIC_SUCCESS) {
+                    if (!hasBiometric && hasPassphrase && canAddSecondUnlock) {
                         OutlinedButton(
                             onClick = {
                                 vaultSettingsDialog = false
-                                repairFingerprintUnlock()
+                                addSecondUnlockMethod()
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Icon(Icons.Rounded.Fingerprint, null)
+                            Icon(
+                                if (biometricStatus == BiometricManager.BIOMETRIC_SUCCESS)
+                                    Icons.Rounded.Fingerprint else Icons.Rounded.Lock,
+                                null
+                            )
                             Spacer(Modifier.width(7.dp))
-                            Text("Add fingerprint unlock")
+                            Text(secondUnlockLabel)
                         }
                     } else if (!hasBiometric && hasPassphrase) {
                         Text(
-                            "A strong biometric is not available or enrolled on this device. Your passphrase remains available.",
+                            "No strong biometric or secure device lock is available. Your passphrase remains usable; configure a fingerprint or device PIN, pattern or password to add a second method.",
                             color = SruvikColors.TextMuted,
                             style = MaterialTheme.typography.bodySmall
                         )
