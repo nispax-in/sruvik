@@ -3,9 +3,6 @@ package `in`.nispax.sruvik.srugen
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
 import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.framework.image.ByteBufferExtractor
 import com.google.mediapipe.tasks.core.BaseOptions
@@ -14,7 +11,6 @@ import com.google.mediapipe.tasks.vision.imagesegmenter.ImageSegmenter
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import kotlin.math.max
-import kotlin.math.min
 
 /**
  * Prompt-free automatic masks for SruGen. The official MediaPipe SelfieMulticlass
@@ -110,8 +106,8 @@ object SruGenAutoMasker {
         BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size, bounds)
         require(bounds.outWidth > 0 && bounds.outHeight > 0) { "The attached file is not a readable image." }
         var sample = 1
-        while (bounds.outWidth / (sample * 2) >= MAX_DECODE_SIDE ||
-            bounds.outHeight / (sample * 2) >= MAX_DECODE_SIDE
+        while (bounds.outWidth / sample > MAX_DECODE_SIDE ||
+            bounds.outHeight / sample > MAX_DECODE_SIDE
         ) sample *= 2
         return BitmapFactory.decodeByteArray(
             imageBytes, 0, imageBytes.size,
