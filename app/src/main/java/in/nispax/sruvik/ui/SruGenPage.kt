@@ -667,12 +667,17 @@ fun SruGenPage(
         val chat = chats.firstOrNull { it.id == activeId }
             ?: draftChat.takeIf { it.id == activeId }
             ?: return
-        val requestMode = mode
+        val selectedMode = mode
         val rawText = prompt.trim()
-        val text = if (requestMode == SruGenMode.REMOVE_BACKGROUND && rawText.isBlank()) {
+        val text = if (selectedMode == SruGenMode.REMOVE_BACKGROUND && rawText.isBlank()) {
             "Remove the background and keep the visible subject."
         } else rawText
         val attachment = selectedImage
+        val requestMode = if (
+            selectedMode == SruGenMode.TEXT_TO_IMAGE &&
+            attachment != null &&
+            isSruGenClothingEditInstruction(text)
+        ) SruGenMode.PROMPT_EDIT else selectedMode
         if (text.isBlank() && attachment == null || generating) return
         val userMessage = SruGenMessage(role = "user", text = text, attachmentId = attachment,
             attachmentMime = if (attachment == null) null else "image/*")
@@ -1441,6 +1446,15 @@ fun SruGenPage(
 }
 
 
+
+internal fun isSruGenClothingEditInstruction(prompt: String): Boolean {
+    val normalized = prompt.lowercase()
+    val hasEditVerb = Regex("\\b(change|edit|recolor|recolour|turn|make|replace|switch)\\b")
+        .containsMatchIn(normalized)
+    val hasClothingTarget = Regex("\\b(clothes|clothing|outfit|shirt|t-shirt|tee|jacket|coat|hoodie|sweater|dress|trousers|pants|jeans)\\b")
+        .containsMatchIn(normalized)
+    return hasEditVerb && hasClothingTarget
+}
 
 private const val MAX_SRUGEN_IMAGE_BYTES = 24 * 1024 * 1024
 private const val MAX_SRUGEN_PREVIEW_PIXELS = 3_000_000L
