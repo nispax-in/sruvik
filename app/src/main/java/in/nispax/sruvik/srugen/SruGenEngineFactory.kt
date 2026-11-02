@@ -13,6 +13,29 @@ object SruGenEngineFactory {
         }
     }
 
+    /** True only when the verified installed MNN pack contains a VAE encoder for img2img. */
+    fun supportsImageEditing(context: Context, modelId: String): Boolean {
+        val model = SruGenGalleryCatalog.find(modelId) ?: return false
+        return model.engine == SruGenGalleryEngine.NEZUMI_MNN_SD15 &&
+            isInstalled(context, modelId) &&
+            SruGenModelPackInstaller.hasImg2ImgEncoder(context, modelId)
+    }
+
+    /**
+     * Prefer the active model, then fall back to another installed gallery model
+     * that has the VAE encoder required for genuine image-to-image inference.
+     */
+    fun installedImageEditingModel(
+        context: Context,
+        preferredModelId: String? = null
+    ): SruGenGalleryModel? {
+        val candidates = buildList {
+            preferredModelId?.let { SruGenGalleryCatalog.find(it) }?.let(::add)
+            addAll(SruGenGalleryCatalog.models)
+        }.distinctBy { it.id }
+        return candidates.firstOrNull { supportsImageEditing(context, it.id) }
+    }
+
     fun installedBytes(context: Context, modelId: String): Long {
         val model = SruGenGalleryCatalog.find(modelId) ?: return 0L
         return when (model.engine) {
