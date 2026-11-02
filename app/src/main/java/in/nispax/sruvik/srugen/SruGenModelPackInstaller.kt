@@ -57,6 +57,19 @@ object SruGenModelPackInstaller {
         return validatePack(File(modelDirectory(context, model.id), "pack"))
     }
 
+    /** True only when the installed pack contains both files required by Nezumi's VAE img2img path. */
+    fun hasImg2ImgEncoder(context: Context, modelId: String): Boolean {
+        val pack = File(modelDirectory(context, modelId), "pack")
+        val encoder = File(pack, "vae_encoder_fp16.mnn")
+        val weights = File(pack, "vae_encoder_fp16.mnn.weight")
+        val manifest = File(pack, "model.json")
+        if (!encoder.isFile || encoder.length() <= 0L ||
+            !weights.isFile || weights.length() <= 0L || !manifest.isFile
+        ) return false
+        val json = runCatching { manifest.readText(Charsets.UTF_8) }.getOrNull() ?: return false
+        return json.contains("vae_encoder_fp16.mnn", ignoreCase = true)
+    }
+
     fun installedBytes(context: Context, modelId: String): Long =
         modelDirectory(context, modelId).takeIf { it.isDirectory }
             ?.walkTopDown()?.filter { it.isFile }?.sumOf { it.length() } ?: 0L
