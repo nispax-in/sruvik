@@ -1325,6 +1325,13 @@ fun SruGenPage(
             containerColor = SruvikColors.Surface
         )
     }
+
+    viewingImage?.let { (bitmap, title) ->
+        SruvikImageViewer(bitmap = bitmap, title = title) {
+            if (!bitmap.isRecycled) bitmap.recycle()
+            viewingImage = null
+        }
+    }
 }
 
 
@@ -1610,13 +1617,6 @@ private fun SruGenArtworkSuggestion(
             Text(subtitle, color = Color(0xFFD8D7E7), style = MaterialTheme.typography.labelSmall, maxLines = 2)
         }
     }
-    viewingImage?.let { (bitmap, title) ->
-        SruvikImageViewer(bitmap = bitmap, title = title) {
-            if (!bitmap.isRecycled) bitmap.recycle()
-            viewingImage = null
-        }
-    }
-
 }
 
 @Composable
