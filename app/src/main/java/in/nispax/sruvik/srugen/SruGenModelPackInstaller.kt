@@ -186,6 +186,18 @@ object SruGenModelPackInstaller {
             require(validatePack(packRoot)) {
                 "The archive is missing required MNN weights or tokenizer/config files."
             }
+            if (model.requiresImg2ImgEncoder) {
+                val missingEncoderFiles = listOf(
+                    "vae_encoder_fp16.mnn",
+                    "vae_encoder_fp16.mnn.weight"
+                ).filter { name ->
+                    val file = File(packRoot, name)
+                    !file.isFile || file.length() <= 0L
+                }
+                require(missingEncoderFiles.isEmpty()) {
+                    "This model archive is missing its verified VAE encoder files. It cannot be installed as an image-editing model."
+                }
+            }
 
             // Validate the model identity before making it visible to the engine.
             val modelJson = File(packRoot, "model.json").readText(Charsets.UTF_8)
