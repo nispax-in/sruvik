@@ -239,7 +239,10 @@ class SruGenGenerationService : Service() {
             generationPrompt: String,
             modelId: String
         ) {
-            check(SruGenGenerationSession.state.value.status != SruGenGenerationStatus.RUNNING) {
+            check(
+                SruGenGenerationSession.state.value.status != SruGenGenerationStatus.RUNNING &&
+                    pendingRequest == null
+            ) {
                 "Another image is already being generated."
             }
             pendingRequest = PendingRequest(chat, generationPrompt, modelId)
