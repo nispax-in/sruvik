@@ -89,6 +89,14 @@ private data class SruGenResourceStats(
     val available: Int = 0
 )
 
+private data class PendingSruGenRequest(
+    val chat: SruGenChat,
+    val generationPrompt: String,
+    val modelId: String,
+    val mode: SruGenMode,
+    val sourceAttachmentId: String?
+)
+
 @Composable
 fun SruGenPage(
     memoryEnabled: Boolean,
@@ -113,7 +121,7 @@ fun SruGenPage(
     var info by remember { mutableStateOf("") }
     var viewingImage by remember { mutableStateOf<Pair<Bitmap, String>?>(null) }
     var loadingViewerImage by remember { mutableStateOf(false) }
-    var pendingGeneration by remember { mutableStateOf<Triple<SruGenChat, String, String>?>(null) }
+    var pendingGeneration by remember { mutableStateOf<PendingSruGenRequest?>(null) }
     var pendingGallerySave by remember { mutableStateOf<Pair<String, String>?>(null) }
     var modelReady by remember { mutableStateOf(false) }
     var activeModelId by remember { mutableStateOf(SruGenActiveModelStore.activeModelId(context)) }
@@ -530,17 +538,26 @@ fun SruGenPage(
     }
 
 
-    fun startGeneration(request: Triple<SruGenChat, String, String>) {
+    fun startGeneration(request: PendingSruGenRequest) {
         try {
-            SruGenGenerationService.start(context, request.first, request.second, request.third)
+            SruGenGenerationService.start(
+                context,
+                request.chat,
+                request.generationPrompt,
+                request.modelId,
+                request.mode,
+                request.sourceAttachmentId
+            )
             generating = true
             progress = 0
-            progressLabel = "Preparing local model"
+            progressLabel = if (request.mode == SruGenMode.PROMPT_EDIT) "Preparing automatic image edit"
+                else if (request.mode == SruGenMode.REMOVE_BACKGROUND) "Preparing subject mask"
+                else "Preparing local model"
             error = ""
-            info = "Generation is running on this device. Stop it here or from its notification."
+            info = "Processing is running on this device. Stop it here or from its notification."
         } catch (failure: Exception) {
             generating = false
-            error = failure.message ?: "Unable to start SruGen generation."
+            error = failure.message ?: "Unable to start SruGen."
             info = ""
         }
     }
@@ -553,7 +570,7 @@ fun SruGenPage(
         if (request != null) {
             startGeneration(request)
             if (!granted) {
-                info = "Notifications are disabled. Generation continues in Sruvik; the in-app Stop control remains available."
+                info = "Notifications are disabled. Processing continues in Sruvik; the in-app Stop control remains available."
             }
         }
     }
@@ -561,9 +578,11 @@ fun SruGenPage(
     fun startGenerationWithNotificationPermission(
         chat: SruGenChat,
         generationPrompt: String,
-        modelId: String
+        modelId: String,
+        requestMode: SruGenMode = SruGenMode.TEXT_TO_IMAGE,
+        sourceAttachmentId: String? = null
     ) {
-        val request = Triple(chat, generationPrompt, modelId)
+        val request = PendingSruGenRequest(chat, generationPrompt, modelId, requestMode, sourceAttachmentId)
         if (
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -640,7 +659,10 @@ fun SruGenPage(
         val chat = chats.firstOrNull { it.id == activeId }
             ?: draftChat.takeIf { it.id == activeId }
             ?: return
-        val text = prompt.trim()
+        val rawText = prompt.trim()
+        val text = if (mode == SruGenMode.REMOVE_BACKGROUND && rawText.isBlank()) {
+            "Remove the background and keep the visible subject."
+        } else rawText
         val attachment = selectedImage
         if (text.isBlank() && attachment == null || generating) return
         val userMessage = SruGenMessage(role = "user", text = text, attachmentId = attachment,
@@ -675,7 +697,7 @@ fun SruGenPage(
             return
         }
 
-        if (text.isBlank() && attachment != null) {
+        if (text.isBlank() && attachment != null && mode == SruGenMode.TEXT_TO_IMAGE) {
             persist(updatedChat.copy(
                 messages = updatedChat.messages + SruGenMessage(
                     role = "assistant",
@@ -705,17 +727,25 @@ fun SruGenPage(
             return
         }
 
-        if (mode != SruGenMode.TEXT_TO_IMAGE) {
-            val unavailable = when (mode) {
-                SruGenMode.PROMPT_EDIT -> "Reference-image editing is not available in this build. Your original image remains safely attached to this encrypted conversation."
-                SruGenMode.REMOVE_BACKGROUND -> "Background removal requires a separate on-device segmentation model. It is not installed yet."
-                SruGenMode.REMOVE_OBJECT -> "Object removal requires an inpainting model and selection mask. It is not enabled yet."
-                else -> "This workflow is unavailable."
-            }
-            persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(role = "assistant", text = unavailable)))
+        if (mode == SruGenMode.REMOVE_OBJECT) {
+            persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
+                role = "assistant",
+                text = "Automatic object removal is not enabled yet. This build has no reliable object-specific segmentation or dedicated inpainting model, so it will not guess at an object or modify your photo."
+            )))
             return
         }
-        if (!modelReady) {
+        if (mode == SruGenMode.PROMPT_EDIT) {
+            val compatibleModel = activeModel?.engine == SruGenGalleryEngine.NEZUMI_MNN_SD15 &&
+                SruGenModelPackInstaller.hasImg2ImgEncoder(context, activeModelId)
+            if (!modelReady || !compatibleModel) {
+                persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
+                    role = "assistant",
+                    text = "Automatic clothing edits need an installed Nezumi SD 1.5 model pack with its VAE encoder. Choose a compatible MNN model in Models; your source image remains encrypted in this chat."
+                )))
+                return
+            }
+        }
+        if (mode == SruGenMode.TEXT_TO_IMAGE && !modelReady) {
             persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
                 role = "assistant",
                 text = "Your prompt and image remain saved in this encrypted chat. The selected model is not installed yet. Open Models to install a compatible model before generating."
@@ -736,7 +766,13 @@ fun SruGenPage(
             ))
             return
         }
-        startGenerationWithNotificationPermission(updatedChat, generationPrompt, activeModelId)
+        startGenerationWithNotificationPermission(
+            updatedChat,
+            generationPrompt,
+            activeModelId,
+            mode,
+            attachment
+        )
     }
     val studioInk = SruvikColors.Background
     val studioPanel = SruvikColors.Surface
