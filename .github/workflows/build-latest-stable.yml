@@ -68,7 +68,7 @@ jobs:
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
         run: |
           set -euo pipefail
-          APP_VERSION_CODE=$((289 + GITHUB_RUN_NUMBER))
+          APP_VERSION_CODE=$((290 + GITHUB_RUN_NUMBER))
           echo "APK versionCode: $APP_VERSION_CODE"
           GITHUB_RUN_NUMBER="$APP_VERSION_CODE" gradle --no-daemon :app:assembleDebug
       - name: Verify final APK signature matches build 101
