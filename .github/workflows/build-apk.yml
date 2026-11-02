@@ -2,6 +2,7 @@ name: Build Sruvik Debug APK (recovered stable signer)
 on:
   push:
     branches: ['fix/upscaler-image-selection-feedback']
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
