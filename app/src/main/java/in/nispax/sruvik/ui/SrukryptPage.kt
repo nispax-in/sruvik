@@ -417,7 +417,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                             if (authenticatedCipher == null) {
                                 SrukryptVault.discardChallenge(authChallenge)
                                 busy = false
-                                errorText = "Android completed authentication but did not return the Keystore cipher. No vault data was opened. Please retry or use your passphrase."
+                                errorText = "Android completed authentication but did not return the Keystore cipher. No vault data was opened. Please retry with your device lock."
                                 return
                             }
                             scope.launch {
@@ -450,7 +450,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                                     SrukryptVault.discardChallenge(authChallenge)
                                     errorText = when (error) {
                                         is java.security.KeyStoreException -> "Android Keystore could not access the Srukrypt key: ${error.message}"
-                                        is android.security.keystore.KeyPermanentlyInvalidatedException -> "Android invalidated the old fingerprint key. Android invalidated the previous system-authentication key. A reset passphrase can only erase the vault; it cannot recover these items."
+                                        is android.security.keystore.KeyPermanentlyInvalidatedException -> "Android invalidated the previous system-authentication key. A reset passphrase can only erase the vault; it cannot recover these items."
                     is java.security.InvalidKeyException -> "The Srukrypt key is unavailable. A reset passphrase cannot unlock the vault. It can only authorize a destructive reset. Details: ${error.message}"
                                         is javax.crypto.AEADBadTagException -> "The encrypted vault key failed authentication. This may indicate a damaged key envelope."
                                         else -> error.message ?: "Unable to unlock the vault."
@@ -483,7 +483,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                 busy = false
                 errorText = when (error) {
                     is java.security.KeyStoreException -> "Android Keystore error: ${error.message}"
-                    is android.security.keystore.KeyPermanentlyInvalidatedException -> "Android invalidated the old fingerprint key. Use your saved passphrase, then tap Repair fingerprint unlock. Your encrypted images were not changed."
+                    is android.security.keystore.KeyPermanentlyInvalidatedException -> "Android invalidated the previous system-authentication key. A reset passphrase can only erase the vault; it cannot recover these items."
                     is java.security.InvalidKeyException -> "The Srukrypt key is not available. A reset passphrase cannot unlock the vault. It can only authorize a destructive reset. ${error.message}"
                     else -> error.message ?: "Unable to prepare the secure vault."
                 }
