@@ -657,7 +657,7 @@ private fun AppNavigationBar(
             .height(70.dp)
             .clip(RoundedCornerShape(26.dp))
             .background(Brush.linearGradient(
-                listOf(Color(0xBFE8F0FF), Color(0x7A65748F), Color(0xAA171D2D), Color(0xB91B2335))
+                listOf(Color(0x66D9E5FA), Color(0x555F6F8C), Color(0x77171D2D), Color(0x881B2335))
             ))
             .border(androidx.compose.foundation.BorderStroke(1.dp, Brush.linearGradient(
                 listOf(Color(0xCCFFFFFF), Color(0x557F9BC8), Color(0x8899B6D9), Color(0x66FFFFFF))
