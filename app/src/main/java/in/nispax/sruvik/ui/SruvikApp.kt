@@ -250,23 +250,19 @@ private fun SplashScreen() {
 }
 
 private fun DrawScope.drawAtmosphere() {
-    drawRect(Brush.radialGradient(listOf(Color(0x554B327D), Color.Transparent),
-        Offset(size.width * .10f, size.height * .22f), size.maxDimension * .72f))
-    drawRect(Brush.radialGradient(listOf(Color(0x44305C8A), Color.Transparent),
-        Offset(size.width * .92f, size.height * .52f), size.maxDimension * .62f))
-    drawRect(Brush.radialGradient(listOf(Color(0x334E2F77), Color.Transparent),
-        Offset(size.width * .48f, size.height * .96f), size.maxDimension * .48f))
-    val step = 38.dp.toPx()
-    var x = 0f
-    while (x <= size.width) {
-        drawLine(Color.White.copy(alpha = .025f), Offset(x, 0f), Offset(x, size.height), .7.dp.toPx())
-        x += step
-    }
-    var y = 0f
-    while (y <= size.height) {
-        drawLine(Color.White.copy(alpha = .025f), Offset(0f, y), Offset(size.width, y), .7.dp.toPx())
-        y += step
-    }
+    // Ambient reflections stay at the perimeter so the reading canvas remains quiet.
+    drawRect(Brush.radialGradient(
+        listOf(Color(0x263D2F78), Color(0x103D2F78), Color.Transparent),
+        Offset(size.width * .04f, size.height * .08f), size.maxDimension * .66f
+    ))
+    drawRect(Brush.radialGradient(
+        listOf(Color(0x1E1D6575), Color(0x0B1D6575), Color.Transparent),
+        Offset(size.width * .98f, size.height * .42f), size.maxDimension * .58f
+    ))
+    drawRect(Brush.radialGradient(
+        listOf(Color(0x101E315A), Color.Transparent),
+        Offset(size.width * .48f, size.height * 1.02f), size.maxDimension * .50f
+    ))
 }
 
 @Composable
