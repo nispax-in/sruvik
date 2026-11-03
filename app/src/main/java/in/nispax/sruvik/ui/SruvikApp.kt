@@ -652,9 +652,15 @@ private fun AppNavigationBar(
         Destination.Settings
     )
     NavigationBar(
-        modifier = modifier.fillMaxWidth().height(80.dp)
-            .border(androidx.compose.foundation.BorderStroke(1.dp, Brush.horizontalGradient(
-                listOf(Color.Transparent, Color(0x665D6C89), Color(0x5575DCEB), Color.Transparent)
+        modifier = modifier.fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 7.dp)
+            .height(70.dp)
+            .clip(RoundedCornerShape(26.dp))
+            .background(Brush.linearGradient(
+                listOf(Color(0xBFE8F0FF), Color(0x7A65748F), Color(0xAA171D2D), Color(0xB91B2335))
+            ))
+            .border(androidx.compose.foundation.BorderStroke(1.dp, Brush.linearGradient(
+                listOf(Color(0xCCFFFFFF), Color(0x557F9BC8), Color(0x8899B6D9), Color(0x66FFFFFF))
             ))),
         containerColor = Color.Transparent,
         contentColor = SruvikColors.TextPrimary,
