@@ -35,6 +35,34 @@ class SruGenColorEditParserTest {
     }
 
     @Test
+    fun detectsSeparateOuterAndInnerGarmentTargets() {
+        assertEquals(
+            setOf("outerwear", "inner-top"),
+            SruGenColorEditParser.garmentTargets("change my clothes to a black blazer and white shirt inside")
+        )
+        assertEquals(
+            setOf("outerwear", "lower-body"),
+            SruGenColorEditParser.garmentTargets("make my jacket black and jeans white")
+        )
+        assertEquals(
+            setOf("inner-top"),
+            SruGenColorEditParser.garmentTargets("change my shirt to red")
+        )
+    }
+
+    @Test
+    fun layeredOutfitRequestsAreNotSentToGenericDiffusion() {
+        assertEquals(
+            true,
+            SruGenColorEditParser.requiresMultiGarmentEdit("black blazer and white shirt inside")
+        )
+        assertEquals(
+            false,
+            SruGenColorEditParser.requiresMultiGarmentEdit("change my shirt to black")
+        )
+    }
+
+    @Test
     fun multipleRequestedColorsAreNotTreatedAsASimpleRecolour() {
         assertNull(
             SruGenColorEditParser.targetColor("change my shirt to red and blue")
