@@ -146,10 +146,14 @@ fun DeviceMonitorPage() {
     val lowFraction = data?.let {
         if (it.totalRamBytes > 0L) it.lowMemoryThresholdBytes.toFloat() / it.totalRamBytes.toFloat() else 0f
     } ?: 0f
-    val ramBands = listOf(
-        MeterBand(0f, lowFraction.coerceIn(.001f, 1f), ObsidianTokens.Amber),
-        MeterBand(lowFraction.coerceIn(0f, .999f), 1f, ObsidianTokens.Cyan)
-    )
+    val ramBands = if (lowFraction > 0f) {
+        listOf(
+            MeterBand(0f, lowFraction.coerceIn(0f, 1f), ObsidianTokens.Amber),
+            MeterBand(lowFraction.coerceIn(0f, 1f), 1f, ObsidianTokens.Cyan)
+        )
+    } else {
+        listOf(MeterBand(0f, 1f, ObsidianTokens.Cyan))
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),

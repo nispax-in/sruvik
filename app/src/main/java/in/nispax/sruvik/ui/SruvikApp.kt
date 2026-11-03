@@ -326,15 +326,15 @@ private fun HomeScreen(
             }
             item {
                 GlassCard(
-                    Modifier.fillMaxWidth().heightIn(min = 228.dp),
+                    Modifier.fillMaxWidth(),
                     RoundedCornerShape(26.dp),
                     Brush.linearGradient(listOf(Color(0xE6242B3B), Color(0xF20C111B), Color(0xE61A1A2A)))
                 ) {
-                    Box(Modifier.fillMaxWidth().heightIn(min = 228.dp)) {
+                    Box(Modifier.fillMaxWidth().heightIn(min = 228.dp).wrapContentHeight()) {
                         Image(
                             painter = painterResource(R.drawable.sruvik_glass_art),
                             contentDescription = null,
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier.matchParentSize(),
                             contentScale = ContentScale.Crop
                         )
                         Box(Modifier.fillMaxSize().background(
