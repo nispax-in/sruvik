@@ -162,7 +162,7 @@ fun SruvikApp() {
                 Destination.Activity -> EmptyPage("YOUR WORK", "Activity",
                     "A quiet record of the things you create with Sruvik.",
                     Icons.Rounded.History, "Nothing here yet",
-                    "Completed and in-progress tasks will appear here.")
+                    "Activity history is not persisted in this build yet. Your creations and upscales remain available in their own workspaces.")
                 Destination.Device -> DeviceMonitorPage()
                 Destination.Settings -> SettingsPage(
                     profile = profile,
@@ -703,14 +703,14 @@ private fun AppNavigationBar(
 private fun EmptyPage(eyebrow: String, title: String, description: String, icon: ImageVector, message: String, detail: String) {
     Column(Modifier.fillMaxSize().padding(horizontal = 22.dp).padding(top = 30.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        Text(eyebrow, style = MaterialTheme.typography.labelLarge, color = SruvikColors.LimeMuted, letterSpacing = 2.sp)
+        Text(eyebrow, style = MaterialTheme.typography.labelLarge, color = ObsidianTokens.Cyan, letterSpacing = 1.7.sp)
         Text(title, style = MaterialTheme.typography.displayLarge, color = SruvikColors.TextPrimary)
         Text(description, style = MaterialTheme.typography.bodyLarge, color = SruvikColors.TextSecondary)
         Spacer(Modifier.height(10.dp))
         GlassCard(Modifier.fillMaxWidth(), RoundedCornerShape(25.dp),
             Brush.linearGradient(listOf(Color(0xC51B2230), Color(0xF20D111A)))) {
             Column(Modifier.fillMaxWidth().padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Icon(icon, null, tint = SruvikColors.LimeMuted, modifier = Modifier.size(28.dp))
+                Icon(icon, null, tint = ObsidianTokens.Cyan, modifier = Modifier.size(28.dp))
                 Text(message, style = MaterialTheme.typography.titleLarge, color = SruvikColors.TextPrimary)
                 Text(detail, style = MaterialTheme.typography.bodyMedium, color = SruvikColors.TextSecondary)
             }
