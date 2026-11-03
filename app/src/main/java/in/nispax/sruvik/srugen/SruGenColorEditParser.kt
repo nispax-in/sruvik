@@ -47,5 +47,12 @@ object SruGenColorEditParser {
     }
 
     fun requiresMultiGarmentEdit(prompt: String): Boolean = garmentTargets(prompt).size > 1
+
+    fun requiresMultiRegionEdit(prompt: String): Boolean {
+        val text = prompt.lowercase()
+        return (hairTerms.containsMatchIn(text) && garments.containsMatchIn(text)) ||
+            requiresMultiGarmentEdit(text)
+    }
+
     fun isSimpleColorChange(prompt: String): Boolean = targetColor(prompt) != null
 }
