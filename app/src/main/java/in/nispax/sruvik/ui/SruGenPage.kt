@@ -850,9 +850,25 @@ fun SruGenPage(
     val studioSecondary = SruvikColors.TextSecondary
 
     Box(
-        Modifier.fillMaxSize().background(studioInk),
+        Modifier.fillMaxSize().background(
+            Brush.linearGradient(
+                colors = listOf(Color(0xFF080B13), Color(0xFF101626), Color(0xFF080B12)),
+                start = Offset.Zero,
+                end = Offset.Infinite
+            )
+        ),
         contentAlignment = Alignment.TopCenter
     ) {
+        // Atmospheric light belongs to the environment, never over the photo.
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.radialGradient(
+                    colors = listOf(Color(0x1A6256B8), Color(0x0869D8E8), Color.Transparent),
+                    center = Offset(0.82f, 0.18f),
+                    radius = 920f
+                )
+            )
+        )
         Column(
             Modifier.widthIn(max = 920.dp).fillMaxWidth().fillMaxHeight()
                 .windowInsetsPadding(WindowInsets.statusBars)
@@ -926,7 +942,8 @@ fun SruGenPage(
             AnimatedVisibility(visible = monitorExpanded) {
                 Row(
                     Modifier.fillMaxWidth().padding(bottom = 8.dp)
-                        .background(studioPanel, RoundedCornerShape(8.dp))
+                        .background(Color(0x8C202A3B), RoundedCornerShape(12.dp))
+                        .border(1.dp, Color(0x447E91B8), RoundedCornerShape(12.dp))
                         .padding(horizontal = 12.dp, vertical = 9.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -1082,7 +1099,7 @@ fun SruGenPage(
             }
 
             Column(
-                Modifier.fillMaxWidth().background(studioInk).padding(top = 8.dp, bottom = 6.dp),
+                Modifier.fillMaxWidth().background(Color(0xB80A0E18)).padding(top = 8.dp, bottom = 6.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 HorizontalDivider(color = SruvikColors.Border.copy(alpha = .75f))
@@ -1099,8 +1116,8 @@ fun SruGenPage(
                 selectedImage?.let { id ->
                     Row(
                         Modifier.fillMaxWidth()
-                            .background(Brush.linearGradient(listOf(Color(0xE61B2230), Color(0xF20D111A))), RoundedCornerShape(12.dp))
-                            .border(1.dp, SruvikColors.GlassBorder, RoundedCornerShape(12.dp))
+                            .background(Brush.linearGradient(listOf(Color(0xA8323E55), Color(0x99202A3B))), RoundedCornerShape(14.dp))
+                            .border(1.dp, Brush.linearGradient(listOf(Color(0x887E9ABF), Color(0x4475DCEB), Color(0x335B527F))), RoundedCornerShape(14.dp))
                             .padding(horizontal = 9.dp, vertical = 7.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -1126,8 +1143,8 @@ fun SruGenPage(
 
                 Row(
                     Modifier.fillMaxWidth()
-                        .background(Brush.linearGradient(listOf(Color(0xF21B2230), Color(0xFA0D111A))), RoundedCornerShape(16.dp))
-                        .border(androidx.compose.foundation.BorderStroke(1.dp, Brush.linearGradient(listOf(Color(0x667E91B8), Color(0x3375DCEB)))), RoundedCornerShape(16.dp))
+                        .background(Brush.linearGradient(listOf(Color(0xB82B3548), Color(0xC9111724))), RoundedCornerShape(19.dp))
+                        .border(androidx.compose.foundation.BorderStroke(1.dp, Brush.linearGradient(listOf(Color(0x997E9ABF), Color(0x5575DCEB), Color(0x665B527F)))), RoundedCornerShape(19.dp))
                         .padding(start = 13.dp, end = 5.dp, top = 5.dp, bottom = 5.dp),
                     verticalAlignment = Alignment.Bottom,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -1644,8 +1661,9 @@ private fun SruGenMessageBubble(
         Column(
             Modifier.widthIn(max = if (isUser) 560.dp else 680.dp)
                 .then(
-                    if (isUser) Modifier.clip(RoundedCornerShape(16.dp))
-                        .background(SruvikColors.SurfaceElevated)
+                    if (isUser) Modifier.clip(RoundedCornerShape(18.dp))
+                        .background(Brush.linearGradient(listOf(Color(0xAA283449), Color(0x99202A3B))))
+                        .border(1.dp, Brush.linearGradient(listOf(Color(0x667F95B9), Color(0x3375DCEB), Color(0x445C557D))), RoundedCornerShape(18.dp))
                         .padding(horizontal = 14.dp, vertical = 11.dp)
                     else Modifier.padding(vertical = 2.dp)
                 ),
