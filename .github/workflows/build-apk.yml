@@ -84,7 +84,7 @@ jobs:
       - name: Run JVM regression tests and build debug APK
         env:
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
-        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
+        run: gradle --no-daemon :app:testDebugUnitTest :app:compileDebugAndroidTestKotlin :app:assembleDebug
       - name: Verify native runtime and license files in APK
         shell: bash
         run: |
