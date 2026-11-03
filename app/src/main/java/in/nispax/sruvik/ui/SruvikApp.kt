@@ -129,7 +129,7 @@ fun SruvikApp() {
             label = "screen"
         ) { page ->
             when (page) {
-                Destination.Home -> HomeScreen(
+                Destination.Home -> HomeScreenLiquidGlass(
                     name = profile.name,
                     showDailyTip = showDailyTip,
                     onModels = { selected = Destination.Models },
@@ -656,7 +656,7 @@ private fun AppNavigationBar(
             .border(androidx.compose.foundation.BorderStroke(1.dp, Brush.horizontalGradient(
                 listOf(Color.Transparent, Color(0x665D6C89), Color(0x5575DCEB), Color.Transparent)
             ))),
-        containerColor = Color(0xF20B0E16),
+        containerColor = Color.Transparent,
         contentColor = SruvikColors.TextPrimary,
         tonalElevation = 0.dp
     ) {
@@ -674,11 +674,11 @@ private fun AppNavigationBar(
                 label = { Text(destination.label, style = MaterialTheme.typography.labelSmall) },
                 alwaysShowLabel = true,
                 colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = SruvikColors.OnPrimary,
-                    selectedTextColor = SruvikColors.Primary,
-                    indicatorColor = SruvikColors.Primary,
-                    unselectedIconColor = SruvikColors.TextSecondary,
-                    unselectedTextColor = SruvikColors.TextSecondary
+                    selectedIconColor = Color(0xFFFFFFFF),
+                    selectedTextColor = Color(0xFFF1F3FF),
+                    indicatorColor = Color(0x55E5EEFF),
+                    unselectedIconColor = Color(0xFFB7C0D3),
+                    unselectedTextColor = Color(0xFFB7C0D3)
                 )
             )
         }
