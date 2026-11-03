@@ -1101,7 +1101,9 @@ fun SruGenPage(
                     BasicTextField(
                         value = prompt,
                         onValueChange = { prompt = it.take(1800) },
-                        modifier = Modifier.weight(1f).heightIn(min = 46.dp, max = 116.dp).padding(vertical = 10.dp),
+                        modifier = Modifier.weight(1f).heightIn(min = 46.dp, max = 116.dp)
+                            .semantics { contentDescription = "Image prompt" }
+                            .padding(vertical = 10.dp),
                         textStyle = MaterialTheme.typography.bodyLarge.copy(color = studioText),
                         cursorBrush = SolidColor(studioAccent),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
