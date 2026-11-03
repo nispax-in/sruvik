@@ -148,14 +148,20 @@ object SruGenAutoMasker {
                     Color.RGBToHSV(Color.red(old), Color.green(old), Color.blue(old), hsv)
                     when (targetColor.lowercase()) {
                         "black" -> {
+                            // Remove the source garment hue almost completely.
+                            // A residual saturation of 0.18 left teal fabric
+                            // looking warm brown after darkening on-device.
                             hsv[0] = 0f
-                            hsv[1] = minOf(hsv[1], 0.18f)
-                            hsv[2] = (hsv[2] * 0.38f).coerceAtLeast(0.035f)
+                            hsv[1] = minOf(hsv[1], 0.025f)
+                            // Preserve relative highlights/folds, but clamp to a
+                            // genuinely dark neutral range rather than brown.
+                            hsv[2] = (hsv[2] * 0.30f).coerceIn(0.025f, 0.22f)
                         }
                         "white" -> {
                             hsv[0] = 0f
-                            hsv[1] = minOf(hsv[1], 0.08f)
-                            hsv[2] = (0.68f + hsv[2] * 0.32f).coerceAtMost(1f)
+                            hsv[1] = minOf(hsv[1], 0.035f)
+                            // Keep some source luminance contrast for fabric folds.
+                            hsv[2] = (0.72f + hsv[2] * 0.28f).coerceAtMost(1f)
                         }
                         "gray", "grey" -> {
                             hsv[0] = 0f
