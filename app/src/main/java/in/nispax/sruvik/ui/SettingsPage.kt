@@ -175,8 +175,8 @@ fun SettingsPage(
                 focusedBorderColor = SruvikColors.LimeMuted,
                 unfocusedBorderColor = Color.White.copy(alpha = .13f),
                 cursorColor = SruvikColors.Lime,
-                focusedContainerColor = Color(0xCC151B28),
-                unfocusedContainerColor = Color(0xAA111620)
+                focusedContainerColor = Color(0x66171D2A),
+                unfocusedContainerColor = Color(0x44111520)
             )
         )
 
@@ -397,9 +397,9 @@ private fun SettingsSection(
 private fun SettingsPanel(content: @Composable ColumnScope.() -> Unit) {
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(23.dp))
-            .background(Brush.linearGradient(listOf(Color(0xAA171D2A), Color(0xB8111520))))
-            .border(1.dp, Color.White.copy(alpha = .11f), RoundedCornerShape(23.dp))
-            .padding(16.dp),
+            .background(Brush.linearGradient(listOf(Color(0x551B2432), Color(0x33111620))))
+            .border(1.dp, Brush.linearGradient(listOf(Color(0x447F91B5), Color(0x2275E3F3), Color(0x334B566B))), RoundedCornerShape(19.dp))
+            .padding(horizontal = 14.dp, vertical = 13.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
         content = content
     )
