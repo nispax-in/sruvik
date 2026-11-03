@@ -129,10 +129,19 @@ fun SruvikApp() {
             label = "screen"
         ) { page ->
             when (page) {
-                Destination.Home -> HomeScreen(profile.name, showDailyTip, { selected = Destination.Models }, { selected = Destination.Settings }, { selected = Destination.Upscaler }, { selected = Destination.SruGen }, {
-                    vaultReturnToSruGen = false
-                    selected = Destination.Srukrypt
-                })
+                Destination.Home -> HomeScreen(
+                    name = profile.name,
+                    showDailyTip = showDailyTip,
+                    onModels = { selected = Destination.Models },
+                    onSettings = { selected = Destination.Settings },
+                    onUpscale = { selected = Destination.Upscaler },
+                    onSruGen = { selected = Destination.SruGen },
+                    onSrukrypt = {
+                        vaultReturnToSruGen = false
+                        selected = Destination.Srukrypt
+                    },
+                    onDevice = { selected = Destination.Device }
+                )
                 Destination.Models -> ModelsPage(
                     onOpenModel = { modelId ->
                         selectedModelId = modelId
@@ -266,106 +275,153 @@ private fun DrawScope.drawAtmosphere() {
 }
 
 @Composable
-private fun HomeScreen(name: String, showDailyTip: Boolean, onModels: () -> Unit, onSettings: () -> Unit, onUpscale: () -> Unit, onSruGen: () -> Unit, onSrukrypt: () -> Unit) {
-    val state = rememberLazyListState()
-    val scope = rememberCoroutineScope()
-    var greeting by remember { mutableStateOf(greetingForNow()) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(60_000)
-            greeting = greetingForNow()
-        }
-    }
-    val dailyTip = remember {
-        val tips = listOf(
-            "Tiny steps count. A good idea becomes great when you keep iterating.",
-            "Fun fact: the first digital photograph was made in 1957 — long before modern cameras.",
-            "A clean original is the best starting point for a great upscale.",
-            "Try changing one creative detail at a time. It makes results easier to compare.",
-            "Fun fact: the word pixel blends “picture” and “element”.",
-            "Your device can do useful creative work without sending files to the cloud.",
-            "Save a copy before experimenting. Curiosity works best with an undo plan."
-        )
-        tips[java.time.LocalDate.now().dayOfYear % tips.size]
-    }
-    LazyColumn(Modifier.fillMaxSize(), state = state,
-        contentPadding = PaddingValues(start = 22.dp, end = 22.dp, top = 22.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(25.dp)) {
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(21.dp)) {
+private fun HomeScreen(
+    name: String,
+    showDailyTip: Boolean,
+    onModels: () -> Unit,
+    onSettings: () -> Unit,
+    onUpscale: () -> Unit,
+    onSruGen: () -> Unit,
+    onSrukrypt: () -> Unit,
+    onDevice: () -> Unit
+) {
+    val greeting = remember { greetingForNow() }
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val horizontal = if (maxWidth >= 600.dp) 32.dp else 20.dp
+        LazyColumn(
+            Modifier.widthIn(max = 920.dp).fillMaxWidth().align(Alignment.TopCenter),
+            contentPadding = PaddingValues(start = horizontal, end = horizontal, top = 22.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(22.dp)
+        ) {
+            item {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Image(
-                        painter = painterResource(id = R.drawable.sruvik_logo),
-                        contentDescription = "Sruvik logo",
-                        modifier = Modifier.size(44.dp)
+                        painter = painterResource(R.drawable.sruvik_logo),
+                        contentDescription = "Sruvik",
+                        modifier = Modifier.size(42.dp)
                     )
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(11.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("SRUVIK", style = MaterialTheme.typography.labelLarge,
-                            color = SruvikColors.TextSecondary, letterSpacing = 2.1.sp)
-                        Text("IDEAS INTO REALITY", style = MaterialTheme.typography.labelSmall,
-                            color = SruvikColors.TextMuted, letterSpacing = 1.1.sp)
+                            color = SruvikColors.TextPrimary, letterSpacing = 2.2.sp)
+                        Text("PRIVATE AI WORKSPACE", style = MaterialTheme.typography.labelSmall,
+                            color = SruvikColors.TextMuted, letterSpacing = 1.0.sp)
                     }
                     Spacer(Modifier.weight(1f))
                     SruvikAvatar(name, Modifier.size(42.dp))
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("$greeting, $name!", style = MaterialTheme.typography.displayLarge,
+            }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("$greeting, $name.", style = MaterialTheme.typography.displaySmall,
                         color = SruvikColors.TextPrimary)
+                    Text("A quieter place to make, refine and keep.", style = MaterialTheme.typography.bodyLarge,
+                        color = SruvikColors.TextSecondary)
                     if (showDailyTip) {
-                        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                            Icon(Icons.Rounded.AutoAwesome, null, tint = SruvikColors.LimeMuted,
-                                modifier = Modifier.padding(top = 2.dp).size(14.dp))
-                            Text(dailyTip, style = MaterialTheme.typography.bodySmall,
-                                color = SruvikColors.TextSecondary, lineHeight = 17.sp)
+                        Spacer(Modifier.height(3.dp))
+                        Text("Your workspace runs locally where supported. Your files stay yours to manage.",
+                            style = MaterialTheme.typography.bodySmall, color = SruvikColors.TextMuted)
+                    }
+                }
+            }
+            item {
+                GlassCard(
+                    Modifier.fillMaxWidth().heightIn(min = 228.dp),
+                    RoundedCornerShape(26.dp),
+                    Brush.linearGradient(listOf(Color(0xE6242B3B), Color(0xF20C111B), Color(0xE61A1A2A)))
+                ) {
+                    Box(Modifier.fillMaxWidth().heightIn(min = 228.dp)) {
+                        Image(
+                            painter = painterResource(R.drawable.sruvik_glass_art),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                        Box(Modifier.fillMaxSize().background(
+                            Brush.horizontalGradient(listOf(Color(0xF2080A10), Color(0xC9080A10), Color(0x66101624)))
+                        ))
+                        Box(Modifier.fillMaxSize().background(
+                            Brush.verticalGradient(listOf(Color(0x22080A10), Color(0xEF080A10)))
+                        ))
+                        Column(
+                            Modifier.fillMaxWidth().padding(horizontal = 21.dp, vertical = 20.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Box(Modifier.size(7.dp).clip(CircleShape).background(SruvikColors.Primary))
+                                Text("LOCAL IMAGE STUDIO", style = MaterialTheme.typography.labelSmall,
+                                    color = SruvikColors.Primary, letterSpacing = 1.5.sp)
+                            }
+                            Text("Turn a thought\ninto an image.", style = MaterialTheme.typography.headlineLarge,
+                                color = SruvikColors.TextPrimary)
+                            Text("Create with on-device models. Keep prompts and generated work in your encrypted studio history.",
+                                style = MaterialTheme.typography.bodyMedium, color = SruvikColors.TextSecondary)
+                            Spacer(Modifier.height(2.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Button(
+                                    onClick = onSruGen,
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = SruvikColors.Primary,
+                                        contentColor = SruvikColors.OnPrimary
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 17.dp, vertical = 11.dp)
+                                ) {
+                                    Text("Open SruGen")
+                                    Spacer(Modifier.width(7.dp))
+                                    Icon(Icons.Rounded.ArrowForward, null, modifier = Modifier.size(16.dp))
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Text("ON-DEVICE", style = MaterialTheme.typography.labelSmall,
+                                    color = SruvikColors.TextMuted, letterSpacing = 1.sp)
+                            }
                         }
                     }
                 }
             }
-        }
-        item {
-            HeroCard { scope.launch { state.animateScrollToItem(2) } }
-        }
-        item { SectionTitle("WORKSPACE", "02 TOOLS") }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                WorkspaceTile(Modifier.weight(1f), "01", "Video\nnarration", Icons.Rounded.RecordVoiceOver,
-                    Color(0xFF9A9863))
-                WorkspaceTile(Modifier.weight(1f), "02", "Image\nenhancement", Icons.Rounded.AutoFixHigh,
-                    Color(0xFF7D75D8), "OPEN", onUpscale, artRes = R.drawable.sruvik_glass_art)
-            }
-        }
-        item { SectionTitle("CREATE & PROTECT", "SRUVIK TOOLS") }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                WorkspaceTile(Modifier.weight(1f), "03", "SruGen\nimage studio", Icons.Rounded.AutoAwesome,
-                    Color(0xFF8A72D9), "OPEN STUDIO", onSruGen, artRes = R.drawable.sruvik_glass_art)
-                WorkspaceTile(Modifier.weight(1f), "04", "Srukrypt\nprivate vault", Icons.Rounded.Security,
-                    Color(0xFF4A9BBD), "OPEN VAULT", onSrukrypt, artRes = R.drawable.sruvik_alpine_art)
-            }
-        }
-        item { SectionTitle("VISUAL INSPIRATION", "SRUVIK ORIGINALS") }
-        item {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                item {
-                    ArtCard(Modifier.width(198.dp).height(224.dp), R.drawable.sruvik_city_art,
-                        "Dreamscapes", "Worlds without limits")
-                }
-                item {
-                    ArtCard(Modifier.width(178.dp).height(224.dp), R.drawable.sruvik_glass_art,
-                        "Fluid forms", "Light, colour and motion")
-                }
-                item {
-                    ArtCard(Modifier.width(178.dp).height(224.dp), R.drawable.sruvik_alpine_art,
-                        "Cinematic nature", "Atmosphere in every frame")
+            item {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("TOOLS & LIBRARY", style = MaterialTheme.typography.labelSmall,
+                            color = SruvikColors.SecondaryAccent, letterSpacing = 1.4.sp)
+                        Text("Your workspace", style = MaterialTheme.typography.titleLarge,
+                            color = SruvikColors.TextPrimary)
+                    }
+                    Spacer(Modifier.weight(1f))
+                    Text("LOCAL FIRST", style = MaterialTheme.typography.labelSmall,
+                        color = SruvikColors.TextMuted, letterSpacing = .8.sp)
                 }
             }
-        }
-        item { SectionTitle("APP", "FOUNDATION") }
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                AppRow(Icons.Rounded.Memory, "Model manager", "Models for your device", "FOUNDATION", onModels)
-                AppRow(Icons.Rounded.Security, "Device & privacy", "Local-first controls and safety", "IN DEVELOPMENT", onSettings)
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    AppRow(Icons.Rounded.AutoFixHigh, "Image upscaler",
+                        "Enhance a photo with the local Real-ESRGAN model", "OPEN TOOL", onUpscale)
+                    AppRow(Icons.Rounded.Memory, "Model library",
+                        "Check compatibility, install and switch models", "MANAGE", onModels)
+                    AppRow(Icons.Rounded.Security, "Srukrypt vault",
+                        "Keep private files in encrypted device storage", "PRIVATE", onSrukrypt)
+                    AppRow(Icons.Rounded.Speed, "Device instruments",
+                        "Inspect system availability and this app's footprint", "MONITOR", onDevice)
+                }
+            }
+            item {
+                GlassCard(
+                    Modifier.fillMaxWidth(),
+                    RoundedCornerShape(17.dp),
+                    Brush.linearGradient(listOf(Color(0xA61A2230), Color(0xC70D111A)))
+                ) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                        Icon(Icons.Rounded.Shield, null, tint = SruvikColors.SecondaryAccent, modifier = Modifier.size(20.dp))
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("Privacy & preferences", style = MaterialTheme.typography.titleSmall,
+                                color = SruvikColors.TextPrimary)
+                            Text("Memory, vault timeout and personal settings", style = MaterialTheme.typography.bodySmall,
+                                color = SruvikColors.TextSecondary)
+                        }
+                        TextButton(onClick = onSettings) { Text("Settings") }
+                    }
+                }
             }
         }
     }
