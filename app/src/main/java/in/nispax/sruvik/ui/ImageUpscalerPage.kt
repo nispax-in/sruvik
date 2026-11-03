@@ -496,7 +496,6 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                     color = LabMuted.copy(alpha = .85f),
                     style = MaterialTheme.typography.labelSmall
                 )
-            }
         }
 
         ObsidianGlassPanel(
