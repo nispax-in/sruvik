@@ -25,7 +25,9 @@ object SruGenColorEditParser {
             .containsMatchIn(normalized)
         val hasGarment = Regex("\\b(clothes|clothing|outfit|shirt|t-shirt|tee|jacket|coat|hoodie|sweater|dress|trousers|pants|jeans)\\b")
             .containsMatchIn(normalized)
-        val hasColorIntent = Regex("\\b(color|colour|to|into)\\b").containsMatchIn(normalized)
+        val colorWordPattern = Regex("\\b(black|white|gray|grey|red|orange|yellow|green|teal|cyan|blue|purple|violet|pink|brown)\\b")
+        val hasColorIntent = Regex("\\b(color|colour|to|into)\\b").containsMatchIn(normalized) ||
+            colorWordPattern.containsMatchIn(normalized)
         if (!hasEditVerb || !hasGarment || !hasColorIntent) return null
 
         // Only handle a plain colour request here. Patterns, fabric/shape changes,
