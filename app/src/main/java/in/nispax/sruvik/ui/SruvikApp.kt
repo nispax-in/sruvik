@@ -285,7 +285,23 @@ private fun HomeScreen(
     onSrukrypt: () -> Unit,
     onDevice: () -> Unit
 ) {
-    val greeting = remember { greetingForNow() }
+    var greeting by remember { mutableStateOf(greetingForNow()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(60_000)
+            greeting = greetingForNow()
+        }
+    }
+    val dailyTip = remember {
+        val tips = listOf(
+            "Tiny steps count. A good idea becomes great when you keep iterating.",
+            "A clean original is the best starting point for a great upscale.",
+            "Try changing one creative detail at a time. It makes results easier to compare.",
+            "Your device can do useful creative work without sending files to the cloud.",
+            "Save a copy before experimenting. Curiosity works best with an undo plan."
+        )
+        tips[java.time.LocalDate.now().dayOfYear % tips.size]
+    }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val horizontal = if (maxWidth >= 600.dp) 32.dp else 20.dp
         LazyColumn(
@@ -319,8 +335,8 @@ private fun HomeScreen(
                         color = SruvikColors.TextSecondary)
                     if (showDailyTip) {
                         Spacer(Modifier.height(3.dp))
-                        Text("Your workspace runs locally where supported. Your files stay yours to manage.",
-                            style = MaterialTheme.typography.bodySmall, color = SruvikColors.TextMuted)
+                        Text(dailyTip, style = MaterialTheme.typography.bodySmall,
+                            color = SruvikColors.TextMuted)
                     }
                 }
             }
