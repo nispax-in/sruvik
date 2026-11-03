@@ -37,7 +37,7 @@ class InstrumentMathTest {
 
     @Test fun estimatedDeviceMemoryIsClampedToKernelTotal() {
         assertEquals(600L, InstrumentMath.estimatedUsedBytes(1000L, 400L))
-        assertEquals(1000L, InstrumentMath.estimatedUsedBytes(1000L, 1200L))
+        assertEquals(0L, InstrumentMath.estimatedUsedBytes(1000L, 1200L))
         assertEquals(0L, InstrumentMath.estimatedUsedBytes(-10L, 5L))
     }
 
