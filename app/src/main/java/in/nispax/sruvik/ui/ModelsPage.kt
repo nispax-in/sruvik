@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.Lock
@@ -117,7 +118,7 @@ fun ModelsPage(
                         contentPadding = PaddingValues(horizontal = 0.dp, vertical = 4.dp)
                     ) {
                         androidx.compose.material3.Icon(
-                            androidx.compose.material.icons.Icons.Rounded.ArrowBack,
+                            Icons.Rounded.ArrowBack,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp)
                         )
