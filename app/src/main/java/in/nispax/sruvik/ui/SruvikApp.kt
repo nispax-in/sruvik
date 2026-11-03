@@ -3,7 +3,7 @@ package `in`.nispax.sruvik.ui
 import `in`.nispax.sruvik.R
 
 import androidx.compose.animation.*
-import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -41,6 +42,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.time.Year
 import `in`.nispax.sruvik.ui.theme.SruvikColors
@@ -75,12 +77,13 @@ fun SruvikApp() {
     var modelsReturnToSruGen by remember { mutableStateOf(false) }
     var vaultReturnToSruGen by remember { mutableStateOf(false) }
 
-    BackHandler(
-        enabled = selected == Destination.SruGen ||
-            selected == Destination.ModelDetail ||
-            (selected == Destination.Models && modelsReturnToSruGen) ||
-            (selected == Destination.Srukrypt && vaultReturnToSruGen)
-    ) {
+    val canHandleInAppBack = selected == Destination.SruGen ||
+        selected == Destination.ModelDetail ||
+        (selected == Destination.Models && modelsReturnToSruGen) ||
+        (selected == Destination.Srukrypt && vaultReturnToSruGen)
+    var predictiveBackProgress by remember { mutableFloatStateOf(0f) }
+
+    fun navigateBackInApp() {
         when (selected) {
             Destination.SruGen -> selected = Destination.Home
             Destination.ModelDetail -> selected = Destination.Models
@@ -95,6 +98,17 @@ fun SruvikApp() {
             else -> Unit
         }
     }
+
+    PredictiveBackHandler(enabled = canHandleInAppBack) { backEvents ->
+        try {
+            backEvents.collect { event -> predictiveBackProgress = event.progress }
+            navigateBackInApp()
+        } catch (_: CancellationException) {
+            // A cancelled edge gesture leaves the current destination untouched.
+        } finally {
+            predictiveBackProgress = 0f
+        }
+    }
     Box(Modifier.fillMaxSize().background(SruvikColors.Background)
         .drawBehind { drawAtmosphere() }
         .windowInsetsPadding(WindowInsets.safeDrawing)) {
@@ -102,7 +116,12 @@ fun SruvikApp() {
             targetState = selected,
             modifier = Modifier.fillMaxSize().padding(
                 bottom = if (selected == Destination.SruGen) 0.dp else 80.dp
-            ),
+            ).graphicsLayer {
+                translationX = predictiveBackProgress * size.width * 0.12f
+                val scale = 1f - predictiveBackProgress * 0.025f
+                scaleX = scale
+                scaleY = scale
+            },
             transitionSpec = { (fadeIn(tween(220)) + slideInHorizontally(tween(260)) { it / 18 }) togetherWith (fadeOut(tween(140)) + slideOutHorizontally(tween(190)) { -it / 24 }) },
             label = "screen"
         ) { page ->
