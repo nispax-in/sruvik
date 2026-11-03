@@ -860,6 +860,7 @@ fun SruGenPage(
                 .padding(horizontal = 16.dp)
         ) {
             BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val useCompactHeader = maxWidth < 390.dp
                 Row(
                     Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -887,7 +888,7 @@ fun SruGenPage(
                     IconButton(onClick = { historyOpen = true }, modifier = Modifier.size(48.dp)) {
                         Icon(Icons.Rounded.History, "Conversation history", tint = studioText)
                     }
-                    if (maxWidth >= 390.dp) {
+                    if (!useCompactHeader) {
                         IconButton(onClick = { monitorExpanded = !monitorExpanded }, modifier = Modifier.size(48.dp)) {
                             Icon(Icons.Rounded.Tune, "Device performance details", tint = studioSecondary)
                         }
