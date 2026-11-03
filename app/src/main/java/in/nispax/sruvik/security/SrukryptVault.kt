@@ -320,17 +320,43 @@ object SrukryptVault {
         return flags
     }
 
+    /**
+     * Create an initialized AES-GCM cipher and bind the envelope metadata.
+     *
+     * Cipher.init() must happen before updateAAD(). Calling updateAAD() first
+     * throws IllegalStateException("Cipher not initialized") on Android/JCA.
+     */
+    internal fun initializedWrapCipher(
+        mode: Int,
+        key: SecretKey,
+        iv: ByteArray? = null
+    ): Cipher {
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        when (mode) {
+            Cipher.ENCRYPT_MODE -> {
+                require(iv == null) { "Encryption must generate a fresh GCM nonce." }
+                cipher.init(Cipher.ENCRYPT_MODE, key)
+            }
+            Cipher.DECRYPT_MODE -> {
+                val nonce = requireNotNull(iv) { "A GCM nonce is required for decryption." }
+                cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(TAG_BITS, nonce))
+            }
+            else -> throw IllegalArgumentException("Unsupported Srukrypt cipher mode.")
+        }
+        // Supply AAD after init, but before any plaintext/ciphertext operation.
+        cipher.updateAAD(wrapAad)
+        return cipher
+    }
+
     @Throws(Exception::class)
     fun finishUnlock(context: Context, challenge: SrukryptUnlockChallenge): ByteArray {
         val masterKey = getMasterKey(challenge.keyAliasId)
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.updateAAD(wrapAad)
 
         if (challenge.isNewVault) {
             val dataKey = challenge.pendingDataKey
                 ?: throw SecurityException("Missing initial vault key.")
-            // Cipher.init happens only AFTER Android completed the system prompt.
-            cipher.init(Cipher.ENCRYPT_MODE, masterKey)
+            // Android authentication has completed before the Keystore operation.
+            val cipher = initializedWrapCipher(Cipher.ENCRYPT_MODE, masterKey)
             val encryptedKey = cipher.doFinal(dataKey)
             val iv = cipher.iv ?: throw SecurityException("Missing encryption nonce.")
             try {
@@ -351,9 +377,8 @@ object SrukryptVault {
             ?: throw SecurityException("Missing wrapped vault key.")
         val iv = challenge.wrappedIv
             ?: throw SecurityException("Missing wrapped vault nonce.")
-        // The non-CryptoObject BiometricPrompt flow authorizes this short-lived key
-        // after authenticating either a strong biometric or device credential.
-        cipher.init(Cipher.DECRYPT_MODE, masterKey, GCMParameterSpec(TAG_BITS, iv))
+        // The same init -> AAD -> doFinal ordering is used for decryption.
+        val cipher = initializedWrapCipher(Cipher.DECRYPT_MODE, masterKey, iv)
         val dataKey = cipher.doFinal(wrapped)
         if (dataKey.size != 32) {
             Arrays.fill(dataKey, 0)
