@@ -97,6 +97,7 @@ fun ObsidianGlassBox(
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(20.dp),
     accent: Color = SruvikColors.Primary,
+    fill: Brush? = null,
     content: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit
 ) {
     androidx.compose.foundation.layout.Box(
@@ -104,7 +105,7 @@ fun ObsidianGlassBox(
             .shadow(12.dp, shape, clip = false)
             .clip(shape)
             .background(
-                Brush.linearGradient(
+                fill ?: Brush.linearGradient(
                     listOf(Color(0xCC202B3C), Color(0xB8141B28), Color(0xE60D121B))
                 )
             )
