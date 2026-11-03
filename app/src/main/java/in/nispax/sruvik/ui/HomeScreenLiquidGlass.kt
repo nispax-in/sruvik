@@ -16,7 +16,6 @@ import androidx.compose.material.icons.rounded.AutoFixHigh
 import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.Speed
-import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -280,14 +279,12 @@ private fun ObsidianGlassHero(
                 .fillMaxSize()
                 .background(
                     Brush.linearGradient(
-                        colorStops = arrayOf(
-                            0.0f to Color(0x6E111A2B),
-                            0.38f to Color(0x5A17243A),
-                            0.72f to Color(0x73332D52),
-                            1.0f to Color(0x99101522)
-                        ),
-                        start = Offset.Zero,
-                        end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
+                        listOf(
+                            Color(0x6E111A2B),
+                            Color(0x5A17243A),
+                            Color(0x73332D52),
+                            Color(0x99101522)
+                        )
                     )
                 )
         )
@@ -382,11 +379,11 @@ private fun ObsidianGlassHero(
                     )
                 }
                 Spacer(Modifier.weight(1f))
-                Icon(
-                    Icons.Rounded.Tune,
-                    contentDescription = "Studio settings",
-                    tint = Color(0xFFD8E2F7),
-                    modifier = Modifier.size(19.dp)
+                Text(
+                    "ON DEVICE",
+                    color = Color(0xFFE4EAF7),
+                    fontSize = 9.sp,
+                    letterSpacing = 1.1.sp
                 )
             }
             Spacer(Modifier.height(20.dp))
