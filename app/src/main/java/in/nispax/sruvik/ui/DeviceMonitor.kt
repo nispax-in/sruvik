@@ -84,7 +84,9 @@ private data class DeviceSnapshot(
 
 private data class MonitorUiState(
     val snapshot: DeviceSnapshot? = null,
-    val error: String? = null
+    val error: String? = null,
+    val networkRxHistory: List<Long> = emptyList(),
+    val networkTxHistory: List<Long> = emptyList()
 )
 
 @Composable
@@ -128,7 +130,14 @@ fun DeviceMonitorPage() {
                 val rxRate = if (rx >= 0L && previousRx >= 0L) InstrumentMath.bytesPerSecond(rx - previousRx, wallDelta) else null
                 val txRate = if (tx >= 0L && previousTx >= 0L) InstrumentMath.bytesPerSecond(tx - previousTx, wallDelta) else null
 
-                state = MonitorUiState(snapshot = readDeviceSnapshot(context, appCpu, rxRate, txRate))
+                val snapshot = readDeviceSnapshot(context, appCpu, rxRate, txRate)
+                val rxHistory = if (rxRate != null) (state.networkRxHistory + rxRate).takeLast(32) else state.networkRxHistory
+                val txHistory = if (txRate != null) (state.networkTxHistory + txRate).takeLast(32) else state.networkTxHistory
+                state = MonitorUiState(
+                    snapshot = snapshot,
+                    networkRxHistory = rxHistory,
+                    networkTxHistory = txHistory
+                )
                 previousCpu = nowCpu
                 previousWall = nowWall
                 previousRx = rx
@@ -137,7 +146,9 @@ fun DeviceMonitorPage() {
             } catch (failure: Exception) {
                 state = MonitorUiState(
                     snapshot = state.snapshot,
-                    error = failure.message ?: "Android did not return a resource snapshot."
+                    error = failure.message ?: "Android did not return a resource snapshot.",
+                    networkRxHistory = state.networkRxHistory,
+                    networkTxHistory = state.networkTxHistory
                 )
                 delay(5000)
             }
@@ -302,6 +313,18 @@ fun DeviceMonitorPage() {
                                 "${formatRate(data.rxBytesPerSecond)}", "App receive rate")
                             MetricColumn(Modifier.weight(1f), Icons.Rounded.NetworkCheck, "Upload",
                                 "${formatRate(data.txBytesPerSecond)}", "App transmit rate")
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("DOWNLOAD · LAST 32 SAMPLES", style = MaterialTheme.typography.labelSmall,
+                                    color = ObsidianTokens.TextMuted)
+                                InstrumentSparkline(state.networkRxHistory, ObsidianTokens.Cyan)
+                            }
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("UPLOAD · LAST 32 SAMPLES", style = MaterialTheme.typography.labelSmall,
+                                    color = ObsidianTokens.TextMuted)
+                                InstrumentSparkline(state.networkTxHistory, ObsidianTokens.Violet)
+                            }
                         }
                     }
                 }

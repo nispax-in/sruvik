@@ -190,6 +190,38 @@ internal fun SegmentedDial(
 }
 
 @Composable
+internal fun InstrumentSparkline(
+    values: List<Long>,
+    accent: Color,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier.fillMaxWidth().height(27.dp)) {
+        drawLine(
+            color = Color(0xFF303849),
+            start = Offset(0f, size.height - 1.dp.toPx()),
+            end = Offset(size.width, size.height - 1.dp.toPx()),
+            strokeWidth = 1.dp.toPx()
+        )
+        if (values.size < 2) return@Canvas
+        val low = values.minOrNull()?.toFloat() ?: 0f
+        val high = values.maxOrNull()?.toFloat() ?: 0f
+        val span = (high - low).coerceAtLeast(1f)
+        val stepX = size.width / (values.size - 1).toFloat()
+        val points = values.mapIndexed { index, value ->
+            Offset(
+                index * stepX,
+                size.height - 3.dp.toPx() - ((value.toFloat() - low) / span) * (size.height - 6.dp.toPx())
+            )
+        }
+        points.zipWithNext().forEach { (start, end) ->
+            drawLine(accent.copy(alpha = .18f), start, end, strokeWidth = 5.dp.toPx(), cap = StrokeCap.Round)
+            drawLine(accent, start, end, strokeWidth = 1.8.dp.toPx(), cap = StrokeCap.Round)
+        }
+        points.lastOrNull()?.let { drawCircle(accent, radius = 2.5.dp.toPx(), center = it) }
+    }
+}
+
+@Composable
 internal fun InstrumentLinearMeter(
     title: String,
     valueText: String,
