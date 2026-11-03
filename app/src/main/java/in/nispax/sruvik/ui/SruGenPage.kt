@@ -741,6 +741,17 @@ fun SruGenPage(
             return
         }
 
+        if (
+            requestMode == SruGenMode.PROMPT_EDIT &&
+            SruGenColorEditParser.requiresMultiGarmentEdit(text)
+        ) {
+            persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
+                role = "assistant",
+                text = "I didn't generate this edit because it asks for separate garment layers (${SruGenColorEditParser.garmentTargets(text).joinToString(" + ")}). This build's on-device segmenter only returns one broad clothes mask, and its diffusion engine does not accept an inpainting mask. It cannot independently edit an outer blazer and an inner shirt reliably. A true layered edit needs garment-specific masks plus a mask-conditioned inpainting model. For now, try one visible garment at a time; your original photo is unchanged."
+            )))
+            return
+        }
+
         if (requestMode == SruGenMode.PROMPT_EDIT && text.isBlank()) {
             persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
                 role = "assistant",
