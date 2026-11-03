@@ -115,7 +115,10 @@ fun SruvikApp() {
         AnimatedContent(
             targetState = selected,
             modifier = Modifier.fillMaxSize().padding(
-                bottom = if (selected == Destination.SruGen) 0.dp else 80.dp
+                bottom = if (
+                    selected == Destination.SruGen ||
+                    (modelsReturnToSruGen && selected in setOf(Destination.Models, Destination.ModelDetail))
+                ) 0.dp else 80.dp
             ).graphicsLayer {
                 translationX = predictiveBackProgress * size.width * 0.12f
                 val scale = 1f - predictiveBackProgress * 0.025f
@@ -130,10 +133,18 @@ fun SruvikApp() {
                     vaultReturnToSruGen = false
                     selected = Destination.Srukrypt
                 })
-                Destination.Models -> ModelsPage(onOpenModel = { modelId ->
-                    selectedModelId = modelId
-                    selected = Destination.ModelDetail
-                })
+                Destination.Models -> ModelsPage(
+                    onOpenModel = { modelId ->
+                        selectedModelId = modelId
+                        selected = Destination.ModelDetail
+                    },
+                    onBackToStudio = if (modelsReturnToSruGen) {
+                        {
+                            selected = Destination.SruGen
+                            modelsReturnToSruGen = false
+                        }
+                    } else null
+                )
                 Destination.ModelDetail -> ModelDetailPage(
                     modelId = selectedModelId,
                     onBack = { selected = Destination.Models },
@@ -180,7 +191,9 @@ fun SruvikApp() {
         // Primary destinations stay in a conventional Android navigation bar.
         // The SruGen studio is a focused task surface, so it owns the full window
         // and does not compete with global navigation while the user is creating.
-        if (selected != Destination.SruGen) {
+        val focusedStudioFlow = selected == Destination.SruGen ||
+            (modelsReturnToSruGen && selected in setOf(Destination.Models, Destination.ModelDetail))
+        if (!focusedStudioFlow) {
             AppNavigationBar(
                 selected = when (selected) {
                     Destination.ModelDetail -> Destination.Models
@@ -535,6 +548,11 @@ private fun GlassCard(modifier: Modifier, shape: RoundedCornerShape, fill: Brush
     }
 }
 
+/**
+ * The app's five peer destinations use a labelled native navigation bar.
+ * Creative sessions such as SruGen temporarily leave this global navigation
+ * so the prompt, conversation and image canvas keep the full available height.
+ */
 @Composable
 private fun AppNavigationBar(
     selected: Destination,
