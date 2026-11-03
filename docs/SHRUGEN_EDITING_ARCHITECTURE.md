@@ -8,7 +8,7 @@ Status: repository/source audit plus first incremental implementation. This docu
 - Engine routing: `SruGenEngineFactory` selects MediaPipe SD 1.5 or Nezumi Kiln MNN SD 1.5 based on the active gallery model.
 - Primary photo-edit checkpoint: `majicMIX_realistic_v6`, registry source `emilianJR/majicMIX_realistic_v6`; Android pack `Mouserat/majicMIX_realistic_v6-mnn`, pinned revision `265cbbf`, archive `majicMIX_realistic_v6-int8-block32.zip`, registry SHA-256 `caeceb902b6c01f09c8685d87f712b2107c4e5e6241011efe77c8e11e80990ff`, listed package size about 1.24 GB. Registry identifies it as SD 1.5 / MNN int8 block-32 and requires a VAE encoder for img2img.
 - Native adapter: `NezumiMnnSruGenEngine.kt` calls `MnnSdNative.generate` with prompt, dimensions, steps, CFG, seed, scheduler, optional init RGB image and denoise strength. The JNI method has no mask tensor, masked-image latent, ControlNet input or image-reference embedding input. Capability JSON currently exposes img2img but not inpainting.
-- Runtime: MNN JNI; current app path deliberately selects CPU, loads at 448 safe max side and generates at up to 512-side SD1.5 dimensions, with 20 steps and device resource checks. Photo edits use a 0.38 img2img denoise strength on a crop, then paste generated pixels through the broad original clothing mask.
+- Runtime: MNN JNI; current app path deliberately selects CPU, loads at 448 safe max side and generates at up to 512-side SD1.5 dimensions, with 20 steps and device resource checks. Single clothing-region edits use a 0.38 img2img denoise strength on a crop, then paste generated pixels through the broad original clothing mask. Other photo edits use the full resized reference image with a 0.55 img2img denoise strength and restore the generated frame to the original dimensions.
 - Segmentation: bundled MediaPipe Selfie Multiclass 256x256 TFLite category model; current label mapping is background 0, hair 1, body skin 2, face skin 3, clothes 4, other/accessories 5. It produces semantic categories, not independent garment instances.
 - Existing deterministic clothing recolour already uses the clothes mask and preserves source pixels outside the feathered region. Background removal uses the person foreground labels.
 
@@ -19,7 +19,8 @@ Status: repository/source audit plus first incremental implementation. This docu
 | Create image | SD 1.5 MediaPipe or MNN, according to installed model | Implemented |
 | Clothing colour change | MediaPipe clothes mask + pixel colour transform + composite | Implemented; one broad clothes class, not garment-specific |
 | Hair colour change | MediaPipe hair label + pixel colour transform + composite | Incremental implementation added; needs image-set and target-device validation |
-| Structural garment replacement | MNN img2img crop + broad clothes-mask composite | Experimental/approximate; not true mask-conditioned inpainting |
+| Single visible clothing region | MNN img2img on a clothing crop + broad clothes-mask composite | Experimental/approximate; may not isolate overlapping garment layers; not true mask-conditioned inpainting |
+| General photo edit (background, scene, hair shape, other broad changes) | MNN full-frame img2img with the attached photo as init image; edited frame resized to original dimensions | Now routed through the full image instead of the clothing-only crop. Whole-frame changes can drift; not mask-conditioned or region-preserving. |
 | Two overlapping garment layers | No independent garment-instance masks or mask-conditioned generation | Not supported reliably |
 | Haircut / hairstyle structure | No dedicated hair synthesis/shape-conditioning route | Not supported |
 | Reference-garment virtual try-on | No CatVTON/IDM-VTON/OOTDiffusion runtime or model pack | Not supported locally |
@@ -29,9 +30,10 @@ Status: repository/source audit plus first incremental implementation. This docu
 
 1. Route explicit single-region hair-colour prompts to the existing MediaPipe hair class. Apply a deterministic colour transform while retaining source luminance/texture and compositing the original outside the hair mask.
 2. Keep clothing colour operations on the clothing class.
-3. Do not route hairstyle shape changes through the clothing crop pipeline.
-4. Replace the technical layered-outfit refusal with a short user-facing recovery message; preserve the source and prompt.
-5. Apply translucent Obsidian material layers to the editor environment, message surface and composer. The Compose blur modifier is not used as a backdrop blur; surfaces use translucent tints, restrained gradients and edge reflections with readable fallbacks.
+3. Route non-clothing structural edits through the full reference frame. Do not crop them to the clothing mask.
+4. Preserve clothing-region compositing for single clothing targets; preserve the original outside the semantic clothes mask.
+5. Keep layered-outfit and object-removal limitations explicit until dedicated masks and a 9-channel inpainting runtime are available.
+6. Apply shared Obsidian glass panels and primary/secondary actions across Settings, Device Monitor, model detail, upscaler and Srukrypt. Home, navigation and SruGen retain their focused glass treatments. The Compose blur modifier is not used as a backdrop blur; surfaces use translucent tints, restrained gradients and edge reflections with readable fallbacks.
 
 ## Next technically sound work
 
