@@ -657,7 +657,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                     }
                 }
             }
-            .padding(horizontal = 20.dp).padding(top = 22.dp, bottom = 106.dp),
+            .padding(horizontal = 20.dp).padding(top = 22.dp, bottom = 20.dp),
         verticalArrangement = Arrangement.spacedBy(15.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
