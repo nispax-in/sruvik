@@ -245,13 +245,12 @@ private fun LibrarySummaryTile(
     value: String,
     label: String
 ) {
-    Surface(
+    ObsidianGlassPanel(
         modifier = modifier,
         shape = RoundedCornerShape(16.dp),
-        color = Color(0x662D3443),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .09f))
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 11.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp)
     ) {
-        Column(Modifier.padding(horizontal = 12.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(icon, null, tint = SruvikColors.LimeMuted, modifier = Modifier.size(15.dp))
                 Text(value, color = SruvikColors.TextPrimary, style = MaterialTheme.typography.titleSmall)
