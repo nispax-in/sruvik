@@ -420,7 +420,7 @@ private fun SettingsSwitchRow(
             Text(title, style = MaterialTheme.typography.titleSmall, color = SruvikColors.TextPrimary)
             Text(description, style = MaterialTheme.typography.bodySmall, color = SruvikColors.TextSecondary)
         }
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Switch(checked = checked, onCheckedChange = onCheckedChange, colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF07121A), checkedTrackColor = Color(0xFF75E3F3), checkedBorderColor = Color(0xFF75E3F3), uncheckedThumbColor = Color(0xFFB0B8C9), uncheckedTrackColor = Color(0xFF303849), uncheckedBorderColor = Color(0xFF566176)))
     }
 }
 
