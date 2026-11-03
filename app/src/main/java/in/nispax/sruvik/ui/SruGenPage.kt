@@ -878,7 +878,16 @@ fun SruGenPage(
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val useCompactHeader = maxWidth < 390.dp
                 Row(
-                    Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(vertical = 4.dp),
+                    Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(Brush.horizontalGradient(listOf(Color(0x66313B50), Color(0x33192332), Color(0x55231E3B))))
+                        .border(
+                            1.dp,
+                            Brush.horizontalGradient(listOf(Color(0x887F95B9), Color(0x3375DCEB), Color(0x665C527C))),
+                            RoundedCornerShape(18.dp)
+                        )
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                        .padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
