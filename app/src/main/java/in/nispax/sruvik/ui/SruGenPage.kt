@@ -932,8 +932,8 @@ fun SruGenPage(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("APP CPU  ${String.format("%.1f", resourceStats.cpu)}%", color = studioSecondary, style = MaterialTheme.typography.labelMedium)
-                    Text("APP PSS  ${resourceStats.pss} MB", color = studioSecondary, style = MaterialTheme.typography.labelMedium)
-                    Text("DEVICE AVAIL  ${resourceStats.available} MB", color = studioSecondary, style = MaterialTheme.typography.labelMedium)
+                    Text("APP PSS  ${resourceStats.pss} MiB", color = studioSecondary, style = MaterialTheme.typography.labelMedium)
+                    Text("DEVICE AVAIL  ${resourceStats.available} MiB", color = studioSecondary, style = MaterialTheme.typography.labelMedium)
                 }
             }
 
@@ -1774,9 +1774,9 @@ private fun ResourceMonitor(
                     }
                 }
                 ResourceLine("App CPU", String.format("%.1f%%", stats.cpu))
-                ResourceLine("App RAM", "${stats.pss} MB")
-                ResourceLine("Java heap", "${stats.heap} MB")
-                ResourceLine("Available RAM", "${stats.available} MB")
+                ResourceLine("App PSS", "${stats.pss} MiB")
+                ResourceLine("Java heap", "${stats.heap} MiB")
+                ResourceLine("Available RAM", "${stats.available} MiB")
                 Text("Approximate whole-app process sampling.",
                     color = SruvikColors.TextMuted, style = MaterialTheme.typography.labelSmall)
             }
@@ -1788,7 +1788,7 @@ private fun ResourceMonitor(
                 Row(Modifier.padding(horizontal = 9.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     Icon(Icons.Rounded.Memory, null, tint = SruvikColors.LimeMuted, modifier = Modifier.size(15.dp))
-                    Text("${stats.pss} MB", color = SruvikColors.TextPrimary, style = MaterialTheme.typography.labelSmall)
+                    Text("${stats.pss} MiB", color = SruvikColors.TextPrimary, style = MaterialTheme.typography.labelSmall)
                 }
             }
         }
