@@ -278,13 +278,13 @@ private fun ModelGalleryCard(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(23.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xAA1A2430)),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .10f))
+        colors = CardDefaults.cardColors(containerColor = Color(0x99171D2A)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Brush.linearGradient(listOf(Color(0x667F91B5), Color(0x2275E3F3), Color(0x44505D75))))
     ) {
         Column(Modifier.fillMaxWidth()) {
             Box(
-                Modifier.fillMaxWidth().height(7.dp)
-                    .background(Brush.horizontalGradient(listOf(accent.copy(alpha = .85f), Color.Transparent)))
+                Modifier.fillMaxWidth().height(2.dp)
+                    .background(Brush.horizontalGradient(listOf(accent.copy(alpha = .65f), Color(0x3375E3F3), Color.Transparent)))
             )
             Column(
                 Modifier.fillMaxWidth().padding(15.dp),
@@ -327,6 +327,19 @@ private fun ModelGalleryCard(
                 )
                 Row(
                     Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ModelMetadataChip("SD family", model.baseModel.substringBefore(" · "))
+                    ModelMetadataChip(formatModelSize(model.approximateDownloadBytes), "PACKAGE")
+                }
+                Text(
+                    "Android ${model.minAndroidApi}+  ·  ${model.recommendedRamGb} GB recommended RAM",
+                    color = SruvikColors.TextMuted,
+                    style = MaterialTheme.typography.labelSmall
+                )
+                Row(
+                    Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
@@ -349,6 +362,25 @@ private fun ModelGalleryCard(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ModelMetadataChip(value: String, label: String) {
+    Surface(
+        color = Color(0x332C3A4B),
+        shape = RoundedCornerShape(9.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .08f))
+    ) {
+        Row(
+            Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(label, color = SruvikColors.TextMuted, style = MaterialTheme.typography.labelSmall)
+            Text(value, color = SruvikColors.TextSecondary, style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold)
         }
     }
 }
