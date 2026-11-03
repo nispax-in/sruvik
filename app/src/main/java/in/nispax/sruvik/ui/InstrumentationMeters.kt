@@ -45,6 +45,24 @@ internal object InstrumentMath {
 
     fun angle(value: Double, min: Double, max: Double): Float =
         180f + fraction(value, min, max) * 180f
+
+    fun processCpuSharePercent(cpuMillisDelta: Long, wallMillisDelta: Long, coreCount: Int): Float {
+        if (wallMillisDelta <= 0L || coreCount <= 0 || cpuMillisDelta < 0L) return 0f
+        return (cpuMillisDelta.toDouble() / wallMillisDelta.toDouble() * 100.0 / coreCount)
+            .toFloat().coerceIn(0f, 100f)
+    }
+
+    fun bytesPerSecond(byteDelta: Long, intervalMillis: Long): Long? {
+        if (byteDelta < 0L || intervalMillis <= 0L) return null
+        return (byteDelta.toDouble() * 1000.0 / intervalMillis.toDouble())
+            .coerceAtMost(Long.MAX_VALUE.toDouble()).toLong()
+    }
+
+    fun estimatedUsedBytes(totalBytes: Long, availableBytes: Long): Long {
+        val total = totalBytes.coerceAtLeast(0L)
+        val available = availableBytes.coerceIn(0L, total)
+        return (total - available).coerceAtLeast(0L)
+    }
 }
 
 @Composable

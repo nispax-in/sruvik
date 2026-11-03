@@ -119,13 +119,12 @@ fun DeviceMonitorPage() {
                 val wallDelta = (nowWall - previousWall).coerceAtLeast(1L)
                 val cpuDelta = (nowCpu - previousCpu).coerceAtLeast(0L)
                 val cores = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
-                val appCpu = (cpuDelta.toDouble() / wallDelta.toDouble() * 100.0 / cores)
-                    .toFloat().coerceIn(0f, 100f)
+                val appCpu = InstrumentMath.processCpuSharePercent(cpuDelta, wallDelta, cores)
 
                 val rx = TrafficStats.getUidRxBytes(Process.myUid())
                 val tx = TrafficStats.getUidTxBytes(Process.myUid())
-                val rxRate = if (rx >= 0L && previousRx >= 0L) ((rx - previousRx).coerceAtLeast(0L) * 1000L / wallDelta) else null
-                val txRate = if (tx >= 0L && previousTx >= 0L) ((tx - previousTx).coerceAtLeast(0L) * 1000L / wallDelta) else null
+                val rxRate = if (rx >= 0L && previousRx >= 0L) InstrumentMath.bytesPerSecond(rx - previousRx, wallDelta) else null
+                val txRate = if (tx >= 0L && previousTx >= 0L) InstrumentMath.bytesPerSecond(tx - previousTx, wallDelta) else null
 
                 state = MonitorUiState(snapshot = readDeviceSnapshot(context, appCpu, rxRate, txRate))
                 previousCpu = nowCpu
@@ -216,7 +215,7 @@ fun DeviceMonitorPage() {
                             else -> "Live · Android MemoryInfo"
                         }
                     )
-                    Text("Estimated in use: ${formatBytes((data.totalRamBytes - data.availableRamBytes).coerceAtLeast(0L))}. Android totalMem is kernel-accessible memory and may differ from the advertised RAM figure; available memory includes reclaimable pages. The in-use value is a derived estimate, not a sum of app allocations.",
+                    Text("Estimated in use: ${formatBytes(InstrumentMath.estimatedUsedBytes(data.totalRamBytes, data.availableRamBytes))}. Android totalMem is kernel-accessible memory and may differ from the advertised RAM figure; available memory includes reclaimable pages. The in-use value is a derived estimate, not a sum of app allocations.",
                         style = MaterialTheme.typography.bodySmall, color = ObsidianTokens.TextMuted)
                 }
             }
