@@ -89,4 +89,24 @@ class SruGenColorEditParserTest {
         assertEquals(false, SruGenColorEditParser.requiresMultiRegionEdit("make my shirt black"))
     }
 
+    @Test
+    fun identifiesClothingForRegionPreservingStructuralEdits() {
+        assertEquals(true, SruGenColorEditParser.hasClothingTarget("change my blazer to a darker style"))
+        assertEquals(true, SruGenColorEditParser.hasClothingTarget("replace my turtleneck with a shirt"))
+        assertEquals(false, SruGenColorEditParser.hasClothingTarget("change the background to a beach"))
+        assertEquals(false, SruGenColorEditParser.hasClothingTarget("give me curly hair"))
+    }
+
+    @Test
+    fun blazerAndTurtleneckAreRecognizedAsTwoDistinctGarments() {
+        assertEquals(
+            setOf("outerwear", "inner-top"),
+            SruGenColorEditParser.garmentTargets("black blazer over a white turtleneck")
+        )
+        assertEquals(
+            true,
+            SruGenColorEditParser.requiresMultiRegionEdit("black blazer over a white turtleneck")
+        )
+    }
+
 }
