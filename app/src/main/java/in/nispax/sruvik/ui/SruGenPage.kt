@@ -1529,7 +1529,7 @@ private fun SruGenCreativeSpark() {
 private fun SruGenGlassPanel(
     modifier: Modifier = Modifier,
     shape: RoundedCornerShape = RoundedCornerShape(22.dp),
-    fill: Brush = Brush.linearGradient(listOf(Color(0xCC29264D), Color(0xCC1B2440))),
+    fill: Brush = Brush.linearGradient(listOf(Color(0xE61B2230), Color(0xF20D111A))),
     content: @Composable BoxScope.() -> Unit
 ) {
     Box(
@@ -1571,7 +1571,7 @@ private fun SruGenHeroArtwork(
         Box(
             Modifier.fillMaxSize().background(
                 Brush.verticalGradient(
-                    listOf(Color(0x11101428), Color(0x55201C40), Color(0xED111326))
+                    listOf(Color(0x08080A10), Color(0x55202A3A), Color(0xF2080A10))
                 )
             )
         )
@@ -1757,7 +1757,7 @@ private fun ResourceMonitor(
         if (expanded) {
             Column(
                 Modifier.width(188.dp).clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xEE211F3E))
+                    .background(Color(0xF2111520))
                     .border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(18.dp))
                     .padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -1772,14 +1772,14 @@ private fun ResourceMonitor(
                 ResourceLine("App CPU", String.format("%.1f%%", stats.cpu))
                 ResourceLine("App RAM", "${stats.pss} MB")
                 ResourceLine("Java heap", "${stats.heap} MB")
-                ResourceLine("Free system RAM", "${stats.available} MB")
+                ResourceLine("Available RAM", "${stats.available} MB")
                 Text("Approximate whole-app process sampling.",
                     color = SruvikColors.TextMuted, style = MaterialTheme.typography.labelSmall)
             }
         } else {
             Surface(onClick = onToggle,
                 shape = RoundedCornerShape(topStart = 15.dp, bottomStart = 15.dp),
-                color = Color(0xEE211F3E),
+                color = Color(0xF2111520),
                 border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .12f))) {
                 Row(Modifier.padding(horizontal = 9.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
