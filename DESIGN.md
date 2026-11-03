@@ -1,39 +1,72 @@
-# Sruvik visual direction
+# Sruvik — Obsidian Liquid Glass design system
 
-## Point of view
+## Product thesis
 
-Sruvik is a **field studio for ideas**: part photographic darkroom, part instrument bench, part private notebook. Its interface should feel authored, tactile and useful—not like a template for a generic AI product.
+Sruvik is a local-first creative AI workspace: an on-device image studio, a model library, a private encrypted vault and a set of device-aware utilities. It is not currently a general-purpose language-model assistant. The UI must not imply that SruGen can browse the web, run arbitrary agents, transcribe live voice or answer open-domain questions; its confirmed engine is image generation/editing with explicit unsupported-mode messaging.
 
-The visual language is called **Fieldwork**. It uses the contrast of a darkroom (deep ink surfaces), a marked-up proof sheet (warm bone text), and the labels on an instrument (small technical annotations). The lime and oxide accents are functional inks, not decoration.
+## Visual direction
 
-## Palette
+**Obsidian Liquid Glass** combines deep black/charcoal foundations with carefully layered translucent surfaces, restrained violet/cyan reflections, crisp hairline edges and believable depth. Glass is a material role, not the default treatment for every container.
 
-| Token | Hex | Use |
+- Canvas: near-black #080A10, with very low-intensity violet/cyan light at the perimeter. No visible grid or large gradient blobs.
+- Base surface: #111520; raised surface #171D2A; secondary surface #202838.
+- Text: near-white #F0F2F8, secondary #B0B8C9, muted #7E899E.
+- Cyan: #75E3F3 for active/focus/action and live instrumentation.
+- Violet: #A99BFF for secondary emphasis, selected model context and restrained reflection.
+- Semantic states: rose #FF829B for errors/critical conditions; amber #F1B86D for caution; neutral silver for ordinary information.
+- Material construction: dark translucent base, subtle top-edge reflection, fine cool border and restrained elevation. Avoid stacked translucent cards, thick glow, fake refraction and blur that reduces legibility.
+- Typography: sharp Android sans-serif for all functional content. Larger display scale is reserved for page titles; numbers use stable tabular formatting where useful. Uppercase tracking is restricted to short instrument labels and metadata.
+
+## Surface hierarchy
+
+1. **Canvas / direct content:** conversation text, image output, headings, lists and settings rows sit directly on the background when no enclosure is needed.
+2. **Quiet glass:** compact selectors, attachment trays, contextual tool groups and secondary status areas use dark glass with a fine border.
+3. **Instrument glass:** only focal controls or precision instruments receive stronger edge reflections and modest depth.
+4. **Flat semantic surfaces:** errors, warnings, progress and destructive confirmation use clear state colours and readable text rather than decorative glass.
+
+## Motion
+
+- Use short state transitions for navigation, selection and appearance changes.
+- Animate a real value only between valid samples; keep the displayed measurement raw and authoritative.
+- No perpetual decorative meter sweeps, pulsing alerts or forced scroll jumps.
+- Respect system animation scale and reduced-motion preferences.
+
+## App information architecture (confirmed code)
+
+- **Home:** entry point to SruGen, upscaler, model gallery, Srukrypt and settings.
+- **Models / Model detail:** model discovery, device compatibility, install, active-model selection and model provenance/licensing.
+- **SruGen:** local image-generation workspace with encrypted conversation history, image attachment, Create/Edit clothes/Remove background modes, model readiness/download progress, cancellation, image viewer, save-to-device and import-to-Srukrypt.
+- **Upscaler:** image selection, local Real-ESRGAN processing, background foreground-service lifecycle, result restoration and export.
+- **Srukrypt:** encrypted private vault with device credential/biometric access and explicit recovery/reset paths.
+- **Device:** platform telemetry and this-app process diagnostics.
+- **Settings:** profile, local preferences, memory toggle for SruGen context, vault timeout and privacy controls.
+- **Activity:** currently an empty placeholder, not a persisted task-history feature.
+
+## Confirmed architecture
+
+- Native Android app built with Kotlin and Jetpack Compose, Material 3, compile SDK 36, target SDK 36 and min SDK 26.
+- UI composition is routed from SruvikApp.kt; page implementations live in ui/.
+- SruGen uses local model engine adapters, a generation session/service, model catalogue/installer/compatibility guard, encrypted chat store and encrypted attachment persistence.
+- Image upscaling uses a dedicated service and pinned LiteRT Real-ESRGAN model.
+- Srukrypt storage and vault logic live in security/ and use Android Keystore-backed cryptography and device-auth integration.
+- Existing features are preserved; this redesign is an incremental UI/material and telemetry refactor, not an engine or persistence rewrite.
+
+## Instrumentation measurement contract
+
+Every monitor view states scope, unit, source and limitation:
+
+| Display label | Source | Scope / caveat |
 |---|---|---|
-| Ink | #121710 | Main canvas |
-| Bench | #1B2219 | Working surfaces and composer |
-| Rule | #30392C | Hairlines and section divisions |
-| Bone | #E8E5D8 | Primary reading text |
-| Field grey | #AEB49F | Secondary reading text |
-| Calibration lime | #D5E58B | Selected tools, active state, primary action |
-| Oxide | #C77B5D | Index numbers, warnings, secondary emphasis |
+| Device available RAM | ActivityManager.MemoryInfo.availMem | Android system-wide availability; includes reclaimable memory |
+| Estimated in-use RAM | totalMem - availMem | Derived estimate, not a sum of process allocations |
+| App PSS | Debug.getMemoryInfo().totalPss | Current Sruvik process only, KiB converted to MiB |
+| App CPU share | Delta of Process.getElapsedCpuTime() over monotonic wall time, normalised by core count | Current app process, not device-wide CPU utilisation |
+| Data-volume capacity | StatFs(Environment.getDataDirectory()) | /data filesystem capacity, not a precise view of user media storage |
+| Battery | ACTION_BATTERY_CHANGED | Battery percentage/state; optional temperature is the battery sensor only |
+| Thermal status | PowerManager.getCurrentThermalStatus() on API 29+ | Platform thermal severity, not CPU temperature |
+| Network rate | TrafficStats UID byte counters | Sruvik UID only; not total device network throughput |
 
-## Type
-
-- Use Sruvik's existing editorial serif (SruvikType.display / MaterialTheme.typography.displayLarge) for page titles and short statements.
-- Use the existing sans family for reading copy and controls.
-- Small uppercase tracking is reserved for instrument labels, metadata, status and section indices. Never use it for paragraphs.
-- Keep a strong size contrast between title, reading copy and labels. Avoid gradient text.
-
-## Composition
-
-- Put the work first. In creative tools, the image or conversation is the canvas; controls should orbit it.
-- Prefer one strong editorial composition over rows of interchangeable cards.
-- Use numbered sections, hairline rules, offset alignments, open space and real app artwork to establish rhythm.
-- Keep the primary action close to the work. Keep secondary actions in a restrained toolbar.
-- Use a flat surface when it is enough. Rounded cards, translucent glass and gradients are not defaults.
-- Use image overlays only when they preserve text contrast over actual imagery. No ambient gradient blobs.
-- Tool selectors should read like a workbench index, not a row of generic pills.
+No third-party process list, total device CPU utilisation, CPU/GPU temperature or hidden OEM counters are claimed. Monitoring is sampled while the Device page is resumed and pauses when it is not visible.
 
 ## SruGen information architecture and interaction model
 
