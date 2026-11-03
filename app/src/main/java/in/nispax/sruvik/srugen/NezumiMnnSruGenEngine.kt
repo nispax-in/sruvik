@@ -243,7 +243,13 @@ class NezumiMnnSruGenEngine(
                 packed = MnnSdNative.generate(
                     handle = currentHandle,
                     prompt = diffusionPrompt,
-                    negativePrompt = "low quality, blurry, deformed, distorted, different person, changed identity, changed face, changed hair, changed expression, changed pose, changed camera, changed background, watermark",
+                    negativePrompt = if (clothingEdit) {
+                        "low quality, blurry, deformed, distorted, different person, changed identity, changed face, changed hair, changed expression, changed pose, changed camera, changed background, watermark"
+                    } else {
+                        // Do not negate a class of change that the user may have
+                        // explicitly requested (for example, a new hairstyle or background).
+                        "low quality, blurry, deformed anatomy, duplicate subject, extra limbs, watermark, text, compression artifacts"
+                    },
                     width = generationWidth,
                     height = generationHeight,
                     steps = 20,
