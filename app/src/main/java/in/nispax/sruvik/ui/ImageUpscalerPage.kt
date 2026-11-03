@@ -357,7 +357,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
         ) {
             Column(
                 Modifier.background(Brush.linearGradient(
-                    listOf(Color(0xFF262626), Color(0xFF1D1D1D), Color(0xFF141414))
+                    listOf(Color(0xFF1B2230), Color(0xFF121722), Color(0xFF0D111A))
                 )).padding(17.dp),
                 verticalArrangement = Arrangement.spacedBy(13.dp)
             ) {
