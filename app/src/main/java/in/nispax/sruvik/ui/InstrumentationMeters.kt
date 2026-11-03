@@ -106,14 +106,23 @@ internal fun SegmentedDial(
                     (startFraction + endFraction) / 2f >= it.startFraction &&
                         (startFraction + endFraction) / 2f < it.endFraction
                 }
-                val segmentColor = if (value != null && endFraction <= displayedFraction + .0001f) {
-                    band?.color ?: ObsidianTokens.Cyan
-                } else {
-                    Color(0xFF242A34)
+                val zoneColor = band?.color ?: ObsidianTokens.Cyan
+                val active = value != null && endFraction <= displayedFraction + .0001f
+                val segmentStart = 180f + index * (segmentSweep + gap)
+                if (active) {
+                    drawArc(
+                        color = zoneColor.copy(alpha = .15f),
+                        startAngle = segmentStart,
+                        sweepAngle = segmentSweep,
+                        useCenter = false,
+                        topLeft = topLeft,
+                        size = arcSize,
+                        style = Stroke(width = stroke + 8.dp.toPx(), cap = StrokeCap.Round)
+                    )
                 }
                 drawArc(
-                    color = segmentColor,
-                    startAngle = 180f + index * (segmentSweep + gap),
+                    color = if (active) zoneColor else zoneColor.copy(alpha = .25f),
+                    startAngle = segmentStart,
                     sweepAngle = segmentSweep,
                     useCenter = false,
                     topLeft = topLeft,
