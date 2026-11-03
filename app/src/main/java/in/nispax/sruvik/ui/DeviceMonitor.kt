@@ -297,7 +297,7 @@ fun DeviceMonitorPage() {
         item {
             Text(
                 state.error?.let { "Last sample failed: $it" }
-                    ?: "Samples are collected only while this page is resumed. Android does not expose unrestricted memory or CPU usage for other apps to ordinary applications.",
+                    ?: "Samples are collected only while this page is resumed. CPU and network readings are scoped to this app's process/UID. Ordinary apps do not have a reliable public whole-device CPU percentage or unrestricted third-party process list.",
                 style = MaterialTheme.typography.bodySmall,
                 color = ObsidianTokens.TextMuted,
                 modifier = Modifier.padding(horizontal = 3.dp)
