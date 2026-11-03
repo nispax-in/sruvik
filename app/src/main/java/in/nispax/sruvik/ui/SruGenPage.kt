@@ -1379,7 +1379,7 @@ fun SruGenPage(
 
 internal fun isSruGenClothingEditInstruction(prompt: String): Boolean {
     val normalized = prompt.lowercase()
-    val hasEditVerb = Regex("\\b(change|edit|recolor|recolour|turn|make|replace|switch)\\b")
+    val hasEditVerb = Regex("\\b(change|edit|recolor|recolour|turn|make|replace|switch|give)\\b")
         .containsMatchIn(normalized)
     val hasClothingTarget = Regex("\\b(clothes|clothing|outfit|shirt|t-shirt|tee|jacket|coat|hoodie|sweater|dress|trousers|pants|jeans)\\b")
         .containsMatchIn(normalized)
