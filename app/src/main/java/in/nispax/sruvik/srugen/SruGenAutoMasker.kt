@@ -120,7 +120,7 @@ object SruGenAutoMasker {
             val selected = clothes.values.count { (it.toInt() and 0xff) > 0 }
             val ratio = selected.toFloat() / clothes.values.size.toFloat()
             require(ratio >= 0.008f) {
-                "SruGen could not find clothing in this photo. Try a clear, well-lit image showing the person's outfit."
+                if (regionLabel == 1) "SruGen could not isolate hair clearly. Try a well-lit photo with the hair visible." else "SruGen could not find clothing in this photo. Try a clear, well-lit image showing the person's outfit."
             }
             require(ratio <= 0.90f) {
                 if (regionLabel == 1) "The hair selection was too broad to recolour safely. Try a closer portrait with hair clearly separated from the background." else "The clothing mask was too broad to recolour safely. Try a closer photo with one clearly visible person."
