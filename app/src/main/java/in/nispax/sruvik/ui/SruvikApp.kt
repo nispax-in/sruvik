@@ -608,32 +608,22 @@ private fun AppRow(icon: ImageVector, title: String, subtitle: String, status: S
 @Composable
 @Suppress("UNUSED_PARAMETER")
 private fun GlassCard(modifier: Modifier, shape: RoundedCornerShape, fill: Brush, content: @Composable BoxScope.() -> Unit) {
-    Box(
-        modifier.graphicsLayer {
-            shadowElevation = 13.dp.toPx()
-            this.shape = shape
-            clip = true
-        }
-            .background(fill)
-            .border(
-                androidx.compose.foundation.BorderStroke(
-                    1.dp,
-                    Brush.linearGradient(listOf(Color(0x887D91B8), Color(0x224B566B), Color(0x6675DCEB)))
-                ),
-                shape
-            )
-            .animateContentSize()
+    ObsidianGlassBox(
+        modifier = modifier.animateContentSize(),
+        shape = shape,
+        fill = fill
     ) {
         // A single restrained upper-edge reflection gives the surface a material cue.
-        Box(Modifier.fillMaxWidth().height(1.dp).background(
-            Brush.horizontalGradient(
-                listOf(Color.Transparent, Color(0x887F8BC2), Color(0x6675DCEB), Color.Transparent)
+        Box(
+            Modifier.fillMaxWidth().height(1.dp).background(
+                Brush.horizontalGradient(
+                    listOf(Color.Transparent, Color(0x887F8BC2), Color(0x6675DCEB), Color.Transparent)
+                )
             )
-        ))
+        )
         content()
     }
 }
-
 /**
  * The app's five peer destinations use a labelled native navigation bar.
  * Creative sessions such as SruGen temporarily leave this global navigation
