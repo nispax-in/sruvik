@@ -155,6 +155,8 @@ fun DeviceMonitorPage() {
                 previousRx = rx
                 previousTx = tx
                 delay(2500)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
             } catch (failure: Exception) {
                 state = MonitorUiState(
                     snapshot = state.snapshot,
