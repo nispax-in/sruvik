@@ -66,7 +66,10 @@ private enum class ModelLibraryTab(val label: String) {
 }
 
 @Composable
-fun ModelsPage(onOpenModel: (String) -> Unit) {
+fun ModelsPage(
+    onOpenModel: (String) -> Unit,
+    onBackToStudio: (() -> Unit)? = null
+) {
     val context = LocalContext.current
     var tab by androidx.compose.runtime.remember { mutableStateOf(ModelLibraryTab.DISCOVER) }
     var checking by androidx.compose.runtime.remember { mutableStateOf(true) }
@@ -107,6 +110,22 @@ fun ModelsPage(onOpenModel: (String) -> Unit) {
             Modifier.fillMaxWidth().padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            if (onBackToStudio != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.material3.TextButton(
+                        onClick = onBackToStudio,
+                        contentPadding = PaddingValues(horizontal = 0.dp, vertical = 4.dp)
+                    ) {
+                        androidx.compose.material3.Icon(
+                            androidx.compose.material.icons.Icons.Rounded.ArrowBack,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text("Back to SruGen")
+                    }
+                }
+            }
             Text(
                 "SRUVIK  /  MODEL EXCHANGE",
                 color = SruvikColors.LimeMuted,
