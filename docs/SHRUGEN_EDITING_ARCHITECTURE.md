@@ -46,3 +46,33 @@ Status: repository/source audit plus first incremental implementation. This docu
 ## Provenance and validation notes
 
 The pinned archive SHA above is the registry's expected ZIP digest; it is not a hash of a user's installed unpacked checkpoint file. The source repository and conversion pack are separate provenance records. The app must validate the actual installed files at runtime. Build/CI success is not equivalent to physical-device image-quality or performance validation.
+
+
+## Candidate model research (not installed)
+
+| Candidate | What it solves | Evidence / footprint | Decision for current Android app |
+|---|---|---|---|
+| MediaPipe SelfieMulticlass | Fast coarse hair/skin/clothes/accessories labels | Already bundled; 256×256; documented categories include hair, body skin, face skin, clothes and accessories | Keep as the first-pass helper. It is semantic segmentation, not garment-instance parsing. |
+| MediaPipe HairSegmenter | Hair-only mask for colour and hair effects | Official guide lists 512×512 float32 model and Pixel 6 CPU/GPU pipeline timings around 58/52 ms | Consider as a higher-quality optional hair mask after comparing against existing multiclass hair label. Not yet bundled. |
+| SCHP ATR/LIP | Fine-grained human parsing; ATR labels include upper clothes, pants, dress, skirt, coat/accessories depending on taxonomy | Third-party ONNX package reports 257 MB FP32 or ~66 MB INT8 checkpoints and desktop CPU timings; package is MIT, but original checkpoint/dataset rights and conversion provenance must be checked independently | Strong next parsing candidate, but not integrated: adds a second runtime/dependency and semantic labels still do not split a visible inner shirt from a blazer instance. Device benchmarks and license chain required. |
+| SD 1.5 Inpainting | Mask-conditioned local synthesis | Official model card describes a dedicated inpainting UNet with 5 additional input channels (9 total) and CreativeML OpenRAIL-M | Best architecture-family starting point for a separate inpaint branch, but not compatible with the current MNN JNI method signature as-is. Needs a new 9-channel runtime and Android conversion proof. |
+| PowerPaint | Instruction-aware inpainting / removal / insertion | Official code repository exposes MIT code license; weight provenance/terms must be audited separately | Desktop research candidate only. No current MNN Android integration or verified mobile pack. |
+| CatVTON | Garment-reference virtual try-on | Official repo uses SD 1.5 inpainting; 899.06M total parameters; claims under 8 GB VRAM at 1024×768; code and checkpoints CC BY-NC-SA 4.0 | Not suitable as an immediate local Android dependency. Non-commercial/share-alike terms and desktop GPU memory assumptions make it a separate optional research/server-class route, not a drop-in adapter. |
+| IDM-VTON | Authentic reference garment transfer | Official implementation requires human parsing, DensePose and OpenPose assets; code/checkpoints CC BY-NC-SA 4.0 | Too many heavy preprocessing/runtime stages for current Android engine; not installed. |
+| OOTDiffusion | Outfit transfer with garment conditioning | Published model repository is listed at 15.9 GB and CC BY-NC-SA 4.0; tested Linux workflow | Reject for bundled/offline phone deployment at this stage. |
+| AnyDoor | Object-level reference customization / insertion | CVPR 2024 paper reports SD 2.1 as base generator in the released method description | Not a direct SD 1.5 MNN adapter; separate base family and runtime. Useful research for object insertion, not the turtleneck/blazer parser. |
+| ControlNet / IP-Adapter | Pose/edge/structure or image-reference conditioning | Adapter families have distinct control inputs, encoders and module contracts | Potential future route only after exact SD 1.5 module compatibility and MNN graph/operator support are demonstrated. Current JNI API exposes neither conditioning input. |
+
+### Source links checked
+
+- MediaPipe segmentation guide: https://developers.google.com/edge/mediapipe/solutions/vision/image_segmenter
+- SCHP packaging and label maps: https://github.com/pirocheto/schp-human-parsing
+- SD 1.5 inpainting model card: https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-inpainting
+- Diffusers 9-channel inpainting adaptation: https://huggingface.co/docs/diffusers/main/training/adapt_a_model
+- PowerPaint: https://github.com/open-mmlab/PowerPaint
+- CatVTON: https://github.com/Zheng-Chong/CatVTON
+- IDM-VTON: https://github.com/yisol/IDM-VTON
+- OOTDiffusion: https://huggingface.co/OOTDiffusion/OOTDiffusion
+- AnyDoor CVPR 2024: https://openaccess.thecvf.com/content/CVPR2024/html/Chen_AnyDoor_Zero-shot_Object-level_Image_Customization_CVPR_2024_paper.html
+
+No new generative or parsing model was installed in this implementation slice. The model-selection decision is intentionally conservative: use the already shipped MediaPipe and MNN components until a separate inpainting runtime passes Android conversion, memory, licensing and visual-quality tests.
