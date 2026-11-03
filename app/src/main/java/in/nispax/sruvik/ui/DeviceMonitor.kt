@@ -374,17 +374,11 @@ fun DeviceMonitorPage() {
 
 @Composable
 private fun GlassInstrumentPanel(content: @Composable () -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxWidth()
-            .background(
-                Brush.linearGradient(listOf(Color(0xE61A202D), Color(0xF210131C), Color(0xE8171B29))),
-                RoundedCornerShape(22.dp)
-            )
-            .border(androidx.compose.foundation.BorderStroke(1.dp, Brush.linearGradient(listOf(Color(0x667E91B8), Color(0x223C4A64), Color(0x556BDAE8)))),
-                RoundedCornerShape(22.dp))
-            .padding(17.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) { content() }
+    ObsidianGlassPanel(
+        shape = RoundedCornerShape(22.dp),
+        contentPadding = PaddingValues(17.dp),
+        content = { content() }
+    )
 }
 
 @Composable
