@@ -15,13 +15,13 @@ class SruGenClothingEditIntentTest {
     @Test
     fun attachedPhotoHairColourInstructionIsRecognized() {
         assertTrue(isSruGenClothingEditInstruction("make my hair blue"))
-        assertFalse(isSruGenClothingEditInstruction("change my hair colour to auburn"))
+        assertTrue(isSruGenClothingEditInstruction("change my hair colour to auburn"))
     }
 
     @Test
-    fun unsupportedStructuralHairEditIsNotRoutedToClothingEngine() {
-        assertFalse(isSruGenClothingEditInstruction("give me curly hair"))
-        assertFalse(isSruGenClothingEditInstruction("make my hairstyle shorter"))
+    fun structuralHairEditIsRecognizedForSafeCapabilityGuidance() {
+        assertTrue(isSruGenClothingEditInstruction("give me curly hair"))
+        assertTrue(isSruGenClothingEditInstruction("make my hairstyle shorter"))
     }
 
     @Test
