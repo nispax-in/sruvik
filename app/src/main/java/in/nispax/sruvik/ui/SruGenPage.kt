@@ -1610,94 +1610,71 @@ private fun SruGenMessageBubble(
     onViewImage: (String) -> Unit
 ) {
     val isUser = message.role == "user"
-    val bubbleShape = if (isUser) {
-        RoundedCornerShape(topStart = 18.dp, topEnd = 5.dp, bottomEnd = 18.dp, bottomStart = 18.dp)
-    } else {
-        RoundedCornerShape(topStart = 5.dp, topEnd = 18.dp, bottomEnd = 18.dp, bottomStart = 18.dp)
-    }
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
     ) {
         Column(
-            Modifier.widthIn(max = 340.dp)
-                .clip(bubbleShape)
-                .background(if (isUser) SruvikColors.SurfaceSoft else SruvikColors.Surface)
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+            Modifier.widthIn(max = if (isUser) 560.dp else 680.dp)
+                .then(
+                    if (isUser) Modifier.clip(RoundedCornerShape(16.dp))
+                        .background(SruvikColors.SurfaceElevated)
+                        .padding(horizontal = 14.dp, vertical = 11.dp)
+                    else Modifier.padding(vertical = 2.dp)
+                ),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                if (isUser) "You" else "SruGen",
-                color = if (isUser) SruvikColors.Primary else SruvikColors.SecondaryAccent,
-                style = MaterialTheme.typography.labelMedium
+                if (isUser) "YOU" else "SRUGEN · LOCAL",
+                color = if (isUser) SruvikColors.TextSecondary else SruvikColors.Primary,
+                style = MaterialTheme.typography.labelSmall,
+                letterSpacing = 1.1.sp
             )
             if (message.text.isNotBlank()) {
-                Text(
-                    message.text,
-                    color = SruvikColors.TextPrimary,
-                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp, lineHeight = 22.sp)
-                )
+                Text(message.text, color = SruvikColors.TextPrimary, style = MaterialTheme.typography.bodyLarge)
             }
-            image?.let {
+            image?.let { bitmap ->
                 Image(
-                    it.asImageBitmap(),
+                    bitmap.asImageBitmap(),
                     "Open image in full-screen viewer",
-                    Modifier.widthIn(max = 280.dp)
-                        .fillMaxWidth()
-                        .heightIn(max = 360.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                    Modifier.fillMaxWidth().heightIn(max = 440.dp)
+                        .clip(RoundedCornerShape(8.dp))
                         .clickable(enabled = message.attachmentId != null) {
                             message.attachmentId?.let(onViewImage)
                         },
                     contentScale = ContentScale.Fit
                 )
                 if (message.attachmentId != null) {
-                    Text(
-                        "Tap to inspect",
-                        color = SruvikColors.TextSecondary,
-                        style = MaterialTheme.typography.labelSmall
-                    )
+                    Text("Tap image to view and zoom", color = SruvikColors.TextMuted, style = MaterialTheme.typography.labelSmall)
                 }
             }
             if (!isUser && message.attachmentId != null) {
-                Text(
-                    "Private copy · encrypted in this conversation",
-                    color = SruvikColors.TextSecondary,
-                    style = MaterialTheme.typography.labelSmall
-                )
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
+                Text("Encrypted in this conversation", color = SruvikColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(
-                        onClick = {
-                            onSaveToDevice(message.attachmentId, message.attachmentMime ?: "image/png")
-                        },
-                        modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                        onClick = { onSaveToDevice(message.attachmentId, message.attachmentMime ?: "image/png") },
+                        modifier = Modifier.heightIn(min = 48.dp)
                     ) {
-                        Icon(Icons.Rounded.SaveAlt, null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("Save to device", fontSize = 11.sp)
+                        Icon(Icons.Rounded.SaveAlt, null, modifier = Modifier.size(17.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Save to device")
                     }
                     TextButton(
-                        onClick = {
-                            onSaveToVault(message.attachmentId, message.attachmentMime ?: "image/png")
-                        },
-                        modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                        onClick = { onSaveToVault(message.attachmentId, message.attachmentMime ?: "image/png") },
+                        modifier = Modifier.heightIn(min = 48.dp)
                     ) {
-                        Icon(Icons.Rounded.Security, null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("Save to Srukrypt", fontSize = 11.sp)
+                        Icon(Icons.Rounded.Security, null, modifier = Modifier.size(17.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Import to Srukrypt")
                     }
                 }
             }
             message.modelName?.let {
-                Text(it, color = SruvikColors.Primary, style = MaterialTheme.typography.labelSmall)
+                Text(it, color = SruvikColors.TextMuted, style = MaterialTheme.typography.labelSmall)
             }
         }
     }
 }
-
 @Composable
 private fun StudioModeControl(label: String, selected: Boolean, onClick: () -> Unit) {
     val isSelected = selected
