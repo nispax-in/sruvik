@@ -262,6 +262,13 @@ fun DeviceMonitorPage() {
                                 "Thermal status", data.thermalStatus,
                                 "Android thermal severity; not a CPU temperature.")
                         }
+                        InstrumentLinearMeter(
+                            "Battery charge",
+                            data.batteryPercent?.let { "$it%" } ?: "Unavailable",
+                            data.batteryPercent?.let { it / 100f },
+                            "Charge level only; battery health/capacity is not inferred.",
+                            accent = ObsidianTokens.Cyan
+                        )
                     }
                 }
             }
