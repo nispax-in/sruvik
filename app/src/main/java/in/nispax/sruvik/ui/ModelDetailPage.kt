@@ -295,17 +295,15 @@ fun ModelDetailPage(
         }
 
         SectionTitle("THE STORY")
-        Surface(
-            color = Color(0x772F2F4E),
+        ObsidianGlassPanel(
             shape = RoundedCornerShape(20.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .08f))
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("“${actualModel.lore}”", color = SruvikColors.TextPrimary,
-                    style = MaterialTheme.typography.titleMedium, lineHeight = 24.sp)
-                Text(actualModel.description, color = SruvikColors.TextSecondary,
-                    style = MaterialTheme.typography.bodyMedium, lineHeight = 21.sp)
-            }
+            Text("“${actualModel.lore}”", color = SruvikColors.TextPrimary,
+                style = MaterialTheme.typography.titleMedium, lineHeight = 24.sp)
+            Text(actualModel.description, color = SruvikColors.TextSecondary,
+                style = MaterialTheme.typography.bodyMedium, lineHeight = 21.sp)
         }
 
         SectionTitle("MODEL PROFILE")
@@ -396,12 +394,12 @@ fun ModelDetailPage(
             style = MaterialTheme.typography.labelSmall, lineHeight = 17.sp)
 
         SectionTitle("BEFORE YOU INSTALL")
-        Surface(
-            color = Color(0x66372F27),
+        ObsidianGlassPanel(
             shape = RoundedCornerShape(18.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x66E7B77A))
+            contentPadding = PaddingValues(14.dp),
+            accent = Color(0xFFE7B77A)
         ) {
-            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     Icon(Icons.Rounded.Security, null, tint = SruvikColors.SecondaryAccent)
                     Text("Third-party model warning", color = SruvikColors.SecondaryAccent, fontWeight = FontWeight.SemiBold)
