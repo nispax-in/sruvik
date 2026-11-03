@@ -763,7 +763,7 @@ fun SruGenPage(
         if (requestMode == SruGenMode.PROMPT_EDIT && text.isBlank()) {
             persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
                 role = "assistant",
-                text = "Describe the clothing change you want, for example: change the shirt to black. Your original image remains attached in this encrypted chat."
+                text = "Describe the photo change you want, for example: change the background to a beach. Your original image remains attached in this encrypted chat."
             )))
             return
         }
