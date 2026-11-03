@@ -3,6 +3,7 @@ package `in`.nispax.sruvik.ui
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -37,6 +38,7 @@ fun ObsidianGlassPanel(
     shape: Shape = RoundedCornerShape(22.dp),
     contentPadding: PaddingValues = PaddingValues(16.dp),
     accent: Color = SruvikColors.Primary,
+    verticalArrangement: Arrangement.Vertical = Arrangement.spacedBy(8.dp),
     content: @Composable ColumnScope.() -> Unit
 ) {
     Column(
@@ -83,6 +85,7 @@ fun ObsidianGlassPanel(
                 )
             }
             .padding(contentPadding),
+        verticalArrangement = verticalArrangement,
         content = content
     )
 }
