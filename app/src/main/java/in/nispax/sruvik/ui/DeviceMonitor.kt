@@ -150,7 +150,7 @@ fun DeviceMonitorPage() {
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 22.dp, end = 22.dp, top = 28.dp, bottom = 112.dp),
+        contentPadding = PaddingValues(start = 22.dp, end = 22.dp, top = 28.dp, bottom = 20.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         item {

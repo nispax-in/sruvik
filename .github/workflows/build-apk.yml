@@ -1,16 +1,58 @@
 name: Build Sruvik Debug APK
 on:
   push:
-    branches: [main]
+    branches: [main, 'fix/**', 'feature/**']
+  pull_request:
+    branches: ['fix/**']
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  # Keep branch builds isolated: a feature branch must not cancel the signed
+  # update-compatible APK build for the user's installation branch.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Verify and stage pinned Nezumi Kiln MNN runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_COMMIT="78ea304dd1f0b2082d73f33b1283948c2fdd8e21"
+          ACTUAL_COMMIT="$(git -C third_party/nezumi-ai rev-parse HEAD)"
+          test "$ACTUAL_COMMIT" = "$EXPECTED_COMMIT"
+
+          verify_blob() {
+            local relative="$1"
+            local expected="$2"
+            local actual
+            actual="$(git -C third_party/nezumi-ai hash-object "$relative")"
+            test "$actual" = "$expected" || {
+              echo "Nezumi runtime integrity check failed for $relative" >&2
+              exit 1
+            }
+          }
+
+          verify_blob "app/src/main/jniLibs/arm64-v8a/libMNN.so" "3f916ec7eef28e1c9cd4a7a5297b13628cc91b51"
+          verify_blob "app/src/main/jniLibs/arm64-v8a/libmnn_sd_engine.so" "658cd3ceade4b149b7da7ecf955f44b3a53e5c76"
+          verify_blob "app/src/main/jniLibs/arm64-v8a/libmnn_sd_jni.so" "a0579fd698b844e687c73ec80525d947a26f2c7d"
+
+          mkdir -p app/src/main/jniLibs/arm64-v8a
+          cp third_party/nezumi-ai/app/src/main/jniLibs/arm64-v8a/libMNN.so app/src/main/jniLibs/arm64-v8a/
+          cp third_party/nezumi-ai/app/src/main/jniLibs/arm64-v8a/libmnn_sd_engine.so app/src/main/jniLibs/arm64-v8a/
+          cp third_party/nezumi-ai/app/src/main/jniLibs/arm64-v8a/libmnn_sd_jni.so app/src/main/jniLibs/arm64-v8a/
+
+          # Include LGPL source/license notices in the APK assets as well as the repository.
+          mkdir -p app/src/main/assets/third_party/nezumi-ai
+          cp third_party/nezumi-ai/LICENSE.md app/src/main/assets/third_party/nezumi-ai/
+          cp third_party/nezumi-ai/LGPL_LICENSE app/src/main/assets/third_party/nezumi-ai/
+          cp third_party/nezumi-ai/NOTICE app/src/main/assets/third_party/nezumi-ai/
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -22,15 +64,58 @@ jobs:
           gradle-version: '8.11.1'
       - name: Download pinned Real-ESRGAN model
         run: bash scripts/fetch-upscaler-model.sh
+      - name: Download and verify MediaPipe automatic segmentation model
+        run: bash scripts/fetch-srugen-segmentation-model.sh
       - name: Restore debug signing key
         uses: actions/cache@v4
         with:
-          path: ~/.android/debug.keystore
-          key: sruvik-debug-keystore-v1
-      - name: Build debug APK
+          path: .ci/sruvik-debug.keystore
+          key: sruvik-debug-keystore-v2
+      - name: Ensure stable debug signing key
+        run: |
+          mkdir -p .ci
+          if [ ! -s .ci/sruvik-debug.keystore ]; then
+            echo "The original Sruvik signing key was not restored. Refusing to generate an incompatible APK." >&2
+            exit 1
+          fi
+          REQUIRED="e143f659dd482479778f1da8812d5c8b5b988c420ca580e7915d5c2e893455fe"
+          ACTUAL="$(keytool -list -v -keystore .ci/sruvik-debug.keystore -storepass android -alias androiddebugkey | awk -F': ' '/SHA256:/ { gsub(":", "", $2); print tolower($2) }')"
+          echo "Required signing certificate: $REQUIRED"
+          echo "Restored signing certificate: $ACTUAL"
+          test "$ACTUAL" = "$REQUIRED"
+      - name: Run JVM regression tests and build debug APK
         env:
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
-        run: gradle --no-daemon :app:assembleDebug
+        run: gradle --no-daemon :app:testDebugUnitTest :app:compileDebugAndroidTestKotlin :app:assembleDebug
+      - name: Verify native runtime and license files in APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          TMP="$(mktemp -d)"
+          trap 'rm -rf "$TMP"' EXIT
+
+          unzip -q "$APK" "lib/arm64-v8a/libMNN.so" "lib/arm64-v8a/libmnn_sd_engine.so" "lib/arm64-v8a/libmnn_sd_jni.so" -d "$TMP"
+          cmp "$TMP/lib/arm64-v8a/libMNN.so" "app/src/main/jniLibs/arm64-v8a/libMNN.so"
+          cmp "$TMP/lib/arm64-v8a/libmnn_sd_engine.so" "app/src/main/jniLibs/arm64-v8a/libmnn_sd_engine.so"
+          cmp "$TMP/lib/arm64-v8a/libmnn_sd_jni.so" "app/src/main/jniLibs/arm64-v8a/libmnn_sd_jni.so"
+
+          unzip -p "$APK" "assets/third_party/nezumi-ai/LGPL_LICENSE" | grep -q "GNU LESSER GENERAL PUBLIC LICENSE"
+          unzip -p "$APK" "assets/third_party/nezumi-ai/NOTICE" | grep -qi "nezumi"
+      - name: Verify APK signer matches the #352 update certificate
+        shell: bash
+        run: |
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          REQUIRED="e143f659dd482479778f1da8812d5c8b5b988c420ca580e7915d5c2e893455fe"
+          EXPECTED="$(keytool -list -v -keystore .ci/sruvik-debug.keystore -storepass android -alias androiddebugkey | awk -F': ' '/SHA256:/ { gsub(":", "", $2); print tolower($2) }')"
+          SIGNER_OUTPUT="$("$APKSIGNER" verify --print-certs "$APK" 2>&1)"
+          printf '%s\n' "$SIGNER_OUTPUT"
+          ACTUAL="$(printf '%s\n' "$SIGNER_OUTPUT" | awk '/certificate SHA-256 digest:/ { print tolower($NF); exit }')"
+          echo "Required signing certificate: $REQUIRED"
+          echo "Keystore SHA-256: $EXPECTED"
+          echo "APK signer SHA-256: $ACTUAL"
+          test "$EXPECTED" = "$REQUIRED" && test "$ACTUAL" = "$REQUIRED"
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
