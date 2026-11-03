@@ -1127,7 +1127,7 @@ fun SruGenPage(
                 Row(
                     Modifier.fillMaxWidth()
                         .background(Brush.linearGradient(listOf(Color(0xF21B2230), Color(0xFA0D111A))), RoundedCornerShape(16.dp))
-                        .border(1.dp, Brush.linearGradient(listOf(Color(0x667E91B8), Color(0x3375DCEB))), RoundedCornerShape(16.dp))
+                        .border(androidx.compose.foundation.BorderStroke(1.dp, Brush.linearGradient(listOf(Color(0x667E91B8), Color(0x3375DCEB)))), RoundedCornerShape(16.dp))
                         .padding(start = 13.dp, end = 5.dp, top = 5.dp, bottom = 5.dp),
                     verticalAlignment = Alignment.Bottom,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)

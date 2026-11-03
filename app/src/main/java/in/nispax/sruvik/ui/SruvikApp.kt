@@ -542,9 +542,9 @@ private fun GlassCard(modifier: Modifier, shape: RoundedCornerShape, fill: Brush
         }
             .background(fill)
             .border(
-                1.dp,
-                Brush.linearGradient(
-                    listOf(Color(0x887D91B8), Color(0x224B566B), Color(0x6675DCEB))
+                androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    Brush.linearGradient(listOf(Color(0x887D91B8), Color(0x224B566B), Color(0x6675DCEB)))
                 ),
                 shape
             )
@@ -580,9 +580,9 @@ private fun AppNavigationBar(
     )
     NavigationBar(
         modifier = modifier.fillMaxWidth().height(80.dp)
-            .border(1.dp, Brush.horizontalGradient(
+            .border(androidx.compose.foundation.BorderStroke(1.dp, Brush.horizontalGradient(
                 listOf(Color.Transparent, Color(0x665D6C89), Color(0x5575DCEB), Color.Transparent)
-            )),
+            ))),
         containerColor = Color(0xF20B0E16),
         contentColor = SruvikColors.TextPrimary,
         tonalElevation = 0.dp
