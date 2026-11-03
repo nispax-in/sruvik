@@ -147,6 +147,7 @@ fun SruGenPage(
     var renameText by remember { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<SruGenChat?>(null) }
     var monitorExpanded by remember { mutableStateOf(false) }
+    var headerMenuExpanded by remember { mutableStateOf(false) }
     var resourceStats by remember { mutableStateOf(SruGenResourceStats()) }
     val generationState by SruGenGenerationSession.state.collectAsState()
     val messageListState = rememberLazyListState()
@@ -858,38 +859,66 @@ fun SruGenPage(
                 .imePadding()
                 .padding(horizontal = 16.dp)
         ) {
-            Row(
-                Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Rounded.ArrowBack, "Back to Sruvik", tint = studioText)
-                }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                    Text("SruGen", color = studioText, style = MaterialTheme.typography.headlineMedium)
-                    Text(
-                        activeModel?.name ?: "Choose a local model",
-                        color = if (modelReady) studioSecondary else studioAccent,
-                        style = MaterialTheme.typography.labelSmall,
-                        maxLines = 1
-                    )
-                }
-                IconButton(onClick = onOpenModels, modifier = Modifier.size(48.dp)) {
-                    Icon(
-                        Icons.Rounded.Memory,
-                        "Active model: ${activeModel?.name ?: "Choose a model"}. Open model library",
-                        tint = studioAccent
-                    )
-                }
-                IconButton(onClick = { historyOpen = true }, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Rounded.History, "Conversation history", tint = studioText)
-                }
-                IconButton(onClick = { monitorExpanded = !monitorExpanded }, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Rounded.Tune, "Device performance details", tint = studioSecondary)
-                }
-                IconButton(onClick = { newChat() }, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Rounded.Add, "New conversation", tint = studioAccent)
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Rounded.ArrowBack, "Back to Sruvik", tint = studioText)
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                        Text("SruGen", color = studioText, style = MaterialTheme.typography.headlineMedium, maxLines = 1)
+                        Text(
+                            activeModel?.name ?: "Choose a local model",
+                            color = if (modelReady) studioSecondary else studioAccent,
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1
+                        )
+                    }
+                    IconButton(onClick = onOpenModels, modifier = Modifier.size(48.dp)) {
+                        Icon(
+                            Icons.Rounded.Memory,
+                            "Active model: ${activeModel?.name ?: "Choose a model"}. Open model library",
+                            tint = studioAccent
+                        )
+                    }
+                    IconButton(onClick = { historyOpen = true }, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Rounded.History, "Conversation history", tint = studioText)
+                    }
+                    if (maxWidth >= 390.dp) {
+                        IconButton(onClick = { monitorExpanded = !monitorExpanded }, modifier = Modifier.size(48.dp)) {
+                            Icon(Icons.Rounded.Tune, "Device performance details", tint = studioSecondary)
+                        }
+                        IconButton(onClick = { newChat() }, modifier = Modifier.size(48.dp)) {
+                            Icon(Icons.Rounded.Add, "New conversation", tint = studioAccent)
+                        }
+                    } else {
+                        Box {
+                            IconButton(onClick = { headerMenuExpanded = true }, modifier = Modifier.size(48.dp)) {
+                                Icon(Icons.Rounded.MoreVert, "More studio actions", tint = studioSecondary)
+                            }
+                            DropdownMenu(expanded = headerMenuExpanded, onDismissRequest = { headerMenuExpanded = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Device performance") },
+                                    leadingIcon = { Icon(Icons.Rounded.Tune, null) },
+                                    onClick = {
+                                        headerMenuExpanded = false
+                                        monitorExpanded = !monitorExpanded
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("New conversation") },
+                                    leadingIcon = { Icon(Icons.Rounded.Add, null) },
+                                    onClick = {
+                                        headerMenuExpanded = false
+                                        newChat()
+                                    }
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
