@@ -535,6 +535,11 @@ private fun GlassCard(modifier: Modifier, shape: RoundedCornerShape, fill: Brush
     }
 }
 
+/**
+ * The app's five peer destinations use a labelled native navigation bar.
+ * Creative sessions such as SruGen temporarily leave this global navigation
+ * so the prompt, conversation and image canvas keep the full available height.
+ */
 @Composable
 private fun AppNavigationBar(
     selected: Destination,
