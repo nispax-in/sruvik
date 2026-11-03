@@ -73,11 +73,13 @@ fun SruvikApp() {
     // SruGen is a focused creative workspace, not a peer destination in the
     // global app navigation. Remember its return route while opening the model library.
     var modelsReturnToSruGen by remember { mutableStateOf(false) }
+    var vaultReturnToSruGen by remember { mutableStateOf(false) }
 
     BackHandler(
         enabled = selected == Destination.SruGen ||
             selected == Destination.ModelDetail ||
-            (selected == Destination.Models && modelsReturnToSruGen)
+            (selected == Destination.Models && modelsReturnToSruGen) ||
+            (selected == Destination.Srukrypt && vaultReturnToSruGen)
     ) {
         when (selected) {
             Destination.SruGen -> selected = Destination.Home
@@ -85,6 +87,10 @@ fun SruvikApp() {
             Destination.Models -> {
                 selected = Destination.SruGen
                 modelsReturnToSruGen = false
+            }
+            Destination.Srukrypt -> {
+                selected = Destination.SruGen
+                vaultReturnToSruGen = false
             }
             else -> Unit
         }
@@ -101,7 +107,10 @@ fun SruvikApp() {
             label = "screen"
         ) { page ->
             when (page) {
-                Destination.Home -> HomeScreen(profile.name, showDailyTip, { selected = Destination.Models }, { selected = Destination.Settings }, { selected = Destination.Upscaler }, { selected = Destination.SruGen }, { selected = Destination.Srukrypt })
+                Destination.Home -> HomeScreen(profile.name, showDailyTip, { selected = Destination.Models }, { selected = Destination.Settings }, { selected = Destination.Upscaler }, { selected = Destination.SruGen }, {
+                    vaultReturnToSruGen = false
+                    selected = Destination.Srukrypt
+                })
                 Destination.Models -> ModelsPage(onOpenModel = { modelId ->
                     selectedModelId = modelId
                     selected = Destination.ModelDetail
@@ -141,7 +150,10 @@ fun SruvikApp() {
                         modelsReturnToSruGen = true
                         selected = Destination.Models
                     },
-                    onOpenVault = { selected = Destination.Srukrypt }
+                    onOpenVault = {
+                        vaultReturnToSruGen = true
+                        selected = Destination.Srukrypt
+                    }
                 )
                 Destination.Srukrypt -> SrukryptPage(SruvikPreferences.vaultAutoLockMinutes(context))
             }
@@ -157,6 +169,7 @@ fun SruvikApp() {
                 },
                 onSelect = {
                     modelsReturnToSruGen = false
+                    vaultReturnToSruGen = false
                     selected = it
                 },
                 modifier = Modifier.align(Alignment.BottomCenter)
