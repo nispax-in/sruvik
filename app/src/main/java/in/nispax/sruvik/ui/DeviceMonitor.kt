@@ -140,8 +140,8 @@ fun DeviceMonitorPage() {
     }
 
     val data = state.snapshot
-    val availableFraction = data?.let {
-        if (it.totalRamBytes > 0L) it.availableRamBytes.toFloat() / it.totalRamBytes.toFloat() else null
+    val sampleAgeSeconds = data?.let {
+        ((SystemClock.elapsedRealtime() - it.sampledAtElapsed).coerceAtLeast(0L) / 1000L)
     }
     val lowFraction = data?.let {
         if (it.totalRamBytes > 0L) it.lowMemoryThresholdBytes.toFloat() / it.totalRamBytes.toFloat() else 0f
@@ -197,7 +197,11 @@ fun DeviceMonitorPage() {
                         minLabel = "0 available",
                         maxLabel = formatBytes(data.totalRamBytes),
                         bands = ramBands,
-                        status = if (data.lowMemory) "OS low-memory signal" else "Live · Android MemoryInfo"
+                        status = when {
+                            !resumed -> "Paused · last sample ${sampleAgeSeconds ?: 0L}s old"
+                            data.lowMemory -> "Android low-memory signal"
+                            else -> "Live · Android MemoryInfo"
+                        }
                     )
                     Text("Estimated in use: ${formatBytes((data.totalRamBytes - data.availableRamBytes).coerceAtLeast(0L))}. This is a derived estimate, not a sum of app allocations.",
                         style = MaterialTheme.typography.bodySmall, color = ObsidianTokens.TextMuted)
