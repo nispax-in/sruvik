@@ -71,6 +71,21 @@ SruGen is a focused creative workspace, not a dashboard. Its primary journey is:
 - Model, history, performance, new-chat, attachment, send, stop, save and import actions have descriptive accessible labels.
 - No fixed-height conversation content; text and messages may wrap and scroll under large font scales.
 
+### SruGen release QA matrix
+
+The following are required device checks for this workspace; CI compilation alone does not establish visual or interaction quality:
+
+- Compact portrait (320–360dp): verify title/model label remain legible and secondary actions remain available in overflow.
+- Standard portrait (360–430dp): verify direct performance and new-chat actions do not crowd the header.
+- Landscape and medium/expanded windows: verify the 920dp content measure, message wrapping and composer width.
+- Keyboard closed/open: verify the composer remains visible above the IME, the latest message remains reachable and no system navigation inset is doubled.
+- Long conversation and multiple image attachments: verify lazy scrolling, zoom viewer entry, save-to-device and Srukrypt import.
+- Large font scale and TalkBack: verify no clipping, logical focus order, announced mode selection and labelled controls.
+- Generation idle/running/completed/failed/cancelled: verify send disabled state, progress, stop action and recovery messaging.
+- Model absent/downloading/installed: verify the model notice, progress/cancel, model gallery return route and active-model state.
+
+Physical-device and screenshot checks must be recorded separately from automated build/test results.
+
 ## Interaction and states
 
 - Every visible control must do something real. Do not display unavailable editing modes as though they work.
