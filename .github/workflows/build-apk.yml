@@ -8,7 +8,9 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: sruvik-debug-apk-signing
+  # Keep branch builds isolated: a feature branch must not cancel the signed
+  # update-compatible APK build for the user's installation branch.
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 jobs:
   build:
