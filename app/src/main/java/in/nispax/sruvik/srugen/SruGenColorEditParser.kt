@@ -7,7 +7,7 @@ package `in`.nispax.sruvik.srugen
 object SruGenColorEditParser {
     private val editVerb = Regex("\\b(change|edit|recolor|recolour|turn|make|replace|switch)\\b")
     private val colorWords = Regex("\\b(black|white|gray|grey|red|orange|yellow|green|teal|cyan|blue|purple|violet|pink|brown)\\b")
-    private val garments = Regex("\\b(clothes|clothing|outfit|shirt|t-shirt|tee|jacket|coat|hoodie|sweater|dress|trousers|pants|jeans)\\b")
+    private val garments = Regex("\\b(clothes|clothing|outfit|shirt|t-shirt|tee|blazer|jacket|coat|hoodie|sweater|cardigan|vest|blouse|tank top|undershirt|turtleneck|dress|gown|trousers|pants|jeans|shorts|skirt)\\b")
     private val hairTerms = Regex("\\b(hair|hairstyle|hairstyles)\\b")
 
     fun targetColor(prompt: String): String? {
