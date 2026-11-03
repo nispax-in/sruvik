@@ -751,11 +751,26 @@ fun SruGenPage(
 
         if (
             requestMode == SruGenMode.PROMPT_EDIT &&
-            SruGenColorEditParser.requiresMultiGarmentEdit(text)
+            SruGenColorEditParser.requiresMultiRegionEdit(text)
         ) {
             persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
                 role = "assistant",
-                text = "That outfit has overlapping layers that this installed editor cannot separate reliably yet. Your original photo is unchanged. Try editing one visible garment at a time, or use a colour-only change for a single garment."
+                text = "This edit needs separate selections that aren't available in the current local model setup. Your photo is unchanged. Try one visible region at a time."
+            )))
+            return
+        }
+
+        val hairEdit = Regex("\\b(hair|hairstyle|hairstyles)\\b").containsMatchIn(text.lowercase()) &&
+            Regex("\\b(change|edit|recolor|recolour|turn|make|replace|switch|give)\\b")
+                .containsMatchIn(text.lowercase())
+        if (
+            requestMode == SruGenMode.PROMPT_EDIT &&
+            hairEdit &&
+            SruGenColorEditParser.targetColor(text) == null
+        ) {
+            persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
+                role = "assistant",
+                text = "Hair colour changes are available for supported colours. Changing the cut or shape needs a hair-aware generator that isn't installed yet. Your original photo is unchanged."
             )))
             return
         }
@@ -1368,9 +1383,8 @@ internal fun isSruGenClothingEditInstruction(prompt: String): Boolean {
         .containsMatchIn(normalized)
     val hasClothingTarget = Regex("\\b(clothes|clothing|outfit|shirt|t-shirt|tee|jacket|coat|hoodie|sweater|dress|trousers|pants|jeans)\\b")
         .containsMatchIn(normalized)
-    val supportedHairRecolour = SruGenColorEditParser.targetRegion(normalized) == "hair" &&
-        SruGenColorEditParser.targetColor(normalized) != null
-    return (hasEditVerb && hasClothingTarget) || supportedHairRecolour
+    val hasHairTarget = Regex("\\b(hair|hairstyle|hairstyles)\\b").containsMatchIn(normalized)
+    return (hasEditVerb && hasClothingTarget) || (hasEditVerb && hasHairTarget)
 }
 
 private const val MAX_SRUGEN_IMAGE_BYTES = 24 * 1024 * 1024
