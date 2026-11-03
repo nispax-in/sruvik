@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -155,8 +156,9 @@ fun DeviceMonitorPage() {
         listOf(MeterBand(0f, 1f, ObsidianTokens.Cyan))
     }
 
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.widthIn(max = 980.dp).fillMaxWidth().fillMaxHeight(),
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 26.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(17.dp)
     ) {
@@ -303,6 +305,7 @@ fun DeviceMonitorPage() {
                 modifier = Modifier.padding(horizontal = 3.dp)
             )
         }
+    }
     }
 }
 
