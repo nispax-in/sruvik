@@ -853,7 +853,7 @@ fun SruGenPage(
         contentAlignment = Alignment.TopCenter
     ) {
         Column(
-            Modifier.fillMaxWidth().widthIn(max = 920.dp).fillMaxHeight()
+            Modifier.widthIn(max = 920.dp).fillMaxWidth().fillMaxHeight()
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .imePadding()
                 .padding(horizontal = 16.dp)
