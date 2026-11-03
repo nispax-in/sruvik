@@ -81,4 +81,12 @@ class SruGenColorEditParserTest {
         assertNull(SruGenColorEditParser.targetColor("make my hairstyle shorter"))
     }
 
+    @Test
+    fun detectsHairPlusClothingAsSeparateEditRegions() {
+        assertEquals(true, SruGenColorEditParser.requiresMultiRegionEdit("make my hair blue and my shirt black"))
+        assertEquals(true, SruGenColorEditParser.requiresMultiRegionEdit("white blazer over a black turtleneck"))
+        assertEquals(false, SruGenColorEditParser.requiresMultiRegionEdit("make my hair blue"))
+        assertEquals(false, SruGenColorEditParser.requiresMultiRegionEdit("make my shirt black"))
+    }
+
 }
