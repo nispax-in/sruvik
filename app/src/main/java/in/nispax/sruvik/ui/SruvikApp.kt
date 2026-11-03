@@ -535,11 +535,27 @@ private fun AppRow(icon: ImageVector, title: String, subtitle: String, status: S
 @Suppress("UNUSED_PARAMETER")
 private fun GlassCard(modifier: Modifier, shape: RoundedCornerShape, fill: Brush, content: @Composable BoxScope.() -> Unit) {
     Box(
-        modifier.clip(shape)
-            .background(SruvikColors.Surface)
-            .border(1.dp, Color(0xFF3A3938), shape)
+        modifier.graphicsLayer {
+            shadowElevation = 13.dp.toPx()
+            this.shape = shape
+            clip = true
+        }
+            .background(fill)
+            .border(
+                1.dp,
+                Brush.linearGradient(
+                    listOf(Color(0x887D91B8), Color(0x224B566B), Color(0x6675DCEB))
+                ),
+                shape
+            )
             .animateContentSize()
     ) {
+        // A single restrained upper-edge reflection gives the surface a material cue.
+        Box(Modifier.fillMaxWidth().height(1.dp).background(
+            Brush.horizontalGradient(
+                listOf(Color.Transparent, Color(0x887F8BC2), Color(0x6675DCEB), Color.Transparent)
+            )
+        ))
         content()
     }
 }
@@ -563,8 +579,11 @@ private fun AppNavigationBar(
         Destination.Settings
     )
     NavigationBar(
-        modifier = modifier.fillMaxWidth().height(80.dp),
-        containerColor = SruvikColors.Surface,
+        modifier = modifier.fillMaxWidth().height(80.dp)
+            .border(1.dp, Brush.horizontalGradient(
+                listOf(Color.Transparent, Color(0x665D6C89), Color(0x5575DCEB), Color.Transparent)
+            )),
+        containerColor = Color(0xF20B0E16),
         contentColor = SruvikColors.TextPrimary,
         tonalElevation = 0.dp
     ) {
