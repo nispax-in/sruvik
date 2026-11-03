@@ -122,6 +122,31 @@ class NezumiMnnSruGenEngine(
             "Attach an image before starting a prompt edit."
         }
 
+        // Simple colour changes are better served by a segmentation-guided
+        // recolour than full img2img: preserve the exact garment shape, folds,
+        // stitching and illumination rather than asking diffusion to redraw it.
+        val targetColor = if (editing) SruGenColorEditParser.targetColor(request.prompt) else null
+        if (targetColor != null) {
+            SruGenDeviceGuard.requireSafeToStart(context)
+            onProgress(5, "Finding the clothing region")
+            val original = SruGenAutoMasker.decodeBounded(requireNotNull(request.sourceImage))
+            var recoloured: Bitmap? = null
+            try {
+                SruGenDeviceGuard.assertSafeToContinue(context)
+                recoloured = SruGenAutoMasker.recolorClothing(context, original, targetColor)
+                val png = SruGenAutoMasker.encodePng(requireNotNull(recoloured))
+                onProgress(100, "Done · original clothing texture preserved")
+                return@withContext SruGenResult(
+                    imageBytes = png,
+                    mimeType = "image/png",
+                    modelName = "SruGen · precision $targetColor clothing recolour"
+                )
+            } finally {
+                original.recycle()
+                recoloured?.takeUnless { it.isRecycled }?.recycle()
+            }
+        }
+
         nativeLock.withLock {
             check(!closed) { "The MNN engine has been released." }
             stopRequested = false
