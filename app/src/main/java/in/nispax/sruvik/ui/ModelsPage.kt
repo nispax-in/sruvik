@@ -330,7 +330,7 @@ private fun ModelGalleryCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    ModelMetadataChip("SD family", model.baseModel.substringBefore(" · "))
+                    ModelMetadataChip(model.baseModel.substringBefore(" · "), "BASE")
                     ModelMetadataChip(formatModelSize(model.approximateDownloadBytes), "PACKAGE")
                 }
                 Text(
@@ -404,7 +404,7 @@ private fun ModelStatusPill(label: String, tint: Color) {
 }
 
 private fun formatModelSize(bytes: Long): String {
-    if (bytes <= 0L) return "0 MB"
+    if (bytes <= 0L) return "Not published"
     val gib = bytes / (1024.0 * 1024.0 * 1024.0)
     return if (gib >= 1.0) {
         String.format(Locale.getDefault(), "%.2f GB", gib)
