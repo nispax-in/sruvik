@@ -3,6 +3,7 @@ package `in`.nispax.sruvik.srugen
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Rect
 import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.framework.image.ByteBufferExtractor
 import com.google.mediapipe.tasks.core.BaseOptions
@@ -55,17 +56,44 @@ object SruGenAutoMasker {
         }
     }
 
+    /**
+     * Crop the diffusion input to the detected garment, with a little surrounding
+     * context. Full-frame img2img at high denoise made the model invent a new
+     * torso/person inside the later clothing composite. A garment crop makes the
+     * requested fabric/colour change the dominant subject instead.
+     */
+    fun cropForClothingEdit(context: Context, sourceImage: Bitmap): Bitmap {
+        require(!sourceImage.isRecycled) { "The original photo was released before clothing detection." }
+        val mask = segment(context, sourceImage) { label -> label == CLOTHES_LABEL }
+        try {
+            val bounds = clothingBounds(mask, sourceImage.width, sourceImage.height)
+            val selected = mask.values.count { (it.toInt() and 0xff) > 0 }
+            val ratio = selected.toFloat() / mask.values.size.toFloat()
+            require(ratio >= 0.008f) {
+                "SruGen could not find clothing in this photo. Try a clear, well-lit image showing the person's outfit."
+            }
+            require(ratio <= 0.90f) {
+                "The clothing mask was too broad to edit safely. Try a closer photo with one clearly visible person."
+            }
+            return Bitmap.createBitmap(
+                sourceImage,
+                bounds.left,
+                bounds.top,
+                bounds.width(),
+                bounds.height()
+            )
+        } finally {
+            mask.values.fill(0)
+        }
+    }
+
     fun editClothing(
         context: Context,
         sourceImage: Bitmap,
         generatedImage: Bitmap
     ): Bitmap {
-        require(!sourceImage.isRecycled) { "The original photo was released before editing. Reattach it and retry." }
+        require(!sourceImage.isRecycled) { "The original photo was released before editing." }
         require(!generatedImage.isRecycled) { "The local model returned an image buffer that was already released. Retry the edit." }
-        require(sourceImage.width > 0 && sourceImage.height > 0)
-
-        // Snapshot source pixels BEFORE MediaPipe receives its own isolated copy.
-        // This avoids accessing a bitmap after a task/image wrapper has released it.
         val sourceWidth = sourceImage.width
         val sourceHeight = sourceImage.height
         val originalPixels = IntArray(sourceWidth * sourceHeight)
@@ -86,41 +114,46 @@ object SruGenAutoMasker {
                 "The clothing mask was too broad to edit safely. Try a closer photo with one clearly visible person."
             }
 
+            val bounds = clothingBounds(segmentMask, sourceWidth, sourceHeight)
             val smoothMask = soften(segmentMask.values, segmentMask.width, segmentMask.height)
             softMask = smoothMask
-            val scaledOutput = if (
-                generatedImage.width == sourceWidth && generatedImage.height == sourceHeight
-            ) {
-                generatedImage
-            } else {
-                Bitmap.createScaledBitmap(generatedImage, sourceWidth, sourceHeight, true)
-            }
+            val scaledOutput = Bitmap.createScaledBitmap(
+                generatedImage,
+                bounds.width(),
+                bounds.height(),
+                true
+            )
             generatedScaled = scaledOutput
             require(!scaledOutput.isRecycled) {
                 "The resized model output was released before it could be composited."
             }
-            val renderedPixels = IntArray(originalPixels.size)
+            val renderedPixels = IntArray(bounds.width() * bounds.height())
             generatedPixels = renderedPixels
             scaledOutput.getPixels(
-                renderedPixels, 0, sourceWidth, 0, 0, sourceWidth, sourceHeight
+                renderedPixels, 0, bounds.width(), 0, 0, bounds.width(), bounds.height()
             )
 
-            // Segmenter masks are normally source-sized. Map coordinates explicitly
-            // so a runtime returning a lower-resolution category mask stays safe.
-            for (y in 0 until sourceHeight) {
-                val maskY = (y.toLong() * segmentMask.height / sourceHeight).toInt().coerceIn(0, segmentMask.height - 1)
-                for (x in 0 until sourceWidth) {
-                    val maskX = (x.toLong() * segmentMask.width / sourceWidth).toInt().coerceIn(0, segmentMask.width - 1)
-                    val index = y * sourceWidth + x
+            // The diffusion model only sees a garment-focused crop. Paste its
+            // result back through the original full-resolution clothing mask;
+            // all pixels outside the detected garment remain byte-for-byte
+            // sourced from the original photograph.
+            for (y in bounds.top until bounds.bottom) {
+                val maskY = (y.toLong() * segmentMask.height / sourceHeight)
+                    .toInt().coerceIn(0, segmentMask.height - 1)
+                for (x in bounds.left until bounds.right) {
+                    val maskX = (x.toLong() * segmentMask.width / sourceWidth)
+                        .toInt().coerceIn(0, segmentMask.width - 1)
                     val alpha = smoothMask[maskY * segmentMask.width + maskX].toInt() and 0xff
                     if (alpha == 0) continue
+                    val oldIndex = y * sourceWidth + x
+                    val freshIndex = (y - bounds.top) * bounds.width() + (x - bounds.left)
+                    val old = originalPixels[oldIndex]
+                    val fresh = renderedPixels[freshIndex]
                     val inverse = 255 - alpha
-                    val old = originalPixels[index]
-                    val fresh = renderedPixels[index]
                     val red = (((old ushr 16 and 0xff) * inverse) + ((fresh ushr 16 and 0xff) * alpha)) / 255
                     val green = (((old ushr 8 and 0xff) * inverse) + ((fresh ushr 8 and 0xff) * alpha)) / 255
                     val blue = (((old and 0xff) * inverse) + ((fresh and 0xff) * alpha)) / 255
-                    originalPixels[index] = (0xff shl 24) or (red shl 16) or (green shl 8) or blue
+                    originalPixels[oldIndex] = (0xff shl 24) or (red shl 16) or (green shl 8) or blue
                 }
             }
 
@@ -136,6 +169,40 @@ object SruGenAutoMasker {
             softMask?.fill(0)
             mask?.values?.fill(0)
         }
+    }
+
+    private fun clothingBounds(mask: SegmentationMask, imageWidth: Int, imageHeight: Int): Rect {
+        var minX = mask.width
+        var minY = mask.height
+        var maxX = -1
+        var maxY = -1
+        for (y in 0 until mask.height) {
+            for (x in 0 until mask.width) {
+                if ((mask.values[y * mask.width + x].toInt() and 0xff) == 0) continue
+                minX = minOf(minX, x)
+                minY = minOf(minY, y)
+                maxX = maxOf(maxX, x)
+                maxY = maxOf(maxY, y)
+            }
+        }
+        require(maxX >= minX && maxY >= minY) {
+            "SruGen could not identify a clothing region in this photo."
+        }
+
+        val left = (minX.toLong() * imageWidth / mask.width).toInt()
+        val top = (minY.toLong() * imageHeight / mask.height).toInt()
+        val right = (((maxX + 1L) * imageWidth + mask.width - 1) / mask.width).toInt()
+        val bottom = (((maxY + 1L) * imageHeight + mask.height - 1) / mask.height).toInt()
+        val garmentWidth = (right - left).coerceAtLeast(1)
+        val garmentHeight = (bottom - top).coerceAtLeast(1)
+        val padX = (garmentWidth * 0.18f).toInt().coerceAtLeast(12)
+        val padY = (garmentHeight * 0.18f).toInt().coerceAtLeast(12)
+        return Rect(
+            (left - padX).coerceAtLeast(0),
+            (top - padY).coerceAtLeast(0),
+            (right + padX).coerceAtMost(imageWidth),
+            (bottom + padY).coerceAtMost(imageHeight)
+        )
     }
 
     fun decodeBounded(imageBytes: ByteArray): Bitmap {
