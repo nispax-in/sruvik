@@ -203,7 +203,7 @@ fun DeviceMonitorPage() {
                             else -> "Live · Android MemoryInfo"
                         }
                     )
-                    Text("Estimated in use: ${formatBytes((data.totalRamBytes - data.availableRamBytes).coerceAtLeast(0L))}. This is a derived estimate, not a sum of app allocations.",
+                    Text("Estimated in use: ${formatBytes((data.totalRamBytes - data.availableRamBytes).coerceAtLeast(0L))}. Android totalMem is kernel-accessible memory and may differ from the advertised RAM figure; available memory includes reclaimable pages. The in-use value is a derived estimate, not a sum of app allocations.",
                         style = MaterialTheme.typography.bodySmall, color = ObsidianTokens.TextMuted)
                 }
             }
