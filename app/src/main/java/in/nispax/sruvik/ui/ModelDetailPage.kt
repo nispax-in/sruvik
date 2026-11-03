@@ -463,7 +463,7 @@ fun ModelDetailPage(
         }
 
         if (installed) {
-            Button(
+            ObsidianPrimaryButton(
                 onClick = {
                     scope.launch {
                         error = ""
@@ -496,16 +496,14 @@ fun ModelDetailPage(
                     }
                 },
                 enabled = canSelectActive && !active && downloadId < 0L && !installing,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = SruvikColors.Primary, contentColor = Color.White)
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(Icons.Rounded.CheckCircle, null)
                 Spacer(Modifier.width(8.dp))
                 Text(if (active) "ACTIVE IN SRUGEN" else "SET AS ACTIVE MODEL")
             }
         } else {
-            Button(
+            ObsidianPrimaryButton(
                 onClick = {
                     scope.launch {
                         try {
@@ -543,14 +541,7 @@ fun ModelDetailPage(
                     }
                 },
                 enabled = installAllowed,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = SruvikColors.Lime,
-                    contentColor = Color(0xFF1A100D),
-                    disabledContainerColor = Color(0xFF45413F),
-                    disabledContentColor = SruvikColors.TextMuted
-                )
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(Icons.Rounded.CloudDownload, null)
                 Spacer(Modifier.width(8.dp))
