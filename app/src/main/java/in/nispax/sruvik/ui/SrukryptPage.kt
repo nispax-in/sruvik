@@ -84,6 +84,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
     var confirmVaultReset by remember { mutableStateOf(false) }
     var viewingEntryImage by remember { mutableStateOf<Pair<Bitmap, String>?>(null) }
     var loadingEntryImage by remember { mutableStateOf(false) }
+    var pendingUnlockChallenge by remember { mutableStateOf<SrukryptUnlockChallenge?>(null) }
 
     fun lockVault() {
         sessionKey?.let { Arrays.fill(it, 0) }
@@ -95,6 +96,60 @@ fun SrukryptPage(autoLockMinutes: Int) {
         confirmDelete = null
         errorText = ""
         infoText = "Vault locked. Your files remain encrypted."
+    }
+
+    fun completeUnlock(authChallenge: SrukryptUnlockChallenge) {
+        scope.launch {
+            var newKey: ByteArray? = null
+            var installed = false
+            try {
+                newKey = withContext(Dispatchers.IO) {
+                    SrukryptVault.finishUnlock(context, authChallenge)
+                }
+                val loadResult = withContext(Dispatchers.IO) {
+                    SrukryptVault.loadPreviewsWithReport(context, requireNotNull(newKey))
+                }
+                sessionKey?.let { Arrays.fill(it, 0) }
+                entries.forEach { if (!it.thumbnail.isRecycled) it.thumbnail.recycle() }
+                sessionKey = newKey
+                entries = loadResult.entries
+                installed = true
+                lastInteraction = SystemClock.elapsedRealtime()
+                infoText = if (loadResult.unreadableEntries > 0) {
+                    "Vault unlocked. ${loadResult.entries.size} readable item(s); ${loadResult.unreadableEntries} encrypted item(s) could not be verified and were left untouched."
+                } else if (loadResult.entries.isEmpty()) {
+                    "Your private vault is ready. Add an image to encrypt it."
+                } else {
+                    "Vault unlocked. ${loadResult.entries.size} encrypted item(s) available."
+                }
+                errorText = ""
+            } catch (failure: Exception) {
+                android.util.Log.e("Srukrypt", "System-authenticated vault unwrap failed.", failure)
+                if (installed) {
+                    newKey?.let { Arrays.fill(it, 0) }
+                    sessionKey = null
+                    installed = false
+                }
+                errorText = when (failure) {
+                    is android.security.keystore.UserNotAuthenticatedException ->
+                        "Android accepted the device lock, but the Keystore authorization expired before the key opened. Tap Unlock and authenticate again."
+                    is java.security.KeyStoreException ->
+                        "Android Keystore could not access the Srukrypt key: ${failure.message}"
+                    is android.security.keystore.KeyPermanentlyInvalidatedException ->
+                        "Android invalidated the previous system-authentication key. A reset passphrase can only erase the vault; it cannot recover these items."
+                    is java.security.InvalidKeyException ->
+                        "Android could not use the Srukrypt key after device authentication: ${failure.message}"
+                    is javax.crypto.AEADBadTagException ->
+                        "The encrypted vault key failed authentication. The encrypted entries were left untouched."
+                    else -> failure.message ?: "Unable to unlock the vault after Android device authentication."
+                }
+                infoText = ""
+            } finally {
+                if (!installed) newKey?.let { Arrays.fill(it, 0) }
+                SrukryptVault.discardChallenge(authChallenge)
+                busy = false
+            }
+        }
     }
 
     DisposableEffect(activity, lifecycleOwner) {
@@ -273,6 +328,22 @@ fun SrukryptPage(autoLockMinutes: Int) {
         }
     }
 
+    val unlockAuthLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val authChallenge = pendingUnlockChallenge
+        pendingUnlockChallenge = null
+        if (result.resultCode == Activity.RESULT_OK && authChallenge != null) {
+            completeUnlock(authChallenge)
+        } else {
+            authChallenge?.let { SrukryptVault.discardChallenge(it) }
+            busy = false
+            if (result.resultCode != Activity.RESULT_CANCELED) {
+                errorText = "Android device authentication was not completed. The vault remains locked."
+            }
+        }
+    }
+
     val resetAuthLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -378,87 +449,67 @@ fun SrukryptPage(autoLockMinutes: Int) {
                     SrukryptVault.prepareUnlock(context)
                 }
                 challenge = authChallenge
+
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                    // Android 10 and lower do not support BIOMETRIC_STRONG |
+                    // DEVICE_CREDENTIAL in BiometricPrompt. The system keyguard
+                    // credential activity authorizes this time-based Keystore key.
+                    val keyguard = context.getSystemService(KeyguardManager::class.java)
+                    if (keyguard?.isDeviceSecure != true) {
+                        SrukryptVault.discardChallenge(authChallenge)
+                        errorText = "Set a secure Android screen lock (PIN, pattern or password) in Settings before creating or unlocking Srukrypt."
+                        busy = false
+                        return@launch
+                    }
+                    val credentialIntent = keyguard.createConfirmDeviceCredentialIntent(
+                        "Unlock Srukrypt",
+                        "Confirm your Android device PIN, pattern or password."
+                    )
+                    if (credentialIntent == null) {
+                        SrukryptVault.discardChallenge(authChallenge)
+                        errorText = "Android could not open the system device-lock prompt. The vault has not been opened."
+                        busy = false
+                        return@launch
+                    }
+                    pendingUnlockChallenge = authChallenge
+                    unlockAuthLauncher.launch(credentialIntent)
+                    return@launch
+                }
+
                 val allowed = authChallenge.allowedAuthenticators
-                val availability = BiometricManager.from(activity).canAuthenticate(allowed)
+                val availability = BiometricManager.from(activity)
+                    .canAuthenticate(allowed)
                 if (availability != BiometricManager.BIOMETRIC_SUCCESS) {
                     SrukryptVault.discardChallenge(authChallenge)
-                    val hasPassphrase = SrukryptVault.hasResetPassphrase(context)
                     errorText = when (availability) {
                         BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED ->
-                            if (hasPassphrase) "No supported Android device authentication is enrolled. Use the reset phrase only to erase this vault."
-                            else "Set up a strong biometric or device PIN, pattern or password in Android settings."
+                            "No supported Android device authentication is configured. Set a screen lock and, if desired, enrol a strong biometric in Android Settings."
                         BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE ->
-                            if (hasPassphrase) "No compatible system authenticator is available. The reset phrase can only erase this vault."
-                            else "This phone has no compatible system authenticator. Configure an Android screen lock or supported biometric."
+                            "Android reports no compatible system authenticator. Set a secure screen lock in Settings."
                         BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE ->
-                            "Android system authentication is temporarily unavailable. Try again or enter your device PIN, pattern or password."
+                            "Android system authentication is temporarily unavailable. Try again."
                         else ->
-                            "Android cannot use the configured screen lock for this vault (status $availability). A reset passphrase cannot unlock the vault."
+                            "Android cannot use the configured device authentication for Srukrypt (status $availability)."
                     }
                     busy = false
                     return@launch
                 }
 
-                val builder = BiometricPrompt.PromptInfo.Builder()
+                val promptInfo = BiometricPrompt.PromptInfo.Builder()
                     .setTitle("Unlock Srukrypt")
-                    .setSubtitle("Authenticate with your Android device lock.")
+                    .setSubtitle("Use your Android fingerprint, face or device PIN, pattern or password.")
                     .setAllowedAuthenticators(allowed)
-                if ((allowed and BiometricManager.Authenticators.DEVICE_CREDENTIAL) == 0) {
-                    builder.setNegativeButtonText("Cancel")
-                }
-                val promptInfo = builder.build()
+                    .build()
                 val prompt = BiometricPrompt(
                     activity,
                     ContextCompat.getMainExecutor(activity),
                     object : BiometricPrompt.AuthenticationCallback() {
                         override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                             super.onAuthenticationSucceeded(result)
-                            val authenticatedCipher = result.cryptoObject?.cipher
-                            if (authenticatedCipher == null) {
-                                SrukryptVault.discardChallenge(authChallenge)
-                                busy = false
-                                errorText = "Android completed authentication but did not return the Keystore cipher. No vault data was opened. Please retry with your device lock."
-                                return
-                            }
-                            scope.launch {
-                                var newKey: ByteArray? = null
-                                try {
-                                    newKey = withContext(Dispatchers.IO) {
-                                        SrukryptVault.finishUnlock(context, authChallenge, authenticatedCipher)
-                                    }
-                                    SrukryptVault.discardChallenge(authChallenge)
-                                    val loadResult = withContext(Dispatchers.IO) {
-                                        SrukryptVault.loadPreviewsWithReport(context, newKey)
-                                    }
-                                    val previews = loadResult.entries
-                                    sessionKey?.let { Arrays.fill(it, 0) }
-                                    entries.forEach { if (!it.thumbnail.isRecycled) it.thumbnail.recycle() }
-                                    sessionKey = newKey
-                                    entries = previews
-                                    lastInteraction = SystemClock.elapsedRealtime()
-                                    infoText = if (loadResult.unreadableEntries > 0) {
-                                        "Vault unlocked. ${previews.size} readable item(s); ${loadResult.unreadableEntries} encrypted item(s) could not be verified and were left untouched."
-                                    } else if (previews.isEmpty()) {
-                                        "Your private vault is ready. Add an image to encrypt it."
-                                    } else {
-                                        "Vault unlocked. " + previews.size + " encrypted item(s) available."
-                                    }
-                                    errorText = ""
-                                } catch (error: Exception) {
-                                    android.util.Log.e("Srukrypt", "Authenticated vault unwrap failed.", error)
-                                    newKey?.let { Arrays.fill(it, 0) }
-                                    SrukryptVault.discardChallenge(authChallenge)
-                                    errorText = when (error) {
-                                        is java.security.KeyStoreException -> "Android Keystore could not access the Srukrypt key: ${error.message}"
-                                        is android.security.keystore.KeyPermanentlyInvalidatedException -> "Android invalidated the previous system-authentication key. A reset passphrase can only erase the vault; it cannot recover these items."
-                    is java.security.InvalidKeyException -> "The Srukrypt key is unavailable. A reset passphrase cannot unlock the vault. It can only authorize a destructive reset. Details: ${error.message}"
-                                        is javax.crypto.AEADBadTagException -> "The encrypted vault key failed authentication. This may indicate a damaged key envelope."
-                                        else -> error.message ?: "Unable to unlock the vault."
-                                    }
-                                } finally {
-                                    busy = false
-                                }
-                            }
+                            // Important: no CryptoObject here. Android documents that
+                            // DEVICE_CREDENTIAL fallback requires a time-based key and
+                            // authenticate(promptInfo) without a CryptoObject.
+                            completeUnlock(authChallenge)
                         }
 
                         override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
@@ -467,30 +518,37 @@ fun SrukryptPage(autoLockMinutes: Int) {
                             busy = false
                             if (errorCode != BiometricPrompt.ERROR_USER_CANCELED &&
                                 errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON
-                            ) errorText = errString.toString()
+                            ) {
+                                errorText = errString.toString()
+                            }
                         }
 
                         override fun onAuthenticationFailed() {
                             super.onAuthenticationFailed()
-                            errorText = "Android did not recognise the device authentication. Try again or use your screen lock PIN, pattern or password."
+                            errorText = "Android did not recognise the device authentication. Try again or use your PIN, pattern or password."
                         }
                     }
                 )
-                prompt.authenticate(promptInfo, BiometricPrompt.CryptoObject(authChallenge.cipher))
-            } catch (error: Exception) {
-                android.util.Log.e("Srukrypt", "Could not prepare the Android Keystore unlock challenge.", error)
+                // Do not pass BiometricPrompt.CryptoObject when DEVICE_CREDENTIAL
+                // is allowed; the Keystore key authorizes Cipher.init after success.
+                prompt.authenticate(promptInfo)
+            } catch (failure: Exception) {
+                android.util.Log.e("Srukrypt", "Could not prepare the Android system-authentication challenge.", failure)
                 challenge?.let { SrukryptVault.discardChallenge(it) }
+                pendingUnlockChallenge = null
                 busy = false
-                errorText = when (error) {
-                    is java.security.KeyStoreException -> "Android Keystore error: ${error.message}"
-                    is android.security.keystore.KeyPermanentlyInvalidatedException -> "Android invalidated the previous system-authentication key. A reset passphrase can only erase the vault; it cannot recover these items."
-                    is java.security.InvalidKeyException -> "The Srukrypt key is not available. A reset passphrase cannot unlock the vault. It can only authorize a destructive reset. ${error.message}"
-                    else -> error.message ?: "Unable to prepare the secure vault."
+                errorText = when (failure) {
+                    is java.security.KeyStoreException ->
+                        "Android Keystore error: ${failure.message}"
+                    is android.security.keystore.KeyPermanentlyInvalidatedException ->
+                        "Android invalidated the old vault key. A reset passphrase can only erase the vault; it cannot recover these items."
+                    is java.security.InvalidKeyException ->
+                        "Android could not prepare the Srukrypt key: ${failure.message}"
+                    else -> failure.message ?: "Unable to prepare Srukrypt for Android device authentication."
                 }
             }
         }
     }
-
 
     fun openPassphrase(mode: String) {
         passphraseMode = mode
