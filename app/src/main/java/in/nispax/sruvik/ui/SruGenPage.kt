@@ -41,6 +41,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -100,6 +103,7 @@ private data class PendingSruGenRequest(
 @Composable
 fun SruGenPage(
     memoryEnabled: Boolean,
+    onBack: () -> Unit,
     onOpenModels: () -> Unit,
     onOpenVault: () -> Unit
 ) {
@@ -845,124 +849,92 @@ fun SruGenPage(
         Column(
             Modifier.fillMaxSize()
                 .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(horizontal = 18.dp)
-                .padding(top = 8.dp, bottom = 90.dp)
+                .padding(horizontal = 16.dp)
+                .padding(top = 4.dp)
                 .imePadding()
         ) {
             Row(
-                Modifier.fillMaxWidth(),
+                Modifier.fillMaxWidth().heightIn(min = 52.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(9.dp)
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 IconButton(
-                    onClick = { historyOpen = true },
-                    modifier = Modifier.size(50.dp).clip(CircleShape).background(studioRaised)
+                    onClick = onBack,
+                    modifier = Modifier.size(48.dp)
                 ) {
-                    Icon(Icons.Rounded.Menu, "Open conversation history", tint = studioText, modifier = Modifier.size(25.dp))
+                    Icon(Icons.Rounded.ArrowBack, "Back to Sruvik", tint = studioText)
                 }
                 Text(
                     "SruGen",
                     modifier = Modifier.weight(1f),
                     color = studioText,
-                    style = MaterialTheme.typography.headlineLarge.copy(
-                        fontSize = 29.sp,
-                        lineHeight = 34.sp,
+                    style = MaterialTheme.typography.headlineSmall.copy(
                         fontWeight = FontWeight.SemiBold,
-                        letterSpacing = (-1.2).sp
+                        letterSpacing = (-.55).sp
                     )
                 )
                 IconButton(
-                    onClick = { monitorExpanded = !monitorExpanded },
-                    modifier = Modifier.size(48.dp).clip(CircleShape).background(studioRaised)
+                    onClick = { historyOpen = true },
+                    modifier = Modifier.size(48.dp)
                 ) {
-                    Icon(Icons.Rounded.Tune, "Device performance", tint = studioText, modifier = Modifier.size(23.dp))
+                    Icon(Icons.Rounded.History, "Conversation history", tint = studioSecondary)
                 }
-                Button(
-                    onClick = { newChat() },
-                    modifier = Modifier.height(50.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = studioAccent,
-                        contentColor = SruvikColors.OnPrimary
-                    ),
-                    contentPadding = PaddingValues(horizontal = 15.dp)
+                IconButton(
+                    onClick = { monitorExpanded = !monitorExpanded },
+                    modifier = Modifier.size(48.dp)
                 ) {
-                    Icon(Icons.Rounded.Add, null, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("New", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Icon(Icons.Rounded.Memory, "Device performance", tint = studioSecondary)
+                }
+                IconButton(
+                    onClick = { newChat() },
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(Icons.Rounded.Add, "New conversation", tint = studioAccent)
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
-
-            // Keep model choice out of the prompt composer. A full-width status
-            // row gives it a stable place below the title instead of squeezing
-            // it between the attachment and send controls.
-            SruGenGlassPanel(
-                modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenModels),
-                shape = RoundedCornerShape(18.dp),
-                fill = Brush.linearGradient(
-                    listOf(Color(0xCC29264D), Color(0xCC1B2440))
-                )
+            Row(
+                Modifier.fillMaxWidth()
+                    .heightIn(min = 50.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(studioPanel)
+                    .clickable(onClick = onOpenModels)
+                    .padding(horizontal = 12.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Box(
-                        Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
-                            .background(studioAccent.copy(alpha = .15f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Rounded.AutoAwesome,
-                            contentDescription = null,
-                            tint = studioAccent,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                    Column(
-                        Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(3.dp)
-                    ) {
-                        Text(
-                            "ACTIVE MODEL",
-                            color = studioSecondary,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.1.sp
-                        )
-                        Text(
-                            activeModel?.name ?: "Choose a model",
-                            color = studioText,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1
-                        )
-                        Text(
-                            if (modelReady && SruGenEngineFactory.supportsImageEditing(context, activeModelId)) {
-                                "Ready on this device · Local generation and photo editing"
-                            } else if (modelReady) {
-                                "Ready on this device · Text-to-image"
-                            } else {
-                                "Open the model library to install or select one"
-                            },
-                            color = studioSecondary,
-                            fontSize = 12.sp,
-                            maxLines = 2
-                        )
-                    }
-                    Icon(
-                        Icons.Rounded.ChevronRight,
-                        contentDescription = "Open model library",
-                        tint = studioSecondary,
-                        modifier = Modifier.size(22.dp)
+                Icon(
+                    Icons.Rounded.AutoAwesome,
+                    contentDescription = null,
+                    tint = studioAccent,
+                    modifier = Modifier.size(19.dp)
+                )
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Text(
+                        activeModel?.name ?: "Choose a model",
+                        color = studioText,
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = 1
+                    )
+                    Text(
+                        when {
+                            modelReady && SruGenEngineFactory.supportsImageEditing(context, activeModelId) ->
+                                "Ready · Local generation and editing"
+                            modelReady -> "Ready · Text-to-image"
+                            else -> "Select or install a model"
+                        },
+                        color = studioSecondary,
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1
                     )
                 }
+                Icon(
+                    Icons.Rounded.ChevronRight,
+                    contentDescription = "Open model library",
+                    tint = studioSecondary,
+                    modifier = Modifier.size(20.dp)
+                )
             }
-
-            Spacer(Modifier.height(4.dp))
 
             AnimatedVisibility(
                 visible = monitorExpanded,
@@ -1158,51 +1130,50 @@ fun SruGenPage(
 
             Column(
                 Modifier.fillMaxWidth()
-                    .clip(RoundedCornerShape(25.dp))
                     .background(studioPanel)
-                    .border(1.dp, Color.White.copy(alpha = .16f), RoundedCornerShape(25.dp))
-                    .padding(horizontal = 14.dp, vertical = 13.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                    .border(
+                        width = 1.dp,
+                        color = SruvikColors.Border.copy(alpha = .75f),
+                        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+                    )
+                    .padding(horizontal = 10.dp, vertical = 7.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp)
             ) {
                 Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    StudioModeControl(
-                        "Create",
-                        mode == SruGenMode.TEXT_TO_IMAGE
-                    ) { mode = SruGenMode.TEXT_TO_IMAGE }
-                    StudioModeControl(
-                        "Edit clothes",
-                        mode == SruGenMode.PROMPT_EDIT
-                    ) { mode = SruGenMode.PROMPT_EDIT }
-                    StudioModeControl(
-                        "Remove BG",
-                        mode == SruGenMode.REMOVE_BACKGROUND
-                    ) { mode = SruGenMode.REMOVE_BACKGROUND }
+                    StudioModeControl("Create", mode == SruGenMode.TEXT_TO_IMAGE) {
+                        mode = SruGenMode.TEXT_TO_IMAGE
+                    }
+                    StudioModeControl("Edit clothes", mode == SruGenMode.PROMPT_EDIT) {
+                        mode = SruGenMode.PROMPT_EDIT
+                    }
+                    StudioModeControl("Remove BG", mode == SruGenMode.REMOVE_BACKGROUND) {
+                        mode = SruGenMode.REMOVE_BACKGROUND
+                    }
                 }
 
                 selectedImage?.let { id ->
                     Row(
-                        Modifier.fillMaxWidth(),
+                        Modifier.fillMaxWidth().heightIn(min = 48.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(9.dp)
                     ) {
                         thumbnails[id]?.let { bitmap ->
                             Image(
                                 bitmap.asImageBitmap(),
                                 "Attached reference image",
-                                Modifier.size(60.dp).clip(RoundedCornerShape(13.dp)),
+                                Modifier.size(40.dp).clip(RoundedCornerShape(7.dp)),
                                 contentScale = ContentScale.Crop
                             )
                         }
                         Text(
-                            "Image attached",
+                            "Reference image attached",
                             Modifier.weight(1f),
-                            color = studioText,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium
+                            color = studioSecondary,
+                            style = MaterialTheme.typography.bodySmall
                         )
                         IconButton(
                             onClick = {
@@ -1212,63 +1183,37 @@ fun SruGenPage(
                                 thumbnails[id]?.takeIf { !it.isRecycled }?.recycle()
                                 thumbnails = thumbnails - id
                             },
-                            modifier = Modifier.size(46.dp).clip(CircleShape).background(studioRaised)
+                            modifier = Modifier.size(48.dp)
                         ) {
-                            Icon(Icons.Rounded.Close, "Remove image", tint = studioText, modifier = Modifier.size(22.dp))
+                            Icon(Icons.Rounded.Close, "Remove attached image", tint = studioSecondary)
                         }
                     }
                 }
 
-                BasicTextField(
-                    value = prompt,
-                    onValueChange = { prompt = it.take(1800) },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 62.dp, max = 116.dp)
-                        .padding(vertical = 4.dp),
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(
-                        color = studioText,
-                        fontSize = 18.sp,
-                        lineHeight = 25.sp
-                    ),
-                    cursorBrush = SolidColor(studioAccent),
-                    decorationBox = { innerTextField ->
-                        Box(Modifier.fillMaxWidth()) {
-                            if (prompt.isBlank()) {
-                                Text(
-                                    when (mode) {
-                                        SruGenMode.TEXT_TO_IMAGE -> "Describe what you want to create…"
-                                        SruGenMode.PROMPT_EDIT -> "Describe how to change clothing…"
-                                        SruGenMode.REMOVE_BACKGROUND -> "Describe the subject to keep…"
-                                        SruGenMode.REMOVE_OBJECT -> "Describe what to remove…"
-                                    },
-                                    color = SruvikColors.TextMuted,
-                                    fontSize = 18.sp,
-                                    lineHeight = 25.sp
-                                )
-                            }
-                            innerTextField()
-                        }
-                    }
-                )
-
                 Row(
-                    Modifier.fillMaxWidth(),
+                    Modifier.fillMaxWidth().heightIn(min = 54.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(9.dp)
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Box {
                         IconButton(
                             onClick = { attachMenuExpanded = true },
                             enabled = !importingImage && !generating,
-                            modifier = Modifier.size(52.dp).clip(CircleShape).background(studioRaised)
+                            modifier = Modifier.size(48.dp)
                         ) {
                             if (importingImage) {
                                 CircularProgressIndicator(
-                                    modifier = Modifier.size(22.dp),
+                                    modifier = Modifier.size(21.dp),
                                     strokeWidth = 2.dp,
                                     color = studioAccent
                                 )
                             } else {
-                                Icon(Icons.Rounded.Add, "Attach a reference image", tint = studioText, modifier = Modifier.size(25.dp))
+                                Icon(
+                                    Icons.Rounded.AddPhotoAlternate,
+                                    "Attach a reference image",
+                                    tint = studioText,
+                                    modifier = Modifier.size(23.dp)
+                                )
                             }
                         }
                         DropdownMenu(
@@ -1293,21 +1238,53 @@ fun SruGenPage(
                             )
                         }
                     }
-                    Spacer(Modifier.weight(1f))
-                    Button(
+                    BasicTextField(
+                        value = prompt,
+                        onValueChange = { prompt = it.take(1800) },
+                        modifier = Modifier.weight(1f).heightIn(min = 48.dp, max = 104.dp)
+                            .padding(vertical = 8.dp),
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(
+                            color = studioText,
+                            fontSize = 16.sp,
+                            lineHeight = 22.sp
+                        ),
+                        cursorBrush = SolidColor(studioAccent),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                        keyboardActions = KeyboardActions(
+                            onSend = {
+                                if (!generating && (prompt.isNotBlank() || selectedImage != null)) sendMessage()
+                            }
+                        ),
+                        decorationBox = { innerTextField ->
+                            Box(Modifier.fillMaxWidth()) {
+                                if (prompt.isBlank()) {
+                                    Text(
+                                        when (mode) {
+                                            SruGenMode.TEXT_TO_IMAGE -> "Describe your image…"
+                                            SruGenMode.PROMPT_EDIT -> "Describe the clothing change…"
+                                            SruGenMode.REMOVE_BACKGROUND -> "Describe the subject to keep…"
+                                            SruGenMode.REMOVE_OBJECT -> "Describe what to remove…"
+                                        },
+                                        color = SruvikColors.TextMuted,
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                }
+                                innerTextField()
+                            }
+                        }
+                    )
+                    FilledIconButton(
                         onClick = { sendMessage() },
                         enabled = !generating && (prompt.isNotBlank() || selectedImage != null),
-                        modifier = Modifier.size(54.dp),
-                        shape = CircleShape,
-                        colors = ButtonDefaults.buttonColors(
+                        modifier = Modifier.size(48.dp),
+                        colors = IconButtonDefaults.filledIconButtonColors(
                             containerColor = studioAccent,
                             contentColor = SruvikColors.OnPrimary,
                             disabledContainerColor = SruvikColors.SurfaceElevated,
                             disabledContentColor = SruvikColors.TextMuted
-                        ),
-                        contentPadding = PaddingValues(0.dp)
+                        )
                     ) {
-                        Icon(Icons.Rounded.ArrowUpward, "Create image", modifier = Modifier.size(23.dp))
+                        Icon(Icons.Rounded.ArrowUpward, "Send prompt", modifier = Modifier.size(22.dp))
                     }
                 }
             }
