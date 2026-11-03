@@ -3,6 +3,7 @@ package `in`.nispax.sruvik.ui
 import `in`.nispax.sruvik.R
 
 import androidx.compose.animation.*
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
@@ -69,11 +70,33 @@ fun SruvikApp() {
     var sruGenMemoryEnabled by remember { mutableStateOf(SruvikPreferences.sruGenMemoryEnabled(context)) }
     var selected by remember { mutableStateOf(Destination.Home) }
     var selectedModelId by remember { mutableStateOf("sd15-mediapipe") }
+    // SruGen is a focused creative workspace, not a peer destination in the
+    // global app navigation. Remember its return route while opening the model library.
+    var modelsReturnToSruGen by remember { mutableStateOf(false) }
+
+    BackHandler(
+        enabled = selected == Destination.SruGen ||
+            selected == Destination.ModelDetail ||
+            (selected == Destination.Models && modelsReturnToSruGen)
+    ) {
+        when (selected) {
+            Destination.SruGen -> selected = Destination.Home
+            Destination.ModelDetail -> selected = Destination.Models
+            Destination.Models -> {
+                selected = Destination.SruGen
+                modelsReturnToSruGen = false
+            }
+            else -> Unit
+        }
+    }
     Box(Modifier.fillMaxSize().background(SruvikColors.Background)
         .drawBehind { drawAtmosphere() }
         .windowInsetsPadding(WindowInsets.safeDrawing)) {
         AnimatedContent(
-            targetState = selected, modifier = Modifier.fillMaxSize(),
+            targetState = selected,
+            modifier = Modifier.fillMaxSize().padding(
+                bottom = if (selected == Destination.SruGen) 0.dp else 80.dp
+            ),
             transitionSpec = { (fadeIn(tween(220)) + slideInHorizontally(tween(260)) { it / 18 }) togetherWith (fadeOut(tween(140)) + slideOutHorizontally(tween(190)) { -it / 24 }) },
             label = "screen"
         ) { page ->
@@ -113,22 +136,32 @@ fun SruvikApp() {
                 Destination.Upscaler -> ImageUpscalerPage(onBack = { selected = Destination.Home })
                 Destination.SruGen -> SruGenPage(
                     memoryEnabled = sruGenMemoryEnabled,
-                    onOpenModels = { selected = Destination.Models },
+                    onBack = { selected = Destination.Home },
+                    onOpenModels = {
+                        modelsReturnToSruGen = true
+                        selected = Destination.Models
+                    },
                     onOpenVault = { selected = Destination.Srukrypt }
                 )
                 Destination.Srukrypt -> SrukryptPage(SruvikPreferences.vaultAutoLockMinutes(context))
             }
         }
-        Text(
-            "© ${Year.now().value} NISPAX InfoTech. All Rights Reserved",
-            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                .padding(horizontal = 18.dp).padding(bottom = 94.dp),
-            style = MaterialTheme.typography.labelSmall,
-            color = SruvikColors.TextMuted,
-            textAlign = TextAlign.Center
-        )
-        FloatingDock(selected, { selected = it },
-            Modifier.align(Alignment.BottomCenter).padding(horizontal = 20.dp, vertical = 12.dp))
+        // Primary destinations stay in a conventional Android navigation bar.
+        // The SruGen studio is a focused task surface, so it owns the full window
+        // and does not compete with global navigation while the user is creating.
+        if (selected != Destination.SruGen) {
+            AppNavigationBar(
+                selected = when (selected) {
+                    Destination.ModelDetail -> Destination.Models
+                    else -> selected
+                },
+                onSelect = {
+                    modelsReturnToSruGen = false
+                    selected = it
+                },
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        }
     }
     if (!profile.isComplete) {
         FirstRunProfileDialog { completed ->
@@ -215,7 +248,7 @@ private fun HomeScreen(name: String, showDailyTip: Boolean, onModels: () -> Unit
         tips[java.time.LocalDate.now().dayOfYear % tips.size]
     }
     LazyColumn(Modifier.fillMaxSize(), state = state,
-        contentPadding = PaddingValues(start = 22.dp, end = 22.dp, top = 22.dp, bottom = 112.dp),
+        contentPadding = PaddingValues(start = 22.dp, end = 22.dp, top = 22.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(25.dp)) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(21.dp)) {
@@ -471,58 +504,52 @@ private fun GlassCard(modifier: Modifier, shape: RoundedCornerShape, fill: Brush
 }
 
 @Composable
-private fun FloatingDock(selected: Destination, onSelect: (Destination) -> Unit, modifier: Modifier) {
-    Box(
-        modifier.fillMaxWidth().height(76.dp)
-            .clip(RoundedCornerShape(38.dp))
-            .background(SruvikColors.Surface)
-            .border(1.dp, Color(0xFF3A3938), RoundedCornerShape(38.dp))
+private fun AppNavigationBar(
+    selected: Destination,
+    onSelect: (Destination) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val destinations = listOf(
+        Destination.Home,
+        Destination.Models,
+        Destination.Activity,
+        Destination.Device,
+        Destination.Settings
+    )
+    NavigationBar(
+        modifier = modifier.fillMaxWidth().height(80.dp),
+        containerColor = SruvikColors.Surface,
+        contentColor = SruvikColors.TextPrimary,
+        tonalElevation = 0.dp
     ) {
-        Row(Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Destination.entries.filter { it in setOf(Destination.Home, Destination.Models, Destination.Activity, Destination.Device, Destination.Settings) }.forEach { destination ->
-                val dockDestination = when {
-                    selected == Destination.ModelDetail -> Destination.Models
-                    selected in setOf(Destination.Upscaler, Destination.SruGen, Destination.Srukrypt) -> Destination.Home
-                    else -> selected
-                }
-                val active = dockDestination == destination
-                val selectionProgress by animateFloatAsState(
-                    targetValue = if (active) 1f else 0f,
-                    animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
-                    label = "dock-selection"
-                )
-                val scale by animateFloatAsState(
-                    targetValue = if (active) 1.08f else 1f,
-                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
-                    label = "dock-icon-scale"
-                )
-                Box(
-                    Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(28.dp))
-                        .clickable { onSelect(destination) },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Box(
-                        Modifier.fillMaxSize().clip(RoundedCornerShape(28.dp))
-                            .background(SruvikColors.Lime.copy(alpha = .12f * selectionProgress))
-                            .border(1.dp, SruvikColors.Lime.copy(alpha = .30f * selectionProgress), RoundedCornerShape(28.dp))
+        destinations.forEach { destination ->
+            NavigationBarItem(
+                selected = selected == destination,
+                onClick = { onSelect(destination) },
+                icon = {
+                    Icon(
+                        destination.icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(21.dp)
                     )
-                    Icon(destination.icon, destination.label,
-                        tint = if (active) SruvikColors.TextPrimary else SruvikColors.TextSecondary.copy(alpha = .72f),
-                        modifier = Modifier.size(23.dp).scale(scale))
-                    Box(
-                        Modifier.align(Alignment.BottomCenter).padding(bottom = 2.dp)
-                            .size(4.dp).scale(selectionProgress)
-                            .clip(CircleShape).background(SruvikColors.Lime)
-                    )
-                }
-            }
+                },
+                label = { Text(destination.label, style = MaterialTheme.typography.labelSmall) },
+                alwaysShowLabel = true,
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = SruvikColors.OnPrimary,
+                    selectedTextColor = SruvikColors.Primary,
+                    indicatorColor = SruvikColors.Primary,
+                    unselectedIconColor = SruvikColors.TextSecondary,
+                    unselectedTextColor = SruvikColors.TextSecondary
+                )
+            )
         }
     }
 }
 
 @Composable
 private fun EmptyPage(eyebrow: String, title: String, description: String, icon: ImageVector, message: String, detail: String) {
-    Column(Modifier.fillMaxSize().padding(horizontal = 22.dp).padding(top = 30.dp, bottom = 112.dp),
+    Column(Modifier.fillMaxSize().padding(horizontal = 22.dp).padding(top = 30.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Text(eyebrow, style = MaterialTheme.typography.labelLarge, color = SruvikColors.LimeMuted, letterSpacing = 2.sp)
         Text(title, style = MaterialTheme.typography.displayLarge, color = SruvikColors.TextPrimary)
