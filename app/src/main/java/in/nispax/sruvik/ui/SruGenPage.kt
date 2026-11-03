@@ -1355,11 +1355,13 @@ fun SruGenPage(
 
 internal fun isSruGenClothingEditInstruction(prompt: String): Boolean {
     val normalized = prompt.lowercase()
-    val hasEditVerb = Regex("\\b(change|edit|recolor|recolour|turn|make|replace|switch|give)\\b")
+    val hasEditVerb = Regex("\\b(change|edit|recolor|recolour|turn|make|replace|switch)\\b")
         .containsMatchIn(normalized)
-    val hasEditableTarget = Regex("\\b(clothes|clothing|outfit|shirt|t-shirt|tee|jacket|coat|hoodie|sweater|dress|trousers|pants|jeans|hair|hairstyle)\\b")
+    val hasClothingTarget = Regex("\\b(clothes|clothing|outfit|shirt|t-shirt|tee|jacket|coat|hoodie|sweater|dress|trousers|pants|jeans)\\b")
         .containsMatchIn(normalized)
-    return hasEditVerb && hasEditableTarget
+    val supportedHairRecolour = SruGenColorEditParser.targetRegion(normalized) == "hair" &&
+        SruGenColorEditParser.targetColor(normalized) != null
+    return (hasEditVerb && hasClothingTarget) || supportedHairRecolour
 }
 
 private const val MAX_SRUGEN_IMAGE_BYTES = 24 * 1024 * 1024
