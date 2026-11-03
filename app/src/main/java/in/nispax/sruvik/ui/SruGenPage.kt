@@ -1165,7 +1165,7 @@ fun SruGenPage(
                                     Text(
                                         when (mode) {
                                             SruGenMode.TEXT_TO_IMAGE -> "Describe an image…"
-                                            SruGenMode.PROMPT_EDIT -> "Describe the clothing change…"
+                                            SruGenMode.PROMPT_EDIT -> "Describe the change to your photo…"
                                             SruGenMode.REMOVE_BACKGROUND -> "Describe the subject to keep…"
                                             SruGenMode.REMOVE_OBJECT -> "Describe what to remove…"
                                         },
@@ -1355,11 +1355,11 @@ fun SruGenPage(
 
 internal fun isSruGenClothingEditInstruction(prompt: String): Boolean {
     val normalized = prompt.lowercase()
-    val hasEditVerb = Regex("\\b(change|edit|recolor|recolour|turn|make|replace|switch)\\b")
+    val hasEditVerb = Regex("\\b(change|edit|recolor|recolour|turn|make|replace|switch|give)\\b")
         .containsMatchIn(normalized)
-    val hasClothingTarget = Regex("\\b(clothes|clothing|outfit|shirt|t-shirt|tee|jacket|coat|hoodie|sweater|dress|trousers|pants|jeans)\\b")
+    val hasEditableTarget = Regex("\\b(clothes|clothing|outfit|shirt|t-shirt|tee|jacket|coat|hoodie|sweater|dress|trousers|pants|jeans|hair|hairstyle)\\b")
         .containsMatchIn(normalized)
-    return hasEditVerb && hasClothingTarget
+    return hasEditVerb && hasEditableTarget
 }
 
 private const val MAX_SRUGEN_IMAGE_BYTES = 24 * 1024 * 1024
