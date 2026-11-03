@@ -931,9 +931,9 @@ fun SruGenPage(
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("CPU  ${String.format("%.1f", resourceStats.cpu)}%", color = studioSecondary, style = MaterialTheme.typography.labelMedium)
-                    Text("RAM  ${resourceStats.pss} MB", color = studioSecondary, style = MaterialTheme.typography.labelMedium)
-                    Text("FREE  ${resourceStats.available} MB", color = studioSecondary, style = MaterialTheme.typography.labelMedium)
+                    Text("APP CPU  ${String.format("%.1f", resourceStats.cpu)}%", color = studioSecondary, style = MaterialTheme.typography.labelMedium)
+                    Text("APP PSS  ${resourceStats.pss} MB", color = studioSecondary, style = MaterialTheme.typography.labelMedium)
+                    Text("DEVICE AVAIL  ${resourceStats.available} MB", color = studioSecondary, style = MaterialTheme.typography.labelMedium)
                 }
             }
 
