@@ -861,43 +861,34 @@ fun SruGenPage(
             Row(
                 Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                IconButton(onClick = onBack, modifier = Modifier.size(44.dp)) {
+                IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
                     Icon(Icons.Rounded.ArrowBack, "Back to Sruvik", tint = studioText)
-                }
-                IconButton(onClick = { historyOpen = true }, modifier = Modifier.size(44.dp)) {
-                    Icon(Icons.Rounded.History, "Conversation history", tint = studioText)
                 }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     Text("SruGen", color = studioText, style = MaterialTheme.typography.headlineMedium)
                     Text(
-                        if (generating) "GENERATING ON DEVICE" else "LOCAL IMAGE STUDIO",
-                        color = if (generating) studioAccent else studioSecondary,
+                        activeModel?.name ?: "Choose a local model",
+                        color = if (modelReady) studioSecondary else studioAccent,
                         style = MaterialTheme.typography.labelSmall,
-                        letterSpacing = 1.05.sp
+                        maxLines = 1
                     )
                 }
-                TextButton(
-                    onClick = onOpenModels,
-                    modifier = Modifier.widthIn(max = 136.dp),
-                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
-                ) {
-                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                        Text("MODEL", style = MaterialTheme.typography.labelSmall, color = studioSecondary)
-                        Text(
-                            activeModel?.name ?: "Choose model",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = studioAccent,
-                            maxLines = 1
-                        )
-                    }
-                    Icon(Icons.Rounded.ExpandMore, "Open model library", tint = studioAccent)
+                IconButton(onClick = onOpenModels, modifier = Modifier.size(48.dp)) {
+                    Icon(
+                        Icons.Rounded.Memory,
+                        "Active model: ${activeModel?.name ?: "Choose a model"}. Open model library",
+                        tint = studioAccent
+                    )
                 }
-                IconButton(onClick = { monitorExpanded = !monitorExpanded }, modifier = Modifier.size(40.dp)) {
+                IconButton(onClick = { historyOpen = true }, modifier = Modifier.size(48.dp)) {
+                    Icon(Icons.Rounded.History, "Conversation history", tint = studioText)
+                }
+                IconButton(onClick = { monitorExpanded = !monitorExpanded }, modifier = Modifier.size(48.dp)) {
                     Icon(Icons.Rounded.Tune, "Device performance details", tint = studioSecondary)
                 }
-                IconButton(onClick = { newChat() }, modifier = Modifier.size(44.dp)) {
+                IconButton(onClick = { newChat() }, modifier = Modifier.size(48.dp)) {
                     Icon(Icons.Rounded.Add, "New conversation", tint = studioAccent)
                 }
             }
