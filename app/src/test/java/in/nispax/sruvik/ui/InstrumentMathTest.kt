@@ -1,6 +1,7 @@
 package `in`.nispax.sruvik.ui
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class InstrumentMathTest {
@@ -29,9 +30,9 @@ class InstrumentMathTest {
     }
 
     @Test fun appUidNetworkRatesRejectInvalidIntervalsAndCounterResets() {
-        assertEquals(1024L, InstrumentMath.bytesPerSecond(2048L, 2000L))
-        assertEquals(null, InstrumentMath.bytesPerSecond(-1L, 2000L))
-        assertEquals(null, InstrumentMath.bytesPerSecond(10L, 0L))
+        assertEquals(1024L, InstrumentMath.bytesPerSecond(2048L, 2000L) ?: -1L)
+        assertNull(InstrumentMath.bytesPerSecond(-1L, 2000L))
+        assertNull(InstrumentMath.bytesPerSecond(10L, 0L))
     }
 
     @Test fun estimatedDeviceMemoryIsClampedToKernelTotal() {
