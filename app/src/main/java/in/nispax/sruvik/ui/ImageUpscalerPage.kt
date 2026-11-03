@@ -633,7 +633,6 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                     }
                 }
             }
-        }
 
         AnimatedVisibility(visible = result != null, enter = fadeIn() + slideInVertically { it / 6 }) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
