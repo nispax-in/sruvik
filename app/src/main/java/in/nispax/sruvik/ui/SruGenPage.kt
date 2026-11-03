@@ -1665,76 +1665,82 @@ private fun SruGenMessageBubble(
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
     ) {
         Column(
-            Modifier.widthIn(max = 340.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(if (isUser) SruvikColors.SurfaceSoft else SruvikColors.Surface)
-                .border(1.dp, SruvikColors.Border.copy(alpha = .72f), RoundedCornerShape(20.dp))
-                .padding(horizontal = 13.dp, vertical = 11.dp),
+            Modifier.widthIn(max = if (isUser) 560.dp else 680.dp)
+                .then(
+                    if (isUser) Modifier.clip(RoundedCornerShape(16.dp))
+                        .background(SruvikColors.SurfaceElevated)
+                        .padding(horizontal = 14.dp, vertical = 11.dp)
+                    else Modifier.padding(vertical = 2.dp)
+                ),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                if (isUser) "You" else "SruGen",
-                color = if (isUser) SruvikColors.Primary else SruvikColors.SecondaryAccent,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold
+                if (isUser) "YOU" else "SRUGEN · LOCAL",
+                color = if (isUser) SruvikColors.TextSecondary else SruvikColors.Primary,
+                style = MaterialTheme.typography.labelSmall,
+                letterSpacing = 1.1.sp
             )
             if (message.text.isNotBlank()) {
                 Text(
                     message.text,
                     color = SruvikColors.TextPrimary,
-                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp, lineHeight = 22.sp)
+                    style = MaterialTheme.typography.bodyLarge
                 )
             }
-            image?.let {
+            image?.let { bitmap ->
                 Image(
-                    it.asImageBitmap(),
+                    bitmap.asImageBitmap(),
                     "Open image in full-screen viewer",
                     Modifier.fillMaxWidth()
-                        .heightIn(max = 390.dp)
-                        .clip(RoundedCornerShape(13.dp))
+                        .heightIn(max = 440.dp)
+                        .clip(RoundedCornerShape(8.dp))
                         .clickable(enabled = message.attachmentId != null) {
                             message.attachmentId?.let(onViewImage)
                         },
                     contentScale = ContentScale.Fit
                 )
                 if (message.attachmentId != null) {
-                    Text("Tap image to view and zoom", color = SruvikColors.TextSecondary, fontSize = 11.sp)
+                    Text(
+                        "Tap image to view and zoom",
+                        color = SruvikColors.TextMuted,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
             }
             if (!isUser && message.attachmentId != null) {
                 Text(
-                    "Private copy: encrypted SruGen chat only",
+                    "Encrypted in this conversation",
                     color = SruvikColors.TextSecondary,
-                    fontSize = 12.sp
+                    style = MaterialTheme.typography.bodySmall
                 )
                 Row(
                     Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     TextButton(
                         onClick = {
                             onSaveToDevice(message.attachmentId, message.attachmentMime ?: "image/png")
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.heightIn(min = 48.dp)
                     ) {
-                        Icon(Icons.Rounded.SaveAlt, null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("Save to device", fontSize = 11.sp)
+                        Icon(Icons.Rounded.SaveAlt, null, modifier = Modifier.size(17.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Save to device")
                     }
                     TextButton(
                         onClick = {
                             onSaveToVault(message.attachmentId, message.attachmentMime ?: "image/png")
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.heightIn(min = 48.dp)
                     ) {
-                        Icon(Icons.Rounded.Security, null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("Save to Srukrypt", fontSize = 11.sp)
+                        Icon(Icons.Rounded.Security, null, modifier = Modifier.size(17.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Import to Srukrypt")
                     }
                 }
             }
             message.modelName?.let {
-                Text(it, color = SruvikColors.Primary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text(it, color = SruvikColors.TextMuted, style = MaterialTheme.typography.labelSmall)
             }
         }
     }
