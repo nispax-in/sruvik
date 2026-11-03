@@ -324,7 +324,7 @@ private fun HomeScreen(
                             color = SruvikColors.TextMuted, letterSpacing = 1.0.sp)
                     }
                     Spacer(Modifier.weight(1f))
-                    SruvikAvatar(name, Modifier.size(42.dp))
+                    SruvikAvatar(name, Modifier.size(48.dp))
                 }
             }
             item {
@@ -376,6 +376,7 @@ private fun HomeScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Button(
                                     onClick = onSruGen,
+                                    modifier = Modifier.heightIn(min = 48.dp),
                                     shape = RoundedCornerShape(14.dp),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = SruvikColors.Primary,
