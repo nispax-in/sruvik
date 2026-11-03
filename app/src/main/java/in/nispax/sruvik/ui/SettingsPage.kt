@@ -357,6 +357,14 @@ fun SettingsPage(
                     }
                 }
             }
+
+            Text(
+                "© 2026 NISPAX InfoTech. All Rights Reserved.",
+                Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp),
+                color = SruvikColors.TextMuted,
+                style = MaterialTheme.typography.labelSmall,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
         }
     }
 
