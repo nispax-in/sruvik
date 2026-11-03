@@ -437,18 +437,17 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                    OutlinedButton(
+                    ObsidianSecondaryButton(
                         onClick = {
                             launchImagePicker()
                         },
                         modifier = Modifier.weight(1f).height(48.dp),
-                        shape = RoundedCornerShape(15.dp),
                         enabled = !isProcessing && !isSaving && !isLoading
                     ) {
                         Icon(Icons.Rounded.AddPhotoAlternate, null)
                         Text(if (original == null) "Photo library" else "Change photo")
                     }
-                    OutlinedButton(
+                    ObsidianSecondaryButton(
                         onClick = {
                             if (!isProcessing && !isSaving && !isLoading) {
                                 runCatching { filePicker.launch(arrayOf("image/*")) }
@@ -458,7 +457,6 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                             }
                         },
                         modifier = Modifier.weight(1f).height(48.dp),
-                        shape = RoundedCornerShape(15.dp),
                         enabled = !isProcessing && !isSaving && !isLoading
                     ) {
                         Icon(Icons.Rounded.FolderOpen, null)
@@ -549,19 +547,13 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                     color = LabMuted,
                     style = MaterialTheme.typography.bodySmall
                 )
-                Button(
+                ObsidianPrimaryButton(
                     onClick = {
-                        val uri = selectedUri ?: return@Button
+                        val uri = selectedUri ?: return@ObsidianPrimaryButton
                         requestUpscale(uri, scale)
                     },
                     modifier = Modifier.fillMaxWidth().height(55.dp),
-                    enabled = original != null && !isLoading && !isProcessing && !isSaving,
-                    shape = RoundedCornerShape(17.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = LabViolet, contentColor = LabInk,
-                        disabledContainerColor = Color(0xFF45413F),
-                        disabledContentColor = Color(0xFF96918D)
-                    )
+                    enabled = original != null && !isLoading && !isProcessing && !isSaving
                 ) {
                     if (isProcessing) {
                         CircularProgressIndicator(Modifier.size(19.dp), color = LabInk, strokeWidth = 2.dp)
