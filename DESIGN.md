@@ -42,6 +42,33 @@ Sruvik is a local-first creative AI workspace: an on-device image studio, a mode
 - **Settings:** profile, local preferences, memory toggle for SruGen context, vault timeout and privacy controls.
 - **Activity:** currently an empty placeholder, not a persisted task-history feature.
 
+## Assistant-product research and transfer decisions (3 Nov 2026)
+
+This is a documented pattern study, not a claim that Sruvik currently implements all of these capabilities. Current SruGen is a local image-generation conversation, not a general language assistant.
+
+| Reference product | Pattern studied | Transfer to Sruvik | Explicit non-transfer |
+|---|---|---|---|
+| ChatGPT | Unified thread for text, files, images, voice and generated content; simplified Android composer and contextual quick tools | Keep creation context in one chronological workspace; group secondary controls; keep dictation available while composing | Do not add a voice-mode or file-analysis entry until a compatible engine exists |
+| Gemini | Android-aware multimodal context, structured rich responses, supervised multi-step task progress with a visible stop/hand-off | Keep real generation progress visible, preserve image context, expose cancel/stop and return paths | No fake agents, background automation or Android-wide integrations |
+| Claude | Reading-first long-form content, distinct dictation vs two-way voice, interruptible voice with transcript continuity, artefact workspace for substantial outputs | Keep SruGen status messages open and readable; image outputs have a focused viewer; preserve conversation when opening image/model surfaces | No general markdown/code renderer or artefact editor until a text assistant exists |
+| Meta AI | Voice-forward assistant positioning and optional discovery/social layer | Avoid engagement feed; keep private creation and history central | No social discovery feed or public sharing surface |
+| Grok | Broad file, voice, image/video and connected-tool capability taxonomy | Organise any future capabilities by user intent and actual backend support | Do not expose model-incompatible uploads or connectors as universal actions |
+
+First-party sources:
+- ChatGPT Android/mobile updates and composer simplification: https://help.openai.com/en/articles/6825453-chatgpt-release-notes
+- Gemini Live multimodal conversation and Android integrations: https://blog.google/products-and-platforms/products/gemini/new-gemini-app-updates-android/
+- Gemini task progress and user stop/hand-off controls: https://blog.google/innovation-and-ai/products/gemini-app/android-multi-step-tasks/
+- Claude voice continuity and interruption: https://support.claude.com/en/articles/11101966-use-voice-mode
+- Meta AI standalone app and voice-first positioning: https://about.fb.com/news/2025/04/introducing-meta-ai-app-new-way-access-ai-assistant/
+- Grok capability overview: https://docs.x.ai/grok/overview
+
+## Obsidian Liquid Glass implementation rules
+
+- Glass is restricted to surfaces where depth clarifies hierarchy: focused tool panels, composer, selected navigation, and instrument housings. The reading canvas and most list content remain flat.
+- The current implementation uses dark layered gradients, hairline borders and edge reflections rather than platform blur. This is deliberate: Android cross-window blur is device-dependent and can flash, drop out or cost performance. An opaque charcoal fallback remains legible.
+- Violet and cyan are reflections/semantic accents, not large gradient fills. Generated artwork remains distinct from controls.
+- The design should remain recognisable with all blur/illumination removed; text contrast and touch states cannot depend on effects.
+
 ## Confirmed architecture
 
 - Native Android app built with Kotlin and Jetpack Compose, Material 3, compile SDK 36, target SDK 36 and min SDK 26.
