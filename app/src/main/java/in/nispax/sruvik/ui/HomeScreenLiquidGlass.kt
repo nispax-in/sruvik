@@ -11,7 +11,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowUpRight
+import androidx.compose.material.icons.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.AutoFixHigh
 import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.Security
@@ -80,6 +80,7 @@ fun HomeScreenLiquidGlass(
     }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val horizontal = if (maxWidth >= 600.dp) 30.dp else 20.dp
+        val greetingFontSize = if (maxWidth < 380.dp) 29.sp else 33.sp
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
@@ -149,7 +150,7 @@ fun HomeScreenLiquidGlass(
                     Text(
                         greeting + ", " + name + ".",
                         color = Color(0xFFF4F3FA),
-                        fontSize = if (maxWidth < 380.dp) 29.sp else 33.sp,
+                        fontSize = greetingFontSize,
                         lineHeight = 39.sp,
                         fontWeight = FontWeight.SemiBold,
                         letterSpacing = (-.8).sp
@@ -437,7 +438,7 @@ private fun ObsidianGlassHero(
                     fontWeight = FontWeight.Bold
                 )
                 Icon(
-                    Icons.Rounded.ArrowUpRight,
+                    Icons.Rounded.ArrowForward,
                     contentDescription = null,
                     tint = Color(0xFF111725),
                     modifier = Modifier.size(18.dp)
