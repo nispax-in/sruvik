@@ -255,8 +255,7 @@ private fun LibrarySummaryTile(
                 Icon(icon, null, tint = SruvikColors.LimeMuted, modifier = Modifier.size(15.dp))
                 Text(value, color = SruvikColors.TextPrimary, style = MaterialTheme.typography.titleSmall)
             }
-            Text(label, color = SruvikColors.TextMuted, style = MaterialTheme.typography.labelSmall)
-        }
+        Text(label, color = SruvikColors.TextMuted, style = MaterialTheme.typography.labelSmall)
     }
 }
 
