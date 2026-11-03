@@ -43,12 +43,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
@@ -1753,15 +1755,16 @@ private fun StudioModeControl(label: String, selected: Boolean, onClick: () -> U
         label = "studio-mode-selection"
     )
     Row(
-        Modifier.clip(RoundedCornerShape(14.dp))
+        Modifier.heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(8.dp))
             .background(SruvikColors.Lime.copy(alpha = .06f + .14f * selectionProgress))
             .border(
                 1.dp,
                 SruvikColors.Lime.copy(alpha = .08f + .22f * selectionProgress),
-                RoundedCornerShape(14.dp)
+                RoundedCornerShape(8.dp)
             )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 11.dp, vertical = 9.dp),
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .padding(horizontal = 13.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
