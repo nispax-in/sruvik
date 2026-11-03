@@ -68,4 +68,17 @@ class SruGenColorEditParserTest {
             SruGenColorEditParser.targetColor("change my shirt to red and blue")
         )
     }
+    @Test
+    fun routesHairColourToHairMaskAndNotClothingMask() {
+        assertEquals("blue", SruGenColorEditParser.targetColor("make my hair blue"))
+        assertEquals("hair", SruGenColorEditParser.targetRegion("make my hair blue"))
+        assertNull(SruGenColorEditParser.targetRegion("make my hair and shirt blue"))
+    }
+
+    @Test
+    fun hairStyleChangesAreNotMisroutedToColourTransform() {
+        assertNull(SruGenColorEditParser.targetColor("give me curly hair"))
+        assertNull(SruGenColorEditParser.targetColor("make my hairstyle shorter"))
+    }
+
 }
