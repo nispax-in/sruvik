@@ -349,16 +349,14 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
             }
         }
 
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = LabSurface,
+        ObsidianGlassPanel(
             shape = RoundedCornerShape(28.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .09f))
+            contentPadding = PaddingValues(0.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
+            accent = LabViolet
         ) {
             Column(
-                Modifier.background(Brush.linearGradient(
-                    listOf(Color(0xFF1B2230), Color(0xFF121722), Color(0xFF0D111A))
-                )).padding(17.dp),
+                Modifier.padding(17.dp),
                 verticalArrangement = Arrangement.spacedBy(13.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -388,13 +386,12 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
             }
         }
 
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = LabSurface,
+        ObsidianGlassPanel(
             shape = RoundedCornerShape(26.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .08f))
+            contentPadding = PaddingValues(15.dp),
+            verticalArrangement = Arrangement.spacedBy(13.dp),
+            accent = LabCyan
         ) {
-            Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.Image, null, tint = LabCyan)
                     Text("  SOURCE PHOTO", color = LabText,
@@ -504,13 +501,12 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
             }
         }
 
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = Color(0xFF2A2A2A),
+        ObsidianGlassPanel(
             shape = RoundedCornerShape(25.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, LabViolet.copy(alpha = .24f))
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(13.dp),
+            accent = LabViolet
         ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("OUTPUT SIZE", color = LabText,
                         style = MaterialTheme.typography.labelLarge, letterSpacing = 1.5.sp)
