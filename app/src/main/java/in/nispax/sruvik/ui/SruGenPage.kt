@@ -44,6 +44,9 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -1242,7 +1245,8 @@ fun SruGenPage(
                         value = prompt,
                         onValueChange = { prompt = it.take(1800) },
                         modifier = Modifier.weight(1f).heightIn(min = 48.dp, max = 104.dp)
-                            .padding(vertical = 8.dp),
+                            .padding(vertical = 8.dp)
+                            .semantics { contentDescription = "Image prompt" },
                         textStyle = MaterialTheme.typography.bodyLarge.copy(
                             color = studioText,
                             fontSize = 16.sp,
@@ -1826,6 +1830,7 @@ private fun SruGenMessageBubble(
 
 @Composable
 private fun StudioModeControl(label: String, selected: Boolean, onClick: () -> Unit) {
+    val isSelected = selected
     val selectionProgress by animateFloatAsState(
         targetValue = if (selected) 1f else 0f,
         animationSpec = tween(180),
@@ -1841,6 +1846,10 @@ private fun StudioModeControl(label: String, selected: Boolean, onClick: () -> U
                 RoundedCornerShape(10.dp)
             )
             .clickable(onClick = onClick)
+            .semantics {
+                contentDescription = "$label mode"
+                stateDescription = if (isSelected) "Selected" else "Not selected"
+            }
             .padding(horizontal = 13.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
