@@ -10,6 +10,8 @@ class SruGenClothingEditIntentTest {
         assertTrue(isSruGenClothingEditInstruction("change my clothes color to red"))
         assertTrue(isSruGenClothingEditInstruction("make my shirt black"))
         assertTrue(isSruGenClothingEditInstruction("recolour the jacket blue"))
+        assertTrue(isSruGenClothingEditInstruction("change my blazer to black"))
+        assertTrue(isSruGenClothingEditInstruction("make my turtleneck white"))
     }
 
     @Test
