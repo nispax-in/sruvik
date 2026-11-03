@@ -1736,23 +1736,26 @@ private fun SruGenMessageBubble(
     onViewImage: (String) -> Unit
 ) {
     val isUser = message.role == "user"
+    val bubbleShape = if (isUser) {
+        RoundedCornerShape(topStart = 18.dp, topEnd = 5.dp, bottomEnd = 18.dp, bottomStart = 18.dp)
+    } else {
+        RoundedCornerShape(topStart = 5.dp, topEnd = 18.dp, bottomEnd = 18.dp, bottomStart = 18.dp)
+    }
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
     ) {
         Column(
             Modifier.widthIn(max = 340.dp)
-                .clip(RoundedCornerShape(20.dp))
+                .clip(bubbleShape)
                 .background(if (isUser) SruvikColors.SurfaceSoft else SruvikColors.Surface)
-                .border(1.dp, SruvikColors.Border.copy(alpha = .72f), RoundedCornerShape(20.dp))
-                .padding(horizontal = 13.dp, vertical = 11.dp),
+                .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
                 if (isUser) "You" else "SruGen",
                 color = if (isUser) SruvikColors.Primary else SruvikColors.SecondaryAccent,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold
+                style = MaterialTheme.typography.labelMedium
             )
             if (message.text.isNotBlank()) {
                 Text(
@@ -1765,23 +1768,28 @@ private fun SruGenMessageBubble(
                 Image(
                     it.asImageBitmap(),
                     "Open image in full-screen viewer",
-                    Modifier.fillMaxWidth()
-                        .heightIn(max = 390.dp)
-                        .clip(RoundedCornerShape(13.dp))
+                    Modifier.widthIn(max = 280.dp)
+                        .fillMaxWidth()
+                        .heightIn(max = 360.dp)
+                        .clip(RoundedCornerShape(10.dp))
                         .clickable(enabled = message.attachmentId != null) {
                             message.attachmentId?.let(onViewImage)
                         },
                     contentScale = ContentScale.Fit
                 )
                 if (message.attachmentId != null) {
-                    Text("Tap image to view and zoom", color = SruvikColors.TextSecondary, fontSize = 11.sp)
+                    Text(
+                        "Tap to inspect",
+                        color = SruvikColors.TextSecondary,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
             }
             if (!isUser && message.attachmentId != null) {
                 Text(
-                    "Private copy: encrypted SruGen chat only",
+                    "Private copy · encrypted in this conversation",
                     color = SruvikColors.TextSecondary,
-                    fontSize = 12.sp
+                    style = MaterialTheme.typography.labelSmall
                 )
                 Row(
                     Modifier.fillMaxWidth(),
@@ -1791,7 +1799,7 @@ private fun SruGenMessageBubble(
                         onClick = {
                             onSaveToDevice(message.attachmentId, message.attachmentMime ?: "image/png")
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).heightIn(min = 48.dp)
                     ) {
                         Icon(Icons.Rounded.SaveAlt, null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
@@ -1801,7 +1809,7 @@ private fun SruGenMessageBubble(
                         onClick = {
                             onSaveToVault(message.attachmentId, message.attachmentMime ?: "image/png")
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).heightIn(min = 48.dp)
                     ) {
                         Icon(Icons.Rounded.Security, null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
@@ -1810,11 +1818,12 @@ private fun SruGenMessageBubble(
                 }
             }
             message.modelName?.let {
-                Text(it, color = SruvikColors.Primary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text(it, color = SruvikColors.Primary, style = MaterialTheme.typography.labelSmall)
             }
         }
     }
 }
+
 @Composable
 private fun StudioModeControl(label: String, selected: Boolean, onClick: () -> Unit) {
     val selectionProgress by animateFloatAsState(
@@ -1823,22 +1832,22 @@ private fun StudioModeControl(label: String, selected: Boolean, onClick: () -> U
         label = "studio-mode-selection"
     )
     Row(
-        Modifier.clip(RoundedCornerShape(14.dp))
-            .background(SruvikColors.Lime.copy(alpha = .06f + .14f * selectionProgress))
+        Modifier.heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(SruvikColors.Lime.copy(alpha = .04f + .12f * selectionProgress))
             .border(
                 1.dp,
                 SruvikColors.Lime.copy(alpha = .08f + .22f * selectionProgress),
-                RoundedCornerShape(14.dp)
+                RoundedCornerShape(10.dp)
             )
             .clickable(onClick = onClick)
-            .padding(horizontal = 11.dp, vertical = 9.dp),
+            .padding(horizontal = 13.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             label,
             color = if (selected) SruvikColors.Lime else SruvikColors.TextSecondary,
-            style = MaterialTheme.typography.labelSmall,
-            letterSpacing = .7.sp
+            style = MaterialTheme.typography.labelMedium
         )
     }
 }
