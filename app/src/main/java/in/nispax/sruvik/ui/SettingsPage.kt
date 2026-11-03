@@ -395,12 +395,9 @@ private fun SettingsSection(
 
 @Composable
 private fun SettingsPanel(content: @Composable ColumnScope.() -> Unit) {
-    Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(23.dp))
-            .background(Brush.linearGradient(listOf(Color(0x551B2432), Color(0x33111620))))
-            .border(1.dp, Brush.linearGradient(listOf(Color(0x447F91B5), Color(0x2275E3F3), Color(0x334B566B))), RoundedCornerShape(19.dp))
-            .padding(horizontal = 14.dp, vertical = 13.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ObsidianGlassPanel(
+        shape = RoundedCornerShape(23.dp),
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 13.dp),
         content = content
     )
 }
