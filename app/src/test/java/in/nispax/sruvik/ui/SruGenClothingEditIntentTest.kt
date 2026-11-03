@@ -13,6 +13,12 @@ class SruGenClothingEditIntentTest {
     }
 
     @Test
+    fun attachedPhotoHairColourInstructionIsRecognized() {
+        assertTrue(isSruGenClothingEditInstruction("make my hair blue"))
+        assertTrue(isSruGenClothingEditInstruction("change my hair colour to auburn"))
+    }
+
+    @Test
     fun ordinaryCreationPromptIsNotTreatedAsClothingEdit() {
         assertFalse(isSruGenClothingEditInstruction("create a red sports car"))
         assertFalse(isSruGenClothingEditInstruction("make a cinematic sunset"))
