@@ -70,7 +70,7 @@ private data class DeviceSnapshot(
     val lowMemory: Boolean,
     val lowMemoryThresholdBytes: Long,
     val appPssMiB: Int,
-    val appCpuPercent: Float,
+    val appCpuPercent: Float?,
     val dataVolumeTotalBytes: Long,
     val dataVolumeAvailableBytes: Long,
     val batteryPercent: Int?,
@@ -116,8 +116,19 @@ fun DeviceMonitorPage() {
         var previousWall = SystemClock.elapsedRealtime()
         var previousRx = TrafficStats.getUidRxBytes(Process.myUid())
         var previousTx = TrafficStats.getUidTxBytes(Process.myUid())
+        var firstSample = true
         while (isActive) {
             try {
+                if (firstSample) {
+                    previousCpu = Process.getElapsedCpuTime()
+                    previousWall = SystemClock.elapsedRealtime()
+                    previousRx = TrafficStats.getUidRxBytes(Process.myUid())
+                    previousTx = TrafficStats.getUidTxBytes(Process.myUid())
+                    state = MonitorUiState(snapshot = readDeviceSnapshot(context, null, null, null))
+                    firstSample = false
+                    delay(2500)
+                    continue
+                }
                 val nowWall = SystemClock.elapsedRealtime()
                 val nowCpu = Process.getElapsedCpuTime()
                 val wallDelta = (nowWall - previousWall).coerceAtLeast(1L)
@@ -249,10 +260,14 @@ fun DeviceMonitorPage() {
                             }
                             Icon(Icons.Rounded.Memory, null, tint = ObsidianTokens.Violet, modifier = Modifier.size(25.dp))
                         }
-                        InstrumentLinearMeter("App CPU share", String.format(Locale.US, "%.1f%%", data.appCpuPercent),
-                            data.appCpuPercent / 100f,
-                            "Process CPU time normalised to total available core capacity.",
-                            accent = ObsidianTokens.Cyan)
+                        InstrumentLinearMeter(
+                            "App CPU share",
+                            data.appCpuPercent?.let { String.format(Locale.US, "%.1f%%", it) } ?: "Sampling",
+                            data.appCpuPercent?.div(100f),
+                            if (data.appCpuPercent == null) "Collecting a full process CPU sampling interval."
+                            else "Process CPU time normalised to total available core capacity.",
+                            accent = ObsidianTokens.Cyan
+                        )
                     }
                 }
             }
@@ -397,7 +412,7 @@ private fun MetricColumn(
 
 private fun readDeviceSnapshot(
     context: Context,
-    appCpuPercent: Float,
+    appCpuPercent: Float?,
     rxRate: Long?,
     txRate: Long?
 ): DeviceSnapshot {
