@@ -566,7 +566,7 @@ fun SruGenPage(
             )
             generating = true
             progress = 0
-            progressLabel = if (request.mode == SruGenMode.PROMPT_EDIT) "Preparing automatic image edit"
+            progressLabel = if (request.mode == SruGenMode.PROMPT_EDIT) "Preparing local photo edit"
                 else if (request.mode == SruGenMode.REMOVE_BACKGROUND) "Preparing subject mask"
                 else "Preparing local model"
             error = ""
@@ -708,7 +708,7 @@ fun SruGenPage(
                 "good morning", "good afternoon", "good evening" ->
                     "Hey! I'm here. SruGen creates images locally with your selected model, ${activeModel?.name ?: "installed image model"}. General conversation needs a separate language model."
                 "help", "what can you do", "what can you do here" ->
-                    "I can create images locally, automatically edit clothing in a compatible model, and remove photo backgrounds. Object-specific removal is not enabled yet."
+                    "I can create images locally and edit attached photos with a compatible image-to-image model. Simple hair and clothing colour changes use segmentation masks; background removal is available. Object-specific removal still needs an inpainting model."
                 else -> null
             }
         } else null
@@ -760,21 +760,6 @@ fun SruGenPage(
             return
         }
 
-        val hairEdit = Regex("\\b(hair|hairstyle|hairstyles)\\b").containsMatchIn(text.lowercase()) &&
-            Regex("\\b(change|edit|recolor|recolour|turn|make|replace|switch|give)\\b")
-                .containsMatchIn(text.lowercase())
-        if (
-            requestMode == SruGenMode.PROMPT_EDIT &&
-            hairEdit &&
-            SruGenColorEditParser.targetColor(text) == null
-        ) {
-            persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
-                role = "assistant",
-                text = "Hair colour changes are available for supported colours. Changing the cut or shape needs a hair-aware generator that isn't installed yet. Your original photo is unchanged."
-            )))
-            return
-        }
-
         if (requestMode == SruGenMode.PROMPT_EDIT && text.isBlank()) {
             persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
                 role = "assistant",
@@ -795,7 +780,7 @@ fun SruGenPage(
             if (editModel == null) {
                 persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
                     role = "assistant",
-                    text = "Your photo is safely saved, but ${activeModel?.name ?: "the active model"} does not have the VAE encoder required for image editing. Install majicMIX Realistic v6 from Models (about 1.24 GB). After installation, return here, reattach the photo and choose Edit clothes. Nothing was generated from text alone."
+                    text = "Your photo is safely saved, but ${activeModel?.name ?: "the active model"} does not have the VAE encoder required for image editing. Install majicMIX Realistic v6 from Models (about 1.24 GB). After installation, return here, reattach the photo and choose Edit photo. Nothing was generated from text alone."
                 )))
                 return
             }
