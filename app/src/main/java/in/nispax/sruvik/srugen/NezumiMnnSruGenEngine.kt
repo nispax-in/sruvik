@@ -127,6 +127,7 @@ class NezumiMnnSruGenEngine(
             stopRequested = false
             stopReason = null
             var sourceBitmap: Bitmap? = null
+            var clothingCrop: Bitmap? = null
             var resizedSource: Bitmap? = null
             var sourceRgb: ByteArray? = null
             var packed: ByteArray? = null
@@ -148,7 +149,11 @@ class NezumiMnnSruGenEngine(
                 if (editing) {
                     onProgress(4, "Preparing your private reference image")
                     sourceBitmap = SruGenAutoMasker.decodeBounded(requireNotNull(request.sourceImage))
-                    resizedSource = SruGenAutoMasker.resizeForDiffusion(requireNotNull(sourceBitmap))
+                    clothingCrop = SruGenAutoMasker.cropForClothingEdit(
+                        context,
+                        requireNotNull(sourceBitmap)
+                    )
+                    resizedSource = SruGenAutoMasker.resizeForDiffusion(requireNotNull(clothingCrop))
                     generationWidth = resizedSource!!.width
                     generationHeight = resizedSource!!.height
                     sourceRgb = SruGenAutoMasker.toPackedRgb(resizedSource!!)
@@ -207,7 +212,11 @@ class NezumiMnnSruGenEngine(
                     initImageRgb = sourceRgb,
                     initImageWidth = if (editing) generationWidth else 0,
                     initImageHeight = if (editing) generationHeight else 0,
-                    denoiseStrength = if (editing) 0.76f else 0.0f,
+                    // Conservative denoise on a garment-only crop. The old 0.76
+                    // full-frame img2img strength re-synthesised the whole torso;
+                    // the later mask merely pasted that invented body fragment
+                    // into the shirt area. Lower strength preserves garment shape.
+                    denoiseStrength = if (editing) 0.38f else 0.0f,
                     progressListener = progress
                 )
                 stopReason?.let { throw IllegalStateException(it) }
@@ -239,6 +248,7 @@ class NezumiMnnSruGenEngine(
                 )
             } finally {
                 sourceBitmap?.recycle()
+                clothingCrop?.takeIf { it !== resizedSource && !it.isRecycled }?.recycle()
                 resizedSource?.recycle()
                 generatedBitmap?.takeIf { it !== finalBitmap }?.recycle()
                 finalBitmap?.recycle()
