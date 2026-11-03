@@ -27,13 +27,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -293,17 +292,19 @@ private fun ObsidianGlassHero(
         Box(
             Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            Color(0x55D9E8FF),
-                            Color(0x1E9DB9E8),
-                            Color.Transparent
-                        ),
-                        center = Offset(0.84f, 0.08f),
-                        radius = 560f
+                .drawBehind {
+                    drawRect(
+                        Brush.radialGradient(
+                            colors = listOf(
+                                Color(0x55D9E8FF),
+                                Color(0x1E9DB9E8),
+                                Color.Transparent
+                            ),
+                            center = Offset(size.width * .84f, size.height * .08f),
+                            radius = size.maxDimension * .9f
+                        )
                     )
-                )
+                }
         )
         Box(
             Modifier
