@@ -208,7 +208,7 @@ fun SruvikApp() {
                     Destination.ModelDetail -> Destination.Models
                     else -> selected
                 },
-                glass = selected == Destination.Home,
+                glass = true,
                 onSelect = {
                     modelsReturnToSruGen = false
                     vaultReturnToSruGen = false
@@ -644,7 +644,7 @@ private fun AppNavigationBar(
     selected: Destination,
     onSelect: (Destination) -> Unit,
     modifier: Modifier = Modifier,
-    glass: Boolean = false
+    glass: Boolean = true
 ) {
     val destinations = listOf(
         Destination.Home,
@@ -654,26 +654,25 @@ private fun AppNavigationBar(
         Destination.Settings
     )
     NavigationBar(
-        modifier = if (glass) {
-            modifier.fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 7.dp)
-                .height(70.dp)
-                .clip(RoundedCornerShape(26.dp))
-                .background(Brush.linearGradient(
-                    listOf(Color(0x66D9E5FA), Color(0x555F6F8C), Color(0x77171D2D), Color(0x881B2335))
-                ))
-                .border(androidx.compose.foundation.BorderStroke(1.dp, Brush.linearGradient(
-                    listOf(Color(0xCCFFFFFF), Color(0x557F9BC8), Color(0x8899B6D9), Color(0x66FFFFFF))
-                )))
-        } else {
-            modifier.fillMaxWidth().height(80.dp)
-                .border(androidx.compose.foundation.BorderStroke(1.dp, Brush.horizontalGradient(
-                    listOf(Color.Transparent, Color(0x665D6C89), Color(0x5575DCEB), Color.Transparent)
-                )))
-        },
-        containerColor = if (glass) Color.Transparent else Color(0xF20B0E16),
+        modifier = modifier.fillMaxWidth()
+            .height(72.dp)
+            .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+            .background(Brush.verticalGradient(
+                listOf(Color(0xD91B2230), Color(0xF20B0E16))
+            ))
+            .border(
+                androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    Brush.horizontalGradient(
+                        listOf(Color.Transparent, Color(0x667F91B5), Color(0x5575DCEB), Color.Transparent)
+                    )
+                ),
+                RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+            ),
+        containerColor = Color.Transparent,
         contentColor = SruvikColors.TextPrimary,
-        tonalElevation = 0.dp
+        tonalElevation = 0.dp,
+        windowInsets = WindowInsets(0, 0, 0, 0)
     ) {
         destinations.forEach { destination ->
             NavigationBarItem(
@@ -689,11 +688,11 @@ private fun AppNavigationBar(
                 label = { Text(destination.label, style = MaterialTheme.typography.labelSmall) },
                 alwaysShowLabel = true,
                 colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = if (glass) Color(0xFFFFFFFF) else SruvikColors.OnPrimary,
-                    selectedTextColor = if (glass) Color(0xFFF1F3FF) else SruvikColors.Primary,
-                    indicatorColor = if (glass) Color(0x55E5EEFF) else SruvikColors.Primary,
-                    unselectedIconColor = if (glass) Color(0xFFB7C0D3) else SruvikColors.TextSecondary,
-                    unselectedTextColor = if (glass) Color(0xFFB7C0D3) else SruvikColors.TextSecondary
+                    selectedIconColor = Color(0xFF07121A),
+                    selectedTextColor = Color(0xFF75E3F3),
+                    indicatorColor = Color(0xFF75E3F3),
+                    unselectedIconColor = Color(0xFFB0B8C9),
+                    unselectedTextColor = Color(0xFFB0B8C9)
                 )
             )
         }
