@@ -568,7 +568,7 @@ private fun AppRow(icon: ImageVector, title: String, subtitle: String, status: S
     )
     GlassCard(Modifier.fillMaxWidth().scale(pressScale)
         .clickable(interactionSource = interactionSource, indication = null, onClick = onClick), RoundedCornerShape(21.dp),
-        Brush.linearGradient(listOf(Color(0x552D3E35), Color(0xAA121D18)))) {
+        Brush.linearGradient(listOf(Color(0xC51B2230), Color(0xF20D111A)))) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(13.dp)) {
             Box(Modifier.size(43.dp).clip(RoundedCornerShape(15.dp)).background(Color.White.copy(alpha = .08f))
@@ -677,7 +677,7 @@ private fun EmptyPage(eyebrow: String, title: String, description: String, icon:
         Text(description, style = MaterialTheme.typography.bodyLarge, color = SruvikColors.TextSecondary)
         Spacer(Modifier.height(10.dp))
         GlassCard(Modifier.fillMaxWidth(), RoundedCornerShape(25.dp),
-            Brush.linearGradient(listOf(Color(0x663B5946), Color(0xAA121D18)))) {
+            Brush.linearGradient(listOf(Color(0xC51B2230), Color(0xF20D111A)))) {
             Column(Modifier.fillMaxWidth().padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Icon(icon, null, tint = SruvikColors.LimeMuted, modifier = Modifier.size(28.dp))
                 Text(message, style = MaterialTheme.typography.titleLarge, color = SruvikColors.TextPrimary)
