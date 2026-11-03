@@ -1098,7 +1098,9 @@ fun SruGenPage(
 
                 selectedImage?.let { id ->
                     Row(
-                        Modifier.fillMaxWidth().background(studioPanel, RoundedCornerShape(8.dp))
+                        Modifier.fillMaxWidth()
+                            .background(Brush.linearGradient(listOf(Color(0xE61B2230), Color(0xF20D111A))), RoundedCornerShape(12.dp))
+                            .border(1.dp, SruvikColors.GlassBorder, RoundedCornerShape(12.dp))
                             .padding(horizontal = 9.dp, vertical = 7.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -1123,7 +1125,9 @@ fun SruGenPage(
                 }
 
                 Row(
-                    Modifier.fillMaxWidth().background(studioPanel, RoundedCornerShape(10.dp))
+                    Modifier.fillMaxWidth()
+                        .background(Brush.linearGradient(listOf(Color(0xF21B2230), Color(0xFA0D111A))), RoundedCornerShape(16.dp))
+                        .border(1.dp, Brush.linearGradient(listOf(Color(0x667E91B8), Color(0x3375DCEB))), RoundedCornerShape(16.dp))
                         .padding(start = 13.dp, end = 5.dp, top = 5.dp, bottom = 5.dp),
                     verticalAlignment = Alignment.Bottom,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
