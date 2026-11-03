@@ -147,6 +147,7 @@ fun SruGenPage(
     var renameText by remember { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<SruGenChat?>(null) }
     var monitorExpanded by remember { mutableStateOf(false) }
+    var headerMenuExpanded by remember { mutableStateOf(false) }
     var resourceStats by remember { mutableStateOf(SruGenResourceStats()) }
     val generationState by SruGenGenerationSession.state.collectAsState()
     val messageListState = rememberLazyListState()
@@ -890,9 +891,33 @@ fun SruGenPage(
                         IconButton(onClick = { monitorExpanded = !monitorExpanded }, modifier = Modifier.size(48.dp)) {
                             Icon(Icons.Rounded.Tune, "Device performance details", tint = studioSecondary)
                         }
-                    }
-                    IconButton(onClick = { newChat() }, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Rounded.Add, "New conversation", tint = studioAccent)
+                        IconButton(onClick = { newChat() }, modifier = Modifier.size(48.dp)) {
+                            Icon(Icons.Rounded.Add, "New conversation", tint = studioAccent)
+                        }
+                    } else {
+                        Box {
+                            IconButton(onClick = { headerMenuExpanded = true }, modifier = Modifier.size(48.dp)) {
+                                Icon(Icons.Rounded.MoreVert, "More studio actions", tint = studioSecondary)
+                            }
+                            DropdownMenu(expanded = headerMenuExpanded, onDismissRequest = { headerMenuExpanded = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Device performance") },
+                                    leadingIcon = { Icon(Icons.Rounded.Tune, null) },
+                                    onClick = {
+                                        headerMenuExpanded = false
+                                        monitorExpanded = !monitorExpanded
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("New conversation") },
+                                    leadingIcon = { Icon(Icons.Rounded.Add, null) },
+                                    onClick = {
+                                        headerMenuExpanded = false
+                                        newChat()
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             }
