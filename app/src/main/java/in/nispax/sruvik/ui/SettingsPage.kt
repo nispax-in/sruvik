@@ -143,7 +143,7 @@ fun SettingsPage(
     val offlineVisible = matches("offline", "internet", "privacy", "on device", "local", "network")
 
     Column(
-        Modifier.fillMaxSize().padding(horizontal = 22.dp).padding(top = 26.dp, bottom = 112.dp),
+        Modifier.fillMaxSize().padding(horizontal = 22.dp).padding(top = 26.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(13.dp)
     ) {
         Text("PERSONALISE YOUR SPACE", style = MaterialTheme.typography.labelLarge,
