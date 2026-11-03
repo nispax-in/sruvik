@@ -668,14 +668,16 @@ fun SrukryptPage(autoLockMinutes: Int) {
                 style = MaterialTheme.typography.bodyLarge, color = SruvikColors.TextSecondary)
         }
 
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp))
-                .background(SruvikColors.Surface)
-                .border(1.dp, Color.White.copy(alpha = .10f), RoundedCornerShape(17.dp))
-                .padding(13.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ObsidianGlassBox(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(17.dp),
+            accent = SruvikColors.Primary
         ) {
+            Row(
+                Modifier.fillMaxWidth().padding(13.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
             Icon(Icons.Rounded.Security, null, tint = SruvikColors.Lime, modifier = Modifier.size(22.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("AES-256-GCM · Android Keystore", style = MaterialTheme.typography.labelMedium,
@@ -717,14 +719,16 @@ fun SrukryptPage(autoLockMinutes: Int) {
         }
         if (sessionKey == null) {
             Spacer(Modifier.height(12.dp))
-            Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp))
-                    .background(Brush.linearGradient(listOf(SruvikColors.SurfaceElevated, SruvikColors.Surface, SruvikColors.Background)))
-                    .border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(28.dp))
-                    .padding(22.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(13.dp)
+            ObsidianGlassBox(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(28.dp),
+                accent = SruvikColors.SecondaryAccent
             ) {
+                Column(
+                    Modifier.fillMaxWidth().padding(22.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(13.dp)
+                ) {
                 Box(Modifier.size(76.dp).clip(CircleShape)
                     .background(SruvikColors.Primary.copy(alpha = .16f)),
                     contentAlignment = Alignment.Center) {
@@ -738,7 +742,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                     "Unlock only with Android's system device authentication: your enrolled fingerprint/face or device PIN, pattern or password. A reset passphrase can never unlock this vault.",
                     style = MaterialTheme.typography.bodyMedium, color = SruvikColors.TextSecondary
                 )
-                Button(
+                ObsidianPrimaryButton(
                     onClick = { requestUnlock() },
                     enabled = !busy,
                     modifier = Modifier.fillMaxWidth().height(52.dp),
@@ -781,16 +785,15 @@ fun SrukryptPage(autoLockMinutes: Int) {
                 ) {
                     Icon(Icons.Rounded.Settings, "Srukrypt settings", tint = SruvikColors.TextPrimary)
                 }
-                OutlinedButton(onClick = { lockVault() }, shape = RoundedCornerShape(14.dp)) {
+                ObsidianSecondaryButton(onClick = { lockVault() }) {
                     Icon(Icons.Rounded.Lock, null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
                     Text("Lock now")
                 }
                 Spacer(Modifier.width(7.dp))
-                Button(
+                ObsidianPrimaryButton(
                     onClick = { beginImport() },
                     shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = SruvikColors.Lime)
                 ) {
                     Icon(Icons.Rounded.Add, null)
                     Text("Add")
@@ -821,11 +824,10 @@ fun SrukryptPage(autoLockMinutes: Int) {
                     verticalArrangement = Arrangement.spacedBy(11.dp)
                 ) {
                     items(entries, key = { it.id }) { entry ->
-                        Column(
-                            Modifier.clip(RoundedCornerShape(19.dp))
-                                .background(SruvikColors.SurfaceElevated)
-                                .border(1.dp, Color.White.copy(alpha = .10f), RoundedCornerShape(19.dp))
-                                .padding(9.dp),
+                        ObsidianGlassPanel(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(19.dp),
+                            contentPadding = PaddingValues(9.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Image(
