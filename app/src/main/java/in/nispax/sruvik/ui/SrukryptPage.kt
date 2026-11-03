@@ -689,6 +689,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                 Text("OFFLINE", modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
                     color = SruvikColors.Lime, style = MaterialTheme.typography.labelSmall)
             }
+            }
         }
 
         if (busy || errorText.isNotBlank() || infoText.isNotBlank()) {
@@ -745,9 +746,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                 ObsidianPrimaryButton(
                     onClick = { requestUnlock() },
                     enabled = !busy,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = RoundedCornerShape(17.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = SruvikColors.Lime)
+                    modifier = Modifier.fillMaxWidth().height(52.dp)
                 ) {
                     if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                     else Icon(Icons.Rounded.Fingerprint, null)
@@ -771,6 +770,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                     }
                 }
             }
+            }
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -792,8 +792,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                 }
                 Spacer(Modifier.width(7.dp))
                 ObsidianPrimaryButton(
-                    onClick = { beginImport() },
-                    shape = RoundedCornerShape(14.dp),
+                    onClick = { beginImport() }
                 ) {
                     Icon(Icons.Rounded.Add, null)
                     Text("Add")
