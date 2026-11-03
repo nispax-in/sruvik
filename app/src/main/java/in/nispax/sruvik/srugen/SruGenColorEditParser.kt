@@ -5,20 +5,6 @@ package `in`.nispax.sruvik.srugen
  * of asking an img2img model to regenerate the entire garment/body crop.
  */
 object SruGenColorEditParser {
-    private val targetColors = linkedMapOf(
-        "red" to 0f,
-        "orange" to 30f,
-        "yellow" to 55f,
-        "green" to 120f,
-        "teal" to 175f,
-        "cyan" to 190f,
-        "blue" to 220f,
-        "purple" to 275f,
-        "violet" to 275f,
-        "pink" to 330f,
-        "brown" to 25f
-    )
-
     fun targetColor(prompt: String): String? {
         val normalized = prompt.lowercase()
         val hasEditVerb = Regex("\\b(change|edit|recolor|recolour|turn|make|replace|switch)\\b")
