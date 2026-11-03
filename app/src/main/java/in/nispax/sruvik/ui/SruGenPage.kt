@@ -1366,7 +1366,7 @@ internal fun isSruGenClothingEditInstruction(prompt: String): Boolean {
     val normalized = prompt.lowercase()
     val hasEditVerb = Regex("\\b(change|edit|recolor|recolour|turn|make|replace|switch|give)\\b")
         .containsMatchIn(normalized)
-    val hasClothingTarget = Regex("\\b(clothes|clothing|outfit|shirt|t-shirt|tee|jacket|coat|hoodie|sweater|dress|trousers|pants|jeans)\\b")
+    val hasClothingTarget = Regex("\\b(clothes|clothing|outfit|shirt|t-shirt|tee|blazer|jacket|coat|hoodie|sweater|cardigan|vest|blouse|tank top|undershirt|turtleneck|dress|gown|trousers|pants|jeans|shorts|skirt)\\b")
         .containsMatchIn(normalized)
     val hasHairTarget = Regex("\\b(hair|hairstyle|hairstyles)\\b").containsMatchIn(normalized)
     return (hasEditVerb && hasClothingTarget) || (hasEditVerb && hasHairTarget)
