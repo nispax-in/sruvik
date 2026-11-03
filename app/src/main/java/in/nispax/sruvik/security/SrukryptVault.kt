@@ -22,9 +22,9 @@ import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 data class SrukryptUnlockChallenge internal constructor(
-    internal val cipher: Cipher,
     internal val isNewVault: Boolean,
     internal val pendingDataKey: ByteArray?,
+    internal val wrappedIv: ByteArray?,
     internal val wrappedDataKey: ByteArray?,
     val allowedAuthenticators: Int,
     internal val keyAliasId: String = "master",
@@ -72,6 +72,9 @@ object SrukryptVault {
     private const val FORMAT_VERSION = 1
     private const val IV_BYTES = 12
     private const val TAG_BITS = 128
+    // Android's device-credential fallback can authorize a time-based Keystore key.
+    // Keep this window short; it is consumed immediately after the system prompt.
+    private const val AUTHORIZATION_WINDOW_SECONDS = 15
     const val MAX_IMAGE_BYTES = 24 * 1024 * 1024
 
     private val wrapAad = "Srukrypt:data-key:v1".toByteArray(Charsets.UTF_8)
@@ -156,8 +159,6 @@ object SrukryptVault {
         ).filter { (aliasId, file) ->
             file.isFile && hasMasterKey(aliasId)
         }.sortedByDescending { (aliasId, _) ->
-            // Prefer a key authorized by Android's device credential so a legacy
-            // biometric-only repair envelope cannot hide the PIN/pattern/password key.
             val flags = runCatching { authenticatorFlagsForKey(getMasterKey(aliasId)) }
                 .getOrDefault(0)
             (flags and BiometricManagerFlags.DEVICE_CREDENTIAL) != 0
@@ -168,19 +169,20 @@ object SrukryptVault {
             var envelope: Pair<ByteArray, ByteArray>? = null
             try {
                 val masterKey = getMasterKey(keyAliasId)
+                val validitySeconds = keyAuthenticationValiditySeconds(masterKey)
+                require(validitySeconds > 0) {
+                    "This vault was created with an older biometric-only key. A device PIN/pattern/password cannot authorize that legacy key. Your encrypted files were preserved. Use the reset phrase only if you choose to erase this vault."
+                }
                 val allowedAuthenticators = authenticatorFlagsForKey(masterKey)
                 envelope = readEnvelope(wrappedFile, WRAP_MAGIC)
-                val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-                cipher.init(
-                    Cipher.DECRYPT_MODE,
-                    masterKey,
-                    GCMParameterSpec(TAG_BITS, envelope.first)
-                )
-                cipher.updateAAD(wrapAad)
+
+                // Do not initialize Cipher here. Device-credential fallback is
+                // time-based authentication: Android must first complete its system
+                // prompt, then Cipher.init consumes the Keystore authorization.
                 return SrukryptUnlockChallenge(
-                    cipher,
                     false,
                     null,
+                    envelope.first,
                     envelope.second,
                     allowedAuthenticators,
                     keyAliasId,
@@ -192,7 +194,7 @@ object SrukryptVault {
                 lastCandidateFailure = failure
                 android.util.Log.w(
                     "Srukrypt",
-                    "A preserved Srukrypt system-authentication key could not be initialized; trying the other preserved envelope.",
+                    "A preserved Srukrypt key envelope could not be prepared for system device authentication.",
                     failure
                 )
             }
@@ -207,9 +209,7 @@ object SrukryptVault {
             )
         }
 
-        // Old passphrase-only vaults cannot be opened under the corrected security
-        // model. Never mint a new Keystore key beside legacy ciphertext. The saved
-        // phrase can authorize only a destructive reset of this legacy vault.
+        // Passphrase-only legacy vaults can never be opened by a new Keystore key.
         if (hasResetPassphrase(context)) {
             throw SecurityException(
                 "This is a legacy passphrase-only Srukrypt vault. Passphrases can no longer unlock vault contents; they are reset-only. Use “Forgot password? Reset vault” to erase this legacy vault, then create a new one with Android device authentication."
@@ -222,32 +222,30 @@ object SrukryptVault {
             )
         }
 
-        // New vault or an interrupted first setup with no encrypted entries.
-        // Reuse an orphan primary alias rather than accumulating Keystore keys.
-        val masterKey = if (hasMasterKey(MASTER_ALIAS_ID)) {
-            getMasterKey(MASTER_ALIAS_ID)
-        } else {
-            createMasterKey(MASTER_ALIAS_ID)
+        // The previous build could leave an auth-per-operation alias behind after
+        // the combined biometric/device-credential prompt failed. It has no wrapped
+        // data key or ciphertext yet, so replace only that empty orphan key.
+        var masterKey = if (hasMasterKey(MASTER_ALIAS_ID)) getMasterKey(MASTER_ALIAS_ID) else null
+        if (masterKey != null && keyAuthenticationValiditySeconds(masterKey) <= 0) {
+            val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+            keyStore.deleteEntry(SrukryptStorage.keyAlias(MASTER_ALIAS_ID))
+            masterKey = null
         }
+        if (masterKey == null) {
+            masterKey = createMasterKey(MASTER_ALIAS_ID)
+        }
+
         val allowedAuthenticators = authenticatorFlagsForKey(masterKey)
         val dataKey = ByteArray(32).also { SecureRandom().nextBytes(it) }
-        return try {
-            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            cipher.init(Cipher.ENCRYPT_MODE, masterKey)
-            cipher.updateAAD(wrapAad)
-            SrukryptUnlockChallenge(
-                cipher,
-                true,
-                dataKey,
-                null,
-                allowedAuthenticators,
-                MASTER_ALIAS_ID,
-                WRAPPED_KEY_FILE
-            )
-        } catch (failure: Exception) {
-            Arrays.fill(dataKey, 0)
-            throw failure
-        }
+        return SrukryptUnlockChallenge(
+            true,
+            dataKey,
+            null,
+            null,
+            allowedAuthenticators,
+            MASTER_ALIAS_ID,
+            WRAPPED_KEY_FILE
+        )
     }
 
     /**
@@ -296,6 +294,12 @@ object SrukryptVault {
         }
     }
 
+    private fun keyAuthenticationValiditySeconds(key: SecretKey): Int {
+        val keyInfo = SecretKeyFactory.getInstance("AES", "AndroidKeyStore")
+            .getKeySpec(key, KeyInfo::class.java) as KeyInfo
+        return keyInfo.userAuthenticationValidityDurationSeconds
+    }
+
     private fun authenticatorFlagsForKey(key: SecretKey): Int {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             return BiometricManagerFlags.BIOMETRIC_STRONG
@@ -317,28 +321,40 @@ object SrukryptVault {
     }
 
     @Throws(Exception::class)
-    fun finishUnlock(
-        context: Context,
-        challenge: SrukryptUnlockChallenge,
-        authenticatedCipher: Cipher
-    ): ByteArray {
+    fun finishUnlock(context: Context, challenge: SrukryptUnlockChallenge): ByteArray {
+        val masterKey = getMasterKey(challenge.keyAliasId)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.updateAAD(wrapAad)
+
         if (challenge.isNewVault) {
             val dataKey = challenge.pendingDataKey
                 ?: throw SecurityException("Missing initial vault key.")
-            val encryptedKey = authenticatedCipher.doFinal(dataKey)
-            val iv = authenticatedCipher.iv ?: throw SecurityException("Missing encryption nonce.")
-            writeEnvelopeAtomically(
-                File(SrukryptStorage.vaultDirectory(context), challenge.wrappedFileName),
-                WRAP_MAGIC,
-                iv,
-                encryptedKey
-            )
+            // Cipher.init happens only AFTER Android completed the system prompt.
+            cipher.init(Cipher.ENCRYPT_MODE, masterKey)
+            val encryptedKey = cipher.doFinal(dataKey)
+            val iv = cipher.iv ?: throw SecurityException("Missing encryption nonce.")
+            try {
+                writeEnvelopeAtomically(
+                    File(SrukryptStorage.vaultDirectory(context), challenge.wrappedFileName),
+                    WRAP_MAGIC,
+                    iv,
+                    encryptedKey
+                )
+            } finally {
+                Arrays.fill(iv, 0)
+                Arrays.fill(encryptedKey, 0)
+            }
             return dataKey.copyOf()
         }
 
         val wrapped = challenge.wrappedDataKey
             ?: throw SecurityException("Missing wrapped vault key.")
-        val dataKey = authenticatedCipher.doFinal(wrapped)
+        val iv = challenge.wrappedIv
+            ?: throw SecurityException("Missing wrapped vault nonce.")
+        // The non-CryptoObject BiometricPrompt flow authorizes this short-lived key
+        // after authenticating either a strong biometric or device credential.
+        cipher.init(Cipher.DECRYPT_MODE, masterKey, GCMParameterSpec(TAG_BITS, iv))
+        val dataKey = cipher.doFinal(wrapped)
         if (dataKey.size != 32) {
             Arrays.fill(dataKey, 0)
             throw SecurityException("The Srukrypt key envelope is invalid.")
@@ -348,6 +364,7 @@ object SrukryptVault {
 
     fun discardChallenge(challenge: SrukryptUnlockChallenge) {
         challenge.pendingDataKey?.let { Arrays.fill(it, 0) }
+        challenge.wrappedIv?.let { Arrays.fill(it, 0) }
         challenge.wrappedDataKey?.let { Arrays.fill(it, 0) }
     }
 
@@ -518,22 +535,22 @@ object SrukryptVault {
             .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
             .setRandomizedEncryptionRequired(true)
             .setUserAuthenticationRequired(true)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            builder.setUnlockedDeviceRequired(true)
-        }
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Android explicitly requires a time-based key when a prompt can fall
+            // back to the device credential. Per-operation keys (timeout 0) require
+            // a CryptoObject and cannot use PIN/pattern/password fallback.
             builder.setUserAuthenticationParameters(
-                0,
+                AUTHORIZATION_WINDOW_SECONDS,
                 KeyProperties.AUTH_BIOMETRIC_STRONG or KeyProperties.AUTH_DEVICE_CREDENTIAL
             )
-            // A newly enrolled fingerprint must not orphan the device-credential fallback.
-            builder.setInvalidatedByBiometricEnrollment(false)
         } else {
-            builder.setInvalidatedByBiometricEnrollment(true)
+            // Pre-Android 11: use the system confirm-device-credential screen.
+            // The deprecated API maps a positive duration to biometric OR credential.
             @Suppress("DEPRECATION")
-            builder.setUserAuthenticationValidityDurationSeconds(-1)
+            builder.setUserAuthenticationValidityDurationSeconds(AUTHORIZATION_WINDOW_SECONDS)
         }
+        // Adding/removing fingerprints must not orphan the device-credential key.
+        builder.setInvalidatedByBiometricEnrollment(false)
 
         generator.init(builder.build())
         return generator.generateKey()
