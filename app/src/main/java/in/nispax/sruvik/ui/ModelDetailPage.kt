@@ -252,7 +252,7 @@ fun ModelDetailPage(
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState())
-            .padding(horizontal = 18.dp).padding(top = 16.dp, bottom = 128.dp),
+            .padding(horizontal = 18.dp).padding(top = 16.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(15.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
