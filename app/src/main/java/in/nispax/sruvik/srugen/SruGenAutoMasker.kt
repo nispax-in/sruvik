@@ -3,6 +3,7 @@ package `in`.nispax.sruvik.srugen
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.graphics.Rect
 import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.framework.image.ByteBufferExtractor
@@ -84,6 +85,107 @@ object SruGenAutoMasker {
             )
         } finally {
             mask.values.fill(0)
+        }
+    }
+
+    /**
+     * A pure colour change should preserve the garment's real folds, stitching,
+     * shadows and silhouette. Diffusion img2img can hallucinate a new torso, so
+     * recolour only the clothes segmentation mask and leave every other pixel
+     * sourced directly from the original photo.
+     */
+    fun recolorClothing(
+        context: Context,
+        sourceImage: Bitmap,
+        targetColor: String
+    ): Bitmap {
+        require(!sourceImage.isRecycled) { "The original photo was released before recolouring." }
+        val width = sourceImage.width
+        val height = sourceImage.height
+        require(width > 0 && height > 0)
+        val original = IntArray(width * height)
+        sourceImage.getPixels(original, 0, width, 0, 0, width, height)
+        var mask: SegmentationMask? = null
+        var alphaMask: ByteArray? = null
+        try {
+            val clothes = segment(context, sourceImage) { label -> label == CLOTHES_LABEL }
+            mask = clothes
+            val selected = clothes.values.count { (it.toInt() and 0xff) > 0 }
+            val ratio = selected.toFloat() / clothes.values.size.toFloat()
+            require(ratio >= 0.008f) {
+                "SruGen could not find clothing in this photo. Try a clear, well-lit image showing the person's outfit."
+            }
+            require(ratio <= 0.90f) {
+                "The clothing mask was too broad to recolour safely. Try a closer photo with one clearly visible person."
+            }
+            val feather = soften(clothes.values, clothes.width, clothes.height, expansionRadius = 0)
+            alphaMask = feather
+            val outputPixels = original.copyOf()
+            val hsv = FloatArray(3)
+            val targetHue = when (targetColor.lowercase()) {
+                "red" -> 0f
+                "orange", "brown" -> 28f
+                "yellow" -> 55f
+                "green" -> 120f
+                "teal" -> 175f
+                "cyan" -> 190f
+                "blue" -> 220f
+                "purple", "violet" -> 275f
+                "pink" -> 330f
+                else -> null
+            }
+
+            for (y in 0 until height) {
+                val maskY = (y.toLong() * clothes.height / height).toInt()
+                    .coerceIn(0, clothes.height - 1)
+                for (x in 0 until width) {
+                    val maskX = (x.toLong() * clothes.width / width).toInt()
+                        .coerceIn(0, clothes.width - 1)
+                    val alpha = feather[maskY * clothes.width + maskX].toInt() and 0xff
+                    if (alpha == 0) continue
+                    val index = y * width + x
+                    val old = original[index]
+                    Color.RGBToHSV(Color.red(old), Color.green(old), Color.blue(old), hsv)
+                    when (targetColor.lowercase()) {
+                        "black" -> {
+                            hsv[0] = 0f
+                            hsv[1] = minOf(hsv[1], 0.18f)
+                            hsv[2] = (hsv[2] * 0.38f).coerceAtLeast(0.035f)
+                        }
+                        "white" -> {
+                            hsv[0] = 0f
+                            hsv[1] = minOf(hsv[1], 0.08f)
+                            hsv[2] = (0.68f + hsv[2] * 0.32f).coerceAtMost(1f)
+                        }
+                        "gray", "grey" -> {
+                            hsv[0] = 0f
+                            hsv[1] = minOf(hsv[1], 0.07f)
+                            hsv[2] = (0.30f + hsv[2] * 0.48f).coerceIn(0.12f, 0.82f)
+                        }
+                        else -> {
+                            hsv[0] = requireNotNull(targetHue) {
+                                "Choose a supported clothing colour."
+                            }
+                            hsv[1] = maxOf(hsv[1], if (targetColor == "brown") 0.60f else 0.68f)
+                            if (targetColor == "brown") hsv[2] = (hsv[2] * 0.68f).coerceAtLeast(0.08f)
+                        }
+                    }
+                    val changed = Color.HSVToColor(Color.alpha(old), hsv)
+                    val inverse = 255 - alpha
+                    val red = ((Color.red(old) * inverse) + (Color.red(changed) * alpha)) / 255
+                    val green = ((Color.green(old) * inverse) + (Color.green(changed) * alpha)) / 255
+                    val blue = ((Color.blue(old) * inverse) + (Color.blue(changed) * alpha)) / 255
+                    outputPixels[index] = Color.argb(Color.alpha(old), red, green, blue)
+                }
+            }
+            return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also {
+                it.setPixels(outputPixels, 0, width, 0, 0, width, height)
+                outputPixels.fill(0)
+            }
+        } finally {
+            original.fill(0)
+            alphaMask?.fill(0)
+            mask?.values?.fill(0)
         }
     }
 
@@ -338,12 +440,17 @@ object SruGenAutoMasker {
      * separable box blur. This avoids a hard pasted-on edge and keeps unmasked
      * areas from being changed by the img2img result.
      */
-    private fun soften(binary: ByteArray, width: Int, height: Int): ByteArray {
+    private fun soften(
+        binary: ByteArray,
+        width: Int,
+        height: Int,
+        expansionRadius: Int = 2
+    ): ByteArray {
         val expanded = ByteArray(binary.size)
         for (y in 0 until height) {
             for (x in 0 until width) {
                 var selected = false
-                loop@ for (dy in -2..2) for (dx in -2..2) {
+                loop@ for (dy in -expansionRadius..expansionRadius) for (dx in -expansionRadius..expansionRadius) {
                     val xx = x + dx
                     val yy = y + dy
                     if (xx in 0 until width && yy in 0 until height &&
