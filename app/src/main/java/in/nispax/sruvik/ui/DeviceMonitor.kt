@@ -79,6 +79,7 @@ private data class DeviceSnapshot(
     val thermalStatus: String,
     val rxBytesPerSecond: Long?,
     val txBytesPerSecond: Long?,
+    val networkCountersSupported: Boolean,
     val sampledAtElapsed: Long
 )
 
@@ -333,12 +334,22 @@ fun DeviceMonitorPage() {
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text("DOWNLOAD · LAST 32 SAMPLES", style = MaterialTheme.typography.labelSmall,
                                     color = ObsidianTokens.TextMuted)
-                                InstrumentSparkline(state.networkRxHistory, ObsidianTokens.Cyan)
+                                if (state.networkRxHistory.size >= 2) {
+                                    InstrumentSparkline(state.networkRxHistory, ObsidianTokens.Cyan)
+                                } else {
+                                    Text("Collecting trend…", style = MaterialTheme.typography.labelSmall,
+                                        color = ObsidianTokens.TextMuted)
+                                }
                             }
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text("UPLOAD · LAST 32 SAMPLES", style = MaterialTheme.typography.labelSmall,
                                     color = ObsidianTokens.TextMuted)
-                                InstrumentSparkline(state.networkTxHistory, ObsidianTokens.Violet)
+                                if (state.networkTxHistory.size >= 2) {
+                                    InstrumentSparkline(state.networkTxHistory, ObsidianTokens.Violet)
+                                } else {
+                                    Text("Collecting trend…", style = MaterialTheme.typography.labelSmall,
+                                        color = ObsidianTokens.TextMuted)
+                                }
                             }
                         }
                     }
@@ -444,6 +455,10 @@ private fun readDeviceSnapshot(
     val rawTemp = battery?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1) ?: -1
     val batteryTemp = if (rawTemp >= 0) rawTemp / 10f else null
 
+    val uid = Process.myUid()
+    val networkCountersSupported = TrafficStats.getUidRxBytes(uid) >= 0L &&
+        TrafficStats.getUidTxBytes(uid) >= 0L
+
     val thermal = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         val power = context.getSystemService(Context.POWER_SERVICE) as PowerManager
         when (power.currentThermalStatus) {
@@ -473,6 +488,7 @@ private fun readDeviceSnapshot(
         thermalStatus = thermal,
         rxBytesPerSecond = rxRate,
         txBytesPerSecond = txRate,
+        networkCountersSupported = networkCountersSupported,
         sampledAtElapsed = SystemClock.elapsedRealtime()
     )
 }
