@@ -134,7 +134,10 @@ fun DeviceMonitorPage() {
                 previousTx = tx
                 delay(2500)
             } catch (failure: Exception) {
-                state = MonitorUiState(error = failure.message ?: "Android did not return a resource snapshot.")
+                state = MonitorUiState(
+                    snapshot = state.snapshot,
+                    error = failure.message ?: "Android did not return a resource snapshot."
+                )
                 delay(5000)
             }
         }
@@ -169,11 +172,18 @@ fun DeviceMonitorPage() {
                         color = ObsidianTokens.Cyan, letterSpacing = 1.7.sp)
                     Spacer(Modifier.weight(1f))
                     Box(Modifier.clip(CircleShape).background(
-                        (if (data != null) ObsidianTokens.Cyan else ObsidianTokens.Amber).copy(alpha = .12f)
+                        (if (data != null && state.error == null) ObsidianTokens.Cyan else ObsidianTokens.Amber).copy(alpha = .12f)
                     ).border(1.dp, ObsidianTokens.Border, CircleShape).padding(horizontal = 10.dp, vertical = 6.dp)) {
-                        Text(if (!resumed) "PAUSED" else if (data != null) "LIVE · 2.5 S" else "SAMPLING",
+                        Text(
+                            when {
+                                !resumed -> "PAUSED"
+                                state.error != null && data != null -> "STALE"
+                                data != null -> "LIVE · 2.5 S"
+                                else -> "SAMPLING"
+                            },
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (data != null) ObsidianTokens.Cyan else ObsidianTokens.Amber)
+                            color = if (data != null && state.error == null) ObsidianTokens.Cyan else ObsidianTokens.Amber
+                        )
                     }
                 }
                 Text("Device instruments", style = MaterialTheme.typography.displaySmall,
@@ -201,6 +211,7 @@ fun DeviceMonitorPage() {
                         bands = ramBands,
                         status = when {
                             !resumed -> "Paused · last sample ${sampleAgeSeconds ?: 0L}s old"
+                            state.error != null -> "Stale · last good sample ${sampleAgeSeconds ?: 0L}s old"
                             data.lowMemory -> "Android low-memory signal"
                             else -> "Live · Android MemoryInfo"
                         }
