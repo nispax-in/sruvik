@@ -25,8 +25,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import android.os.Build
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
@@ -268,7 +271,17 @@ private fun ObsidianGlassHero(
         Image(
             painter = painterResource(R.drawable.sruvik_glass_art),
             contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .then(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) Modifier.blur(16.dp) else Modifier),
+            contentScale = ContentScale.Crop
+        )
+        // A low-opacity sharp transmission layer keeps the scene recognisable
+        // while the diffused image underneath supplies the frosted-glass depth.
+        Image(
+            painter = painterResource(R.drawable.sruvik_glass_art),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize().alpha(.16f),
             contentScale = ContentScale.Crop
         )
 
