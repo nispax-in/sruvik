@@ -491,7 +491,7 @@ fun SruGenPage(
                     mode = SruGenMode.PROMPT_EDIT
                 }
                 info = if (mode == SruGenMode.PROMPT_EDIT) {
-                    "Image attached. Edit clothes mode selected; choose Create to use text-to-image instead."
+                    "Image attached. Edit photo mode selected; choose Create to use text-to-image instead."
                 } else {
                     "Image attached and encrypted in this local conversation."
                 }
@@ -1109,7 +1109,7 @@ fun SruGenPage(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     StudioModeControl("Create", mode == SruGenMode.TEXT_TO_IMAGE) { mode = SruGenMode.TEXT_TO_IMAGE }
-                    StudioModeControl("Edit clothes", mode == SruGenMode.PROMPT_EDIT) { mode = SruGenMode.PROMPT_EDIT }
+                    StudioModeControl("Edit photo", mode == SruGenMode.PROMPT_EDIT) { mode = SruGenMode.PROMPT_EDIT }
                     StudioModeControl("Remove background", mode == SruGenMode.REMOVE_BACKGROUND) { mode = SruGenMode.REMOVE_BACKGROUND }
                 }
 
