@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,6 +70,11 @@ fun SruvikApp() {
     var sruGenMemoryEnabled by remember { mutableStateOf(SruvikPreferences.sruGenMemoryEnabled(context)) }
     var selected by remember { mutableStateOf(Destination.Home) }
     var selectedModelId by remember { mutableStateOf("sd15-mediapipe") }
+
+    // Tool destinations return to their launch point with Android system Back.
+    BackHandler(enabled = selected != Destination.Home) {
+        selected = if (selected == Destination.ModelDetail) Destination.Models else Destination.Home
+    }
     Box(Modifier.fillMaxSize().background(SruvikColors.Background)
         .drawBehind { drawAtmosphere() }
         .windowInsetsPadding(WindowInsets.safeDrawing)) {
@@ -119,16 +125,18 @@ fun SruvikApp() {
                 Destination.Srukrypt -> SrukryptPage(SruvikPreferences.vaultAutoLockMinutes(context))
             }
         }
-        Text(
-            "© ${Year.now().value} NISPAX InfoTech. All Rights Reserved",
-            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                .padding(horizontal = 18.dp).padding(bottom = 94.dp),
-            style = MaterialTheme.typography.labelSmall,
-            color = SruvikColors.TextMuted,
-            textAlign = TextAlign.Center
-        )
-        FloatingDock(selected, { selected = it },
-            Modifier.align(Alignment.BottomCenter).padding(horizontal = 20.dp, vertical = 12.dp))
+        if (selected != Destination.SruGen) {
+            Text(
+                "© ${Year.now().value} NISPAX InfoTech. All Rights Reserved",
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                    .padding(horizontal = 18.dp).padding(bottom = 94.dp),
+                style = MaterialTheme.typography.labelSmall,
+                color = SruvikColors.TextMuted,
+                textAlign = TextAlign.Center
+            )
+            FloatingDock(selected, { selected = it },
+                Modifier.align(Alignment.BottomCenter).padding(horizontal = 20.dp, vertical = 12.dp))
+        }
     }
     if (!profile.isComplete) {
         FirstRunProfileDialog { completed ->
