@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -132,7 +133,7 @@ fun HomeScreenLiquidGlass(
                                 )
                             )
                             .border(1.dp, Color(0x88FFFFFF), CircleShape)
-                            .clickable(onClick = onSettings),
+                            .clickable(role = Role.Button, onClickLabel = "Open profile and settings", onClick = onSettings),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -426,7 +427,7 @@ private fun ObsidianGlassHero(
                         )
                     )
                     .border(1.dp, Color(0xB3FFFFFF), RoundedCornerShape(18.dp))
-                    .clickable(onClick = onCreate)
+                    .clickable(role = Role.Button, onClickLabel = "Open SruGen", onClick = onCreate)
                     .padding(start = 17.dp, end = 14.dp, top = 13.dp, bottom = 13.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -460,7 +461,7 @@ private fun WorkspaceGlassRow(
         Modifier
             .fillMaxWidth()
             .heightIn(min = 76.dp)
-            .clickable(onClick = onClick)
+            .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = 2.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(15.dp)
