@@ -34,6 +34,10 @@ object SruGenColorEditParser {
         }
     }
 
+    /** True when a structural edit names clothing and can use the clothing-only composite path. */
+    fun hasClothingTarget(prompt: String): Boolean =
+        garments.containsMatchIn(prompt.lowercase())
+
     /** Returns distinct, explicitly named garment groups; not true garment instances. */
     fun garmentTargets(prompt: String): Set<String> {
         val text = prompt.lowercase()
