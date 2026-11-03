@@ -126,20 +126,25 @@ class NezumiMnnSruGenEngine(
         // recolour than full img2img: preserve the exact garment shape, folds,
         // stitching and illumination rather than asking diffusion to redraw it.
         val targetColor = if (editing) SruGenColorEditParser.targetColor(request.prompt) else null
-        if (targetColor != null) {
+        val targetRegion = if (targetColor != null) SruGenColorEditParser.targetRegion(request.prompt) else null
+        if (targetColor != null && targetRegion != null) {
             SruGenDeviceGuard.requireSafeToStart(context)
-            onProgress(5, "Finding the clothing region")
+            onProgress(5, if (targetRegion == "hair") "Selecting hair while protecting face and skin" else "Selecting clothing while protecting skin and background")
             val original = SruGenAutoMasker.decodeBounded(requireNotNull(request.sourceImage))
             var recoloured: Bitmap? = null
             try {
                 SruGenDeviceGuard.assertSafeToContinue(context)
-                recoloured = SruGenAutoMasker.recolorClothing(context, original, targetColor)
+                recoloured = if (targetRegion == "hair") {
+                    SruGenAutoMasker.recolorHair(context, original, targetColor)
+                } else {
+                    SruGenAutoMasker.recolorClothing(context, original, targetColor)
+                }
                 val png = SruGenAutoMasker.encodePng(requireNotNull(recoloured))
-                onProgress(100, "Done · original clothing texture preserved")
+                onProgress(100, "Done · source texture and pixels outside the selected region preserved")
                 return@withContext SruGenResult(
                     imageBytes = png,
                     mimeType = "image/png",
-                    modelName = "SruGen · precision $targetColor clothing recolour"
+                    modelName = "SruGen · precision $targetColor $targetRegion recolour"
                 )
             } finally {
                 original.recycle()
