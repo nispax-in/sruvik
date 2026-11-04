@@ -62,8 +62,8 @@ object SruGenEngineFactory {
         require(model.canInstall && model.engine != null) {
             "This gallery entry has no installable model payload to remove."
         }
-        require(isInstalled(context, modelId)) {
-            "This model is not currently installed."
+        require(hasRemovableData(context, modelId)) {
+            "No model files or installer data remain to remove."
         }
 
         val wasActive = SruGenActiveModelStore.activeModelId(context) == modelId
@@ -88,6 +88,30 @@ object SruGenEngineFactory {
             SruGenActiveModelStore.selectFallbackAfterRemoval(context, modelId)
         }
         return removedBytes
+    }
+
+    /** True when an install, rollback, staging or managed download artifact remains. */
+    fun hasRemovableData(context: Context, modelId: String): Boolean {
+        val model = SruGenGalleryCatalog.find(modelId) ?: return false
+        return when (model.engine) {
+            SruGenGalleryEngine.MEDIAPIPE_SD15 ->
+                SruGenModelInstaller.hasRemovableData(context)
+            SruGenGalleryEngine.NEZUMI_MNN_SD15 ->
+                SruGenModelPackInstaller.hasRemovableData(context, model)
+            null -> false
+        }
+    }
+
+    /** Total app-owned storage which the delete operation will attempt to reclaim. */
+    fun removableBytes(context: Context, modelId: String): Long {
+        val model = SruGenGalleryCatalog.find(modelId) ?: return 0L
+        return when (model.engine) {
+            SruGenGalleryEngine.MEDIAPIPE_SD15 ->
+                SruGenModelInstaller.removableBytes(context)
+            SruGenGalleryEngine.NEZUMI_MNN_SD15 ->
+                SruGenModelPackInstaller.removableBytes(context, model)
+            null -> 0L
+        }
     }
 
     fun create(context: Context, modelId: String): SruGenEngine {
