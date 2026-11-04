@@ -1108,7 +1108,7 @@ fun SruGenPage(
             }
 
             Column(
-                Modifier.fillMaxWidth().background(Color(0xB80A0E18)).padding(top = 8.dp, bottom = 6.dp),
+                Modifier.fillMaxWidth().background(Color(0x780A0E18)).padding(top = 8.dp, bottom = 6.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 HorizontalDivider(color = SruvikColors.Border.copy(alpha = .75f))
@@ -1125,7 +1125,7 @@ fun SruGenPage(
                 selectedImage?.let { id ->
                     Row(
                         Modifier.fillMaxWidth()
-                            .background(Brush.linearGradient(listOf(Color(0xA8323E55), Color(0x99202A3B))), RoundedCornerShape(14.dp))
+                            .background(Brush.linearGradient(listOf(Color(0x77323E55), Color(0x66202A3B))), RoundedCornerShape(14.dp))
                             .border(1.dp, Brush.linearGradient(listOf(Color(0x887E9ABF), Color(0x4475DCEB), Color(0x335B527F))), RoundedCornerShape(14.dp))
                             .padding(horizontal = 9.dp, vertical = 7.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -1152,7 +1152,7 @@ fun SruGenPage(
 
                 Row(
                     Modifier.fillMaxWidth()
-                        .background(Brush.linearGradient(listOf(Color(0xB82B3548), Color(0xC9111724))), RoundedCornerShape(19.dp))
+                        .background(Brush.linearGradient(listOf(Color(0x7A2B3548), Color(0x88111724))), RoundedCornerShape(19.dp))
                         .border(androidx.compose.foundation.BorderStroke(1.dp, Brush.linearGradient(listOf(Color(0x997E9ABF), Color(0x5575DCEB), Color(0x665B527F)))), RoundedCornerShape(19.dp))
                         .padding(start = 13.dp, end = 5.dp, top = 5.dp, bottom = 5.dp),
                     verticalAlignment = Alignment.Bottom,
@@ -1560,7 +1560,7 @@ private fun SruGenCreativeSpark() {
 private fun SruGenGlassPanel(
     modifier: Modifier = Modifier,
     shape: RoundedCornerShape = RoundedCornerShape(22.dp),
-    fill: Brush = Brush.linearGradient(listOf(Color(0xE61B2230), Color(0xF20D111A))),
+    fill: Brush = Brush.linearGradient(listOf(Color(0x781B2230), Color(0x700D111A))),
     content: @Composable BoxScope.() -> Unit
 ) {
     Box(
@@ -1672,7 +1672,7 @@ private fun SruGenMessageBubble(
             Modifier.widthIn(max = if (isUser) 560.dp else 680.dp)
                 .then(
                     if (isUser) Modifier.clip(RoundedCornerShape(18.dp))
-                        .background(Brush.linearGradient(listOf(Color(0xAA283449), Color(0x99202A3B))))
+                        .background(Brush.linearGradient(listOf(Color(0x77283449), Color(0x66202A3B))))
                         .border(1.dp, Brush.linearGradient(listOf(Color(0x667F95B9), Color(0x3375DCEB), Color(0x445C557D))), RoundedCornerShape(18.dp))
                         .padding(horizontal = 14.dp, vertical = 11.dp)
                     else Modifier.padding(vertical = 2.dp)
@@ -1789,7 +1789,7 @@ private fun ResourceMonitor(
         if (expanded) {
             Column(
                 Modifier.width(188.dp).clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xF2111520))
+                    .background(Color(0x99111520))
                     .border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(18.dp))
                     .padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -1811,7 +1811,7 @@ private fun ResourceMonitor(
         } else {
             Surface(onClick = onToggle,
                 shape = RoundedCornerShape(topStart = 15.dp, bottomStart = 15.dp),
-                color = Color(0xF2111520),
+                color = Color(0x99111520),
                 border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .12f))) {
                 Row(Modifier.padding(horizontal = 9.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
