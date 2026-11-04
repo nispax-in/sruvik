@@ -53,6 +53,39 @@ object SruGenEngineFactory {
         }
     }
 
+    /**
+     * Stops a mapped native runtime before removing its model files. Run on Dispatchers.IO.
+     */
+    fun deleteInstalled(context: Context, modelId: String): Long {
+        val model = SruGenGalleryCatalog.find(modelId)
+            ?: throw IllegalArgumentException("The selected model is not in Sruvik's trusted gallery.")
+        require(model.canInstall && model.engine != null) {
+            "This gallery entry has no installable model payload to remove."
+        }
+        require(isInstalled(context, modelId)) {
+            "This model is not currently installed."
+        }
+
+        if (SruGenActiveModelStore.activeModelId(context) == modelId) {
+            val engine = SruGenEngineRegistry.engine
+            engine?.requestStop()
+            SruGenEngineRegistry.closeAndDetach(engine)
+        }
+
+        val removedBytes = when (model.engine) {
+            SruGenGalleryEngine.MEDIAPIPE_SD15 ->
+                SruGenModelInstaller.deleteInstalled(context)
+            SruGenGalleryEngine.NEZUMI_MNN_SD15 ->
+                SruGenModelPackInstaller.deleteInstalled(context, model)
+            null -> 0L
+        }
+        check(!isInstalled(context, modelId)) {
+            "Sruvik removed the model payload but the installed-state check still sees model files."
+        }
+        SruGenActiveModelStore.selectFallbackAfterRemoval(context, modelId)
+        return removedBytes
+    }
+
     fun create(context: Context, modelId: String): SruGenEngine {
         val model = SruGenGalleryCatalog.find(modelId)
             ?: throw IllegalArgumentException("The selected SruGen model is not in the trusted gallery.")
