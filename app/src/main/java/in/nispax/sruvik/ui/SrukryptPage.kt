@@ -695,7 +695,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
         if (busy || errorText.isNotBlank() || infoText.isNotBlank()) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = if (errorText.isNotBlank()) Color(0xFF42282E) else SruvikColors.SurfaceElevated,
+                color = if (errorText.isNotBlank()) Color(0xFF42282E) else SruvikColors.SurfaceElevated.copy(alpha = .58f),
                 shape = RoundedCornerShape(16.dp),
                 border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .12f))
             ) {
