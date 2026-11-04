@@ -66,7 +66,8 @@ object SruGenEngineFactory {
             "This model is not currently installed."
         }
 
-        if (SruGenActiveModelStore.activeModelId(context) == modelId) {
+        val wasActive = SruGenActiveModelStore.activeModelId(context) == modelId
+        if (wasActive) {
             val engine = SruGenEngineRegistry.engine
             engine?.requestStop()
             SruGenEngineRegistry.closeAndDetach(engine)
@@ -82,7 +83,10 @@ object SruGenEngineFactory {
         check(!isInstalled(context, modelId)) {
             "Sruvik removed the model payload but the installed-state check still sees model files."
         }
-        SruGenActiveModelStore.selectFallbackAfterRemoval(context, modelId)
+        // Uninstalling an inactive gallery entry must not change the user's selection.
+        if (wasActive) {
+            SruGenActiveModelStore.selectFallbackAfterRemoval(context, modelId)
+        }
         return removedBytes
     }
 
