@@ -4,6 +4,7 @@ import android.app.DownloadManager
 import android.content.Context
 import android.net.Uri
 import android.os.StatFs
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -26,16 +28,19 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CloudDownload
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.Storage
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -88,6 +93,9 @@ fun ModelDetailPage(
     val scope = rememberCoroutineScope()
     val model = remember(modelId) { SruGenGalleryCatalog.find(modelId) }
     var installed by remember(modelId) { mutableStateOf(false) }
+    var installedBytes by remember(modelId) { mutableLongStateOf(0L) }
+    var showDeleteConfirmation by remember(modelId) { mutableStateOf(false) }
+    var deleting by remember(modelId) { mutableStateOf(false) }
     var checking by remember(modelId) { mutableStateOf(true) }
     var active by remember(modelId) { mutableStateOf(false) }
     var assessment by remember(modelId) { mutableStateOf<SruGenModelDeviceAssessment?>(null) }
@@ -107,6 +115,9 @@ fun ModelDetailPage(
             Triple(ready, check, activeId == modelId)
         }
         installed = result.first
+        installedBytes = if (result.first) withContext(Dispatchers.IO) {
+            SruGenEngineFactory.installedBytes(context, modelId)
+        } else 0L
         assessment = result.second
         active = result.third
         checking = false
@@ -313,6 +324,7 @@ fun ModelDetailPage(
             actualModel.engine == SruGenGalleryEngine.NEZUMI_MNN_SD15
         } ?: actualModel.baseModel)
         ModelDetailInfo("Model download", if (actualModel.approximateDownloadBytes > 0L) formatBytes(actualModel.approximateDownloadBytes) else "Not available yet")
+        ModelDetailInfo("Installed storage", if (installed) formatBytes(installedBytes) else "Not installed")
         ModelDetailInfo(
             "Free space before install",
             if (actualModel.canInstall) {
@@ -502,6 +514,22 @@ fun ModelDetailPage(
                 Spacer(Modifier.width(8.dp))
                 Text(if (active) "ACTIVE IN SRUGEN" else "SET AS ACTIVE MODEL")
             }
+            Spacer(Modifier.height(4.dp))
+            OutlinedButton(
+                onClick = { showDeleteConfirmation = true },
+                enabled = !deleting && !installing && downloadId < 0L,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Color(0x99FF829B)),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = Color(0xFFFF829B),
+                    disabledContentColor = SruvikColors.TextMuted
+                )
+            ) {
+                Icon(Icons.Rounded.DeleteOutline, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text(if (deleting) "DELETING MODEL…" else "DELETE MODEL")
+            }
         } else {
             ObsidianPrimaryButton(
                 onClick = {
@@ -556,6 +584,53 @@ fun ModelDetailPage(
                 )
             }
         }
+    }
+
+    if (showDeleteConfirmation && model != null) {
+        AlertDialog(
+            onDismissRequest = { if (!deleting) showDeleteConfirmation = false },
+            title = { Text("Delete ${actualModel.name}?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("This permanently removes the model weights, tokenizer/config files, rollback copies, temporary staging data and Sruvik-managed download archive.")
+                    Text("Installed model size: ${formatBytes(installedBytes)}.")
+                    Text("Your encrypted SruGen chats and generated images will not be deleted. If this model is active, Sruvik will stop and close its runtime before removing the files.")
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !deleting,
+                    onClick = {
+                        scope.launch {
+                            deleting = true
+                            error = ""
+                            info = ""
+                            try {
+                                val removedBytes = withContext(Dispatchers.IO) {
+                                    SruGenEngineFactory.deleteInstalled(context, actualModel.id)
+                                }
+                                installed = false
+                                active = false
+                                installedBytes = 0L
+                                downloadId = -1L
+                                info = "${actualModel.name} was removed. Its model files and installer-owned temporary data (about ${formatBytes(removedBytes)}) were cleared. Encrypted chats and generated images were kept."
+                                showDeleteConfirmation = false
+                            } catch (failure: Exception) {
+                                error = failure.message ?: "Sruvik could not completely remove this model."
+                                runCatching { refreshState() }
+                            } finally {
+                                deleting = false
+                            }
+                        }
+                    }
+                ) { Text(if (deleting) "DELETING…" else "Delete model", color = Color(0xFFFF829B)) }
+            },
+            dismissButton = {
+                TextButton(enabled = !deleting, onClick = { showDeleteConfirmation = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 
