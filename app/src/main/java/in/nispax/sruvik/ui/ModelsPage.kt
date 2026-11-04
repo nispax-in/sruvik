@@ -26,8 +26,6 @@ import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.Storage
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -49,6 +47,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.semantics.Role
 import `in`.nispax.sruvik.srugen.SruGenActiveModelStore
 import `in`.nispax.sruvik.srugen.SruGenGalleryAvailability
 import `in`.nispax.sruvik.srugen.SruGenGalleryCatalog
@@ -272,12 +271,16 @@ private fun ModelGalleryCard(
         model.engine == `in`.nispax.sruvik.srugen.SruGenGalleryEngine.NEZUMI_MNN_SD15 -> Color(0xFFBDB9B5)
         else -> Color(0xFFBDB9B5)
     }
-    Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+    ObsidianGlassPanel(
+        modifier = Modifier.fillMaxWidth().clickable(
+            role = Role.Button,
+            onClickLabel = "Open ${model.name}",
+            onClick = onClick
+        ),
         shape = RoundedCornerShape(23.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0x99171D2A)),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Brush.linearGradient(listOf(Color(0x667F91B5), Color(0x2275E3F3), Color(0x44505D75))))
+        contentPadding = PaddingValues(0.dp),
+        accent = accent,
+        verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
         Column(Modifier.fillMaxWidth()) {
             Box(
