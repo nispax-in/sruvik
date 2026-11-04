@@ -249,6 +249,36 @@ object SruGenModelPackInstaller {
         }
     }
 
+    private fun removableInternalArtifacts(context: Context, modelId: String): List<File> {
+        val filesRoot = context.filesDir
+        val modelsRoot = File(filesRoot, "srugen-models")
+        val modelRoot = modelDirectory(context, modelId)
+        return listOf(
+            modelRoot,
+            File(modelsRoot, "${modelId}.next"),
+            File(modelsRoot, "${modelId}.previous")
+        ) + filesRoot.listFiles()
+            .orEmpty()
+            .filter { it.isDirectory && it.name.startsWith("srugen-pack-${modelId}-") }
+    }
+
+    private fun removableDownloadedArchive(context: Context, model: SruGenGalleryModel): File? {
+        val archiveName = model.archiveFileName?.takeIf { it.isNotBlank() } ?: return null
+        require(File(archiveName).name == archiveName) {
+            "The model archive name is not a safe file name."
+        }
+        return context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)?.let { File(it, archiveName) }
+    }
+
+    fun hasRemovableData(context: Context, model: SruGenGalleryModel): Boolean =
+        savedDownloadId(context, model.id) >= 0L ||
+            removableInternalArtifacts(context, model.id).any { it.exists() } ||
+            removableDownloadedArchive(context, model)?.exists() == true
+
+    fun removableBytes(context: Context, model: SruGenGalleryModel): Long =
+        removableInternalArtifacts(context, model.id).sumOf(::ownedArtifactBytes) +
+            (removableDownloadedArchive(context, model)?.let(::ownedArtifactBytes) ?: 0L)
+
     /**
      * Permanently removes one model pack and only the installer-owned files for that ID.
      * Must run on Dispatchers.IO. The install method shares this object's monitor so an
@@ -260,24 +290,11 @@ object SruGenModelPackInstaller {
             "This is not an MNN model pack."
         }
         val filesRoot = context.filesDir
-        val modelsRoot = File(filesRoot, "srugen-models")
-        val modelRoot = modelDirectory(context, model.id)
-        val internalArtifacts = listOf(
-            modelRoot,
-            File(modelsRoot, "${model.id}.next"),
-            File(modelsRoot, "${model.id}.previous")
-        ) + filesRoot.listFiles()
-            .orEmpty()
-            .filter { it.isDirectory && it.name.startsWith("srugen-pack-${model.id}-") }
-
+        val internalArtifacts = removableInternalArtifacts(context, model.id)
         val downloadRoot = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-        val archiveName = model.archiveFileName?.takeIf { it.isNotBlank() }
-        require(archiveName == null || File(archiveName).name == archiveName) {
-            "The model archive name is not a safe file name."
-        }
-        val downloadedArchive = if (downloadRoot != null && archiveName != null) {
-            File(downloadRoot, archiveName)
-        } else null
+        val downloadedArchive = removableDownloadedArchive(context, model)
+        val bytesBefore = internalArtifacts.sumOf(::ownedArtifactBytes) +
+            (downloadedArchive?.let(::ownedArtifactBytes) ?: 0L)
 
         val downloadId = savedDownloadId(context, model.id)
         if (downloadId >= 0L) {
@@ -286,8 +303,6 @@ object SruGenModelPackInstaller {
         }
         clearDownloadId(context, model.id)
 
-        val bytesBefore = internalArtifacts.sumOf(::ownedArtifactBytes) +
-            (downloadedArchive?.let(::ownedArtifactBytes) ?: 0L)
         internalArtifacts.forEach { deleteOwnedArtifact(filesRoot, it) }
         if (downloadRoot != null && downloadedArchive != null) {
             deleteOwnedArtifact(downloadRoot, downloadedArchive)
