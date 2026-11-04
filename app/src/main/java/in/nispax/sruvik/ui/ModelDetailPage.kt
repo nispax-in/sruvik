@@ -142,7 +142,18 @@ fun ModelDetailPage(
                 else SruGenModelPackInstaller.queryDownload(context, downloadId)
             }
             if (status == null) {
-                delay(1000)
+                // A removed DownloadManager row must not leave the page polling forever.
+                // Cancel/clear the stale ID, then re-read any partial files left on disk.
+                withContext(Dispatchers.IO) {
+                    if (legacy) {
+                        SruGenModelInstaller.cancelDownload(context, downloadId)
+                    } else {
+                        SruGenModelPackInstaller.cancelDownload(context, model.id, downloadId)
+                    }
+                }
+                downloadId = -1L
+                error = "The previous download record is no longer available. Any remaining model files can be removed below."
+                refreshState()
                 continue
             }
             downloadPercent = status.percent
@@ -572,7 +583,7 @@ fun ModelDetailPage(
         if (installed || hasRemovableData) {
             OutlinedButton(
                 onClick = { showDeleteConfirmation = true },
-                enabled = !deleting && !installing,
+                enabled = !deleting && !installing && downloadId < 0L,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 shape = RoundedCornerShape(16.dp),
                 border = BorderStroke(1.dp, Color(0x99FF829B)),
