@@ -93,6 +93,7 @@ fun ModelDetailPage(
     val scope = rememberCoroutineScope()
     val model = remember(modelId) { SruGenGalleryCatalog.find(modelId) }
     var installed by remember(modelId) { mutableStateOf(false) }
+    var hasRemovableData by remember(modelId) { mutableStateOf(false) }
     var installedBytes by remember(modelId) { mutableLongStateOf(0L) }
     var showDeleteConfirmation by remember(modelId) { mutableStateOf(false) }
     var deleting by remember(modelId) { mutableStateOf(false) }
@@ -112,14 +113,15 @@ fun ModelDetailPage(
             val ready = model?.let { SruGenEngineFactory.isInstalled(context, it.id) } == true
             val check = model?.let { SruGenModelCompatibility.assess(context, it) }
             val activeId = SruGenActiveModelStore.activeModelId(context)
-            Triple(ready, check, activeId == modelId)
+            val removable = model?.let { SruGenEngineFactory.hasRemovableData(context, it.id) } == true
+            val bytes = model?.let { SruGenEngineFactory.removableBytes(context, it.id) } ?: 0L
+            Triple(Triple(ready, check, activeId == modelId), removable, bytes)
         }
-        installed = result.first
-        installedBytes = if (result.first) withContext(Dispatchers.IO) {
-            SruGenEngineFactory.installedBytes(context, modelId)
-        } else 0L
-        assessment = result.second
-        active = result.third
+        installed = result.first.first
+        hasRemovableData = result.second
+        installedBytes = result.third
+        assessment = result.first.second
+        active = result.first.third
         checking = false
     }
 
@@ -322,7 +324,7 @@ fun ModelDetailPage(
             actualModel.engine == SruGenGalleryEngine.NEZUMI_MNN_SD15
         } ?: actualModel.baseModel)
         ModelDetailInfo("Model download", if (actualModel.approximateDownloadBytes > 0L) formatBytes(actualModel.approximateDownloadBytes) else "Not available yet")
-        ModelDetailInfo("Installed storage", if (installed) formatBytes(installedBytes) else "Not installed")
+        ModelDetailInfo("Model storage", if (hasRemovableData) formatBytes(installedBytes) else "No model files")
         ModelDetailInfo(
             "Free space before install",
             if (actualModel.canInstall) {
@@ -512,22 +514,6 @@ fun ModelDetailPage(
                 Spacer(Modifier.width(8.dp))
                 Text(if (active) "ACTIVE IN SRUGEN" else "SET AS ACTIVE MODEL")
             }
-            Spacer(Modifier.height(4.dp))
-            OutlinedButton(
-                onClick = { showDeleteConfirmation = true },
-                enabled = !deleting && !installing && downloadId < 0L,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, Color(0x99FF829B)),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = Color(0xFFFF829B),
-                    disabledContentColor = SruvikColors.TextMuted
-                )
-            ) {
-                Icon(Icons.Rounded.DeleteOutline, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text(if (deleting) "DELETING MODEL…" else "DELETE MODEL")
-            }
         } else {
             ObsidianPrimaryButton(
                 onClick = {
@@ -582,6 +568,24 @@ fun ModelDetailPage(
                 )
             }
         }
+
+        if (installed || hasRemovableData) {
+            OutlinedButton(
+                onClick = { showDeleteConfirmation = true },
+                enabled = !deleting && !installing,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Color(0x99FF829B)),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = Color(0xFFFF829B),
+                    disabledContentColor = SruvikColors.TextMuted
+                )
+            ) {
+                Icon(Icons.Rounded.DeleteOutline, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text(if (deleting) "DELETING MODEL…" else "DELETE MODEL")
+            }
+        }
     }
 
     if (showDeleteConfirmation && model != null) {
@@ -591,7 +595,7 @@ fun ModelDetailPage(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("This permanently removes the model weights, tokenizer/config files, rollback copies, temporary staging data and Sruvik-managed download archive.")
-                    Text("Installed model size: ${formatBytes(installedBytes)}.")
+                    Text("Model storage to be removed: ${formatBytes(installedBytes)}. This includes leftover download or recovery data when an install did not finish.")
                     Text("Your encrypted SruGen chats and generated images will not be deleted. If this model is active, Sruvik will stop and close its runtime before removing the files.")
                 }
             },
@@ -608,6 +612,7 @@ fun ModelDetailPage(
                                     SruGenEngineFactory.deleteInstalled(context, actualModel.id)
                                 }
                                 installed = false
+                                hasRemovableData = false
                                 active = false
                                 installedBytes = 0L
                                 downloadId = -1L
