@@ -375,7 +375,7 @@ object SruGenActiveModelStore {
         if (!preferences.contains(KEY_ACTIVE_MODEL)) return "sd15-mediapipe"
         val stored = preferences.getString(KEY_ACTIVE_MODEL, null)
         return stored?.takeIf {
-            it.isNotBlank() && SruGenGalleryCatalog.find(it)?.canInstall == true
+            it.isNotBlank() && SruGenGalleryCatalog.find(it) != null
         }.orEmpty()
     }
 
