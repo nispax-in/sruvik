@@ -59,8 +59,8 @@ object SruGenEngineFactory {
     fun deleteInstalled(context: Context, modelId: String): Long {
         val model = SruGenGalleryCatalog.find(modelId)
             ?: throw IllegalArgumentException("The selected model is not in Sruvik's trusted gallery.")
-        require(model.canInstall && model.engine != null) {
-            "This gallery entry has no installable model payload to remove."
+        require(model.engine != null) {
+            "This gallery entry has no known model storage format to remove."
         }
         require(hasRemovableData(context, modelId)) {
             "No model files or installer data remain to remove."
