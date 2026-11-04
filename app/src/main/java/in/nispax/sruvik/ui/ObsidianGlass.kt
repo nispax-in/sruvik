@@ -50,9 +50,9 @@ fun ObsidianGlassPanel(
             .background(
                 Brush.linearGradient(
                     listOf(
-                        Color(0xD91D2636),
-                        Color(0xCF121925),
-                        Color(0xE610141E)
+                        Color(0x781D2636),
+                        Color(0x68121925),
+                        Color(0x8010141E)
                     )
                 )
             )
@@ -106,7 +106,7 @@ fun ObsidianGlassBox(
             .clip(shape)
             .background(
                 fill ?: Brush.linearGradient(
-                    listOf(Color(0xCC202B3C), Color(0xB8141B28), Color(0xE60D121B))
+                    listOf(Color(0x77202B3C), Color(0x66141B28), Color(0x800D121B))
                 )
             )
             .border(
