@@ -345,7 +345,7 @@ private fun HomeScreen(
                 GlassCard(
                     Modifier.fillMaxWidth(),
                     RoundedCornerShape(26.dp),
-                    Brush.linearGradient(listOf(Color(0xE6242B3B), Color(0xF20C111B), Color(0xE61A1A2A)))
+                    Brush.linearGradient(listOf(Color(0x76242B3B), Color(0x700C111B), Color(0xE61A1A2A)))
                 ) {
                     Box(Modifier.fillMaxWidth().heightIn(min = 228.dp).wrapContentHeight()) {
                         Image(
@@ -426,7 +426,7 @@ private fun HomeScreen(
                 GlassCard(
                     Modifier.fillMaxWidth(),
                     RoundedCornerShape(17.dp),
-                    Brush.linearGradient(listOf(Color(0xA61A2230), Color(0xC70D111A)))
+                    Brush.linearGradient(listOf(Color(0x661A2230), Color(0x770D111A)))
                 ) {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
@@ -448,7 +448,7 @@ private fun HomeScreen(
 @Composable
 private fun HeroCard(onExplore: () -> Unit) {
     GlassCard(Modifier.fillMaxWidth(), RoundedCornerShape(30.dp),
-        Brush.linearGradient(listOf(Color(0xBDA8AA78), Color(0xA5416558), Color(0xC31B3933)))) {
+        Brush.linearGradient(listOf(Color(0x77A8AA78), Color(0x66516558), Color(0x801B3933)))) {
         Box(Modifier.fillMaxWidth().height(258.dp)) {
             Image(
                 painter = painterResource(R.drawable.sruvik_city_art),
@@ -586,7 +586,7 @@ private fun AppRow(icon: ImageVector, title: String, subtitle: String, status: S
     )
     GlassCard(Modifier.fillMaxWidth().scale(pressScale)
         .clickable(interactionSource = interactionSource, indication = null, onClick = onClick), RoundedCornerShape(21.dp),
-        Brush.linearGradient(listOf(Color(0xC51B2230), Color(0xF20D111A)))) {
+        Brush.linearGradient(listOf(Color(0x761B2230), Color(0xF20D111A)))) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(13.dp)) {
             Box(Modifier.size(43.dp).clip(RoundedCornerShape(15.dp)).background(Color.White.copy(alpha = .08f))
@@ -698,7 +698,7 @@ private fun EmptyPage(eyebrow: String, title: String, description: String, icon:
         Text(description, style = MaterialTheme.typography.bodyLarge, color = SruvikColors.TextSecondary)
         Spacer(Modifier.height(10.dp))
         GlassCard(Modifier.fillMaxWidth(), RoundedCornerShape(25.dp),
-            Brush.linearGradient(listOf(Color(0xC51B2230), Color(0xF20D111A)))) {
+            Brush.linearGradient(listOf(Color(0x761B2230), Color(0xF20D111A)))) {
             Column(Modifier.fillMaxWidth().padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Icon(icon, null, tint = ObsidianTokens.Cyan, modifier = Modifier.size(28.dp))
                 Text(message, style = MaterialTheme.typography.titleLarge, color = SruvikColors.TextPrimary)
