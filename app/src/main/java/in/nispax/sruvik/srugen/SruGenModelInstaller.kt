@@ -244,6 +244,33 @@ object SruGenModelInstaller {
         }
     }
 
+    private fun removableInternalArtifacts(context: Context): List<File> {
+        val modelRoot = modelDirectory(context)
+        val modelsRoot = modelRoot.parentFile
+            ?: throw IllegalStateException("The model storage path is invalid.")
+        val stagingDirs = context.filesDir.listFiles()
+            .orEmpty()
+            .filter { it.isDirectory && it.name.startsWith("srugen-model-staging-") }
+        return listOf(
+            modelRoot,
+            File(modelsRoot, BACKUP_DIR_NAME),
+            File(modelsRoot, "sd15-mediapipe-next")
+        ) + stagingDirs
+    }
+
+    private fun removableDownloadedArchive(context: Context): File? =
+        context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+            ?.let { File(it, "srugen-sd15-mediapipe.zip") }
+
+    fun hasRemovableData(context: Context): Boolean =
+        savedDownloadId(context) >= 0L ||
+            removableInternalArtifacts(context).any { it.exists() } ||
+            removableDownloadedArchive(context)?.exists() == true
+
+    fun removableBytes(context: Context): Long =
+        removableInternalArtifacts(context).sumOf(::ownedArtifactBytes) +
+            (removableDownloadedArchive(context)?.let(::ownedArtifactBytes) ?: 0L)
+
     /**
      * Permanently removes the MediaPipe model and its installer-owned recovery data.
      * Must run on Dispatchers.IO; synchronization prevents a concurrent import from
@@ -251,20 +278,12 @@ object SruGenModelInstaller {
      */
     @Synchronized
     fun deleteInstalled(context: Context): Long {
-        val modelRoot = modelDirectory(context)
-        val modelsRoot = modelRoot.parentFile
-            ?: throw IllegalStateException("The model storage path is invalid.")
-        val stagingDirs = context.filesDir.listFiles()
-            .orEmpty()
-            .filter { it.isDirectory && it.name.startsWith("srugen-model-staging-") }
-        val internalArtifacts = listOf(
-            modelRoot,
-            File(modelsRoot, BACKUP_DIR_NAME),
-            File(modelsRoot, "sd15-mediapipe-next")
-        ) + stagingDirs
-
+        val internalArtifacts = removableInternalArtifacts(context)
         val downloadRoot = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-        val downloadedArchive = downloadRoot?.let { File(it, "srugen-sd15-mediapipe.zip") }
+        val downloadedArchive = removableDownloadedArchive(context)
+        val bytesBefore = internalArtifacts.sumOf(::ownedArtifactBytes) +
+            (downloadedArchive?.let(::ownedArtifactBytes) ?: 0L)
+
         val downloadId = savedDownloadId(context)
         if (downloadId >= 0L) {
             // Stop DownloadManager before touching its app-specific destination.
@@ -272,8 +291,6 @@ object SruGenModelInstaller {
         }
         clearDownloadId(context)
 
-        val bytesBefore = internalArtifacts.sumOf(::ownedArtifactBytes) +
-            (downloadedArchive?.let(::ownedArtifactBytes) ?: 0L)
         internalArtifacts.forEach { deleteOwnedArtifact(context.filesDir, it) }
         if (downloadRoot != null && downloadedArchive != null) {
             deleteOwnedArtifact(downloadRoot, downloadedArchive)
