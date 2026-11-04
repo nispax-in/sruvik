@@ -283,15 +283,13 @@ fun ModelDetailPage(
             else if (installed) ModelStatusChip("INSTALLED", SruvikColors.Lime)
         }
 
-        Box(
-            Modifier.fillMaxWidth().height(184.dp)
-                .background(
-                    Brush.linearGradient(
-                        listOf(SruvikColors.SurfaceElevated, SruvikColors.Surface, SruvikColors.Background)
-                    ),
-                    RoundedCornerShape(25.dp)
-                )
-                .border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(25.dp))
+        ObsidianGlassBox(
+            modifier = Modifier.fillMaxWidth().height(184.dp),
+            shape = RoundedCornerShape(25.dp),
+            accent = SruvikColors.Primary,
+            fill = Brush.linearGradient(
+                listOf(Color(0x77313B52), Color(0x66182030), Color(0x880C111A))
+            )
         ) {
             Column(Modifier.align(Alignment.BottomStart).padding(18.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text(actualModel.runtime.uppercase(Locale.ROOT), color = Color(0xFFC5C0BB),
