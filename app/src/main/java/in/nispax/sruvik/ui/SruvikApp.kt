@@ -345,7 +345,7 @@ private fun HomeScreen(
                 GlassCard(
                     Modifier.fillMaxWidth(),
                     RoundedCornerShape(26.dp),
-                    Brush.linearGradient(listOf(Color(0x76242B3B), Color(0x700C111B), Color(0xE61A1A2A)))
+                    Brush.linearGradient(listOf(Color(0x76242B3B), Color(0x700C111B), Color(0x801A1A2A)))
                 ) {
                     Box(Modifier.fillMaxWidth().heightIn(min = 228.dp).wrapContentHeight()) {
                         Image(
@@ -355,10 +355,10 @@ private fun HomeScreen(
                             contentScale = ContentScale.Crop
                         )
                         Box(Modifier.fillMaxSize().background(
-                            Brush.horizontalGradient(listOf(Color(0xF2080A10), Color(0xC9080A10), Color(0x66101624)))
+                            Brush.horizontalGradient(listOf(Color(0x88080A10), Color(0x77080A10), Color(0x66101624)))
                         ))
                         Box(Modifier.fillMaxSize().background(
-                            Brush.verticalGradient(listOf(Color(0x22080A10), Color(0xEF080A10)))
+                            Brush.verticalGradient(listOf(Color(0x22080A10), Color(0x88080A10)))
                         ))
                         Column(
                             Modifier.fillMaxWidth().padding(horizontal = 21.dp, vertical = 20.dp),
@@ -522,7 +522,7 @@ private fun WorkspaceTile(modifier: Modifier, number: String, title: String, ico
                 enabled = onClick != null
             ) { onClick?.invoke() },
         RoundedCornerShape(27.dp),
-        Brush.linearGradient(listOf(tint.copy(alpha = .24f), Color(0xA51A241F), Color(0xB316201B)))) {
+        Brush.linearGradient(listOf(tint.copy(alpha = .24f), Color(0x661A241F), Color(0x7716201B)))) {
         Box(Modifier.fillMaxSize()) {
             if (artRes != null) {
                 Image(
@@ -532,7 +532,7 @@ private fun WorkspaceTile(modifier: Modifier, number: String, title: String, ico
                     contentScale = ContentScale.Crop
                 )
                 Box(Modifier.fillMaxSize().background(
-                    Brush.verticalGradient(listOf(Color(0x24101425), Color(0xAE101226), Color(0xF20A0D18)))
+                    Brush.verticalGradient(listOf(Color(0x24101425), Color(0x77101226), Color(0x800A0D18)))
                 ))
             }
             Column(Modifier.fillMaxSize().padding(16.dp)) {
@@ -565,7 +565,7 @@ private fun ArtCard(modifier: Modifier, artRes: Int, title: String, subtitle: St
             contentScale = ContentScale.Crop
         )
         Box(Modifier.fillMaxSize().background(
-            Brush.verticalGradient(listOf(Color(0x08090D1B), Color(0x3510142B), Color(0xF20A0B18)))
+            Brush.verticalGradient(listOf(Color(0x08090D1B), Color(0x3510142B), Color(0x770A0B18)))
         ))
         Column(Modifier.align(Alignment.BottomStart).padding(15.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -586,7 +586,7 @@ private fun AppRow(icon: ImageVector, title: String, subtitle: String, status: S
     )
     GlassCard(Modifier.fillMaxWidth().scale(pressScale)
         .clickable(interactionSource = interactionSource, indication = null, onClick = onClick), RoundedCornerShape(21.dp),
-        Brush.linearGradient(listOf(Color(0x761B2230), Color(0xF20D111A)))) {
+        Brush.linearGradient(listOf(Color(0x761B2230), Color(0x700D111A)))) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(13.dp)) {
             Box(Modifier.size(43.dp).clip(RoundedCornerShape(15.dp)).background(Color.White.copy(alpha = .08f))
@@ -648,7 +648,7 @@ private fun AppNavigationBar(
             .height(72.dp)
             .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
             .background(Brush.verticalGradient(
-                listOf(Color(0xD91B2230), Color(0xF20B0E16))
+                listOf(Color(0x791B2230), Color(0x800B0E16))
             ))
             .border(
                 androidx.compose.foundation.BorderStroke(
@@ -698,7 +698,7 @@ private fun EmptyPage(eyebrow: String, title: String, description: String, icon:
         Text(description, style = MaterialTheme.typography.bodyLarge, color = SruvikColors.TextSecondary)
         Spacer(Modifier.height(10.dp))
         GlassCard(Modifier.fillMaxWidth(), RoundedCornerShape(25.dp),
-            Brush.linearGradient(listOf(Color(0x761B2230), Color(0xF20D111A)))) {
+            Brush.linearGradient(listOf(Color(0x761B2230), Color(0x700D111A)))) {
             Column(Modifier.fillMaxWidth().padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Icon(icon, null, tint = ObsidianTokens.Cyan, modifier = Modifier.size(28.dp))
                 Text(message, style = MaterialTheme.typography.titleLarge, color = SruvikColors.TextPrimary)
