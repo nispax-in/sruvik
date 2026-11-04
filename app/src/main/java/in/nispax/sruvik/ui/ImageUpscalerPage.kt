@@ -314,7 +314,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                     letterSpacing = 1.4.sp)
             }
             Spacer(Modifier.weight(1f))
-            Surface(color = Color(0xFF252525), shape = CircleShape) {
+            Surface(color = Color(0xAA252525), shape = CircleShape) {
                 Row(Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(6.dp).clip(CircleShape).background(LabCyan))
@@ -334,7 +334,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                 contentScale = ContentScale.Crop
             )
             Box(Modifier.fillMaxSize().background(
-                Brush.verticalGradient(listOf(Color(0x16212D4A), Color(0x8C101727), Color(0xF20C1421)))
+                Brush.verticalGradient(listOf(Color(0x16212D4A), Color(0x70101727), Color(0x80101421)))
             ))
             Column(
                 Modifier.fillMaxSize().padding(19.dp),
@@ -705,7 +705,7 @@ private fun ModelTag(label: String) {
 @Composable
 private fun ComparisonCard(title: String, size: String, bitmap: Bitmap, modifier: Modifier, accent: Color) {
     Surface(
-        modifier = modifier, color = SruvikColors.Surface, shape = RoundedCornerShape(20.dp),
+        modifier = modifier, color = SruvikColors.Surface.copy(alpha = .58f), shape = RoundedCornerShape(20.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = .22f))
     ) {
         Column(Modifier.padding(9.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
