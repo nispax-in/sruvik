@@ -779,11 +779,12 @@ fun SrukryptPage(autoLockMinutes: Int) {
                     Text(entries.size.toString() + " private item(s)", style = MaterialTheme.typography.bodySmall,
                         color = SruvikColors.TextSecondary)
                 }
-                IconButton(
+                ObsidianGlassIconButton(
                     onClick = { vaultSettingsDialog = true },
-                    modifier = Modifier.size(42.dp)
+                    contentDescription = "Srukrypt settings",
+                    size = 44.dp
                 ) {
-                    Icon(Icons.Rounded.Settings, "Srukrypt settings", tint = SruvikColors.TextPrimary)
+                    Icon(Icons.Rounded.Settings, null)
                 }
                 ObsidianSecondaryButton(onClick = { lockVault() }) {
                     Icon(Icons.Rounded.Lock, null, modifier = Modifier.size(16.dp))
@@ -800,19 +801,24 @@ fun SrukryptPage(autoLockMinutes: Int) {
             }
 
             if (entries.isEmpty()) {
-                Column(
-                    Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(24.dp))
-                        .background(SruvikColors.Surface)
-                        .border(1.dp, Color.White.copy(alpha = .09f), RoundedCornerShape(24.dp))
-                        .padding(22.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                ObsidianFrostedPanel(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    shape = RoundedCornerShape(26.dp),
+                    contentPadding = PaddingValues(22.dp),
+                    fillAlpha = .48f,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    Icon(Icons.Rounded.Inventory2, null, tint = SruvikColors.LimeMuted, modifier = Modifier.size(37.dp))
-                    Text("A clean slate", style = MaterialTheme.typography.titleLarge,
-                        color = SruvikColors.TextPrimary)
-                    Text("Add an image. It is encrypted before it is written to the vault.",
-                        style = MaterialTheme.typography.bodySmall, color = SruvikColors.TextSecondary)
+                    Column(
+                        Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(9.dp)
+                    ) {
+                        Icon(Icons.Rounded.Inventory2, null, tint = Color(0xFF50568C), modifier = Modifier.size(39.dp))
+                        Text("A clean slate", style = MaterialTheme.typography.titleLarge,
+                            color = Color(0xFF151D36))
+                        Text("Add an image. It is encrypted before it is written to the vault.",
+                            style = MaterialTheme.typography.bodySmall, color = Color(0xFF3D4966))
+                    }
                 }
             } else {
                 LazyVerticalGrid(
@@ -823,10 +829,11 @@ fun SrukryptPage(autoLockMinutes: Int) {
                     verticalArrangement = Arrangement.spacedBy(11.dp)
                 ) {
                     items(entries, key = { it.id }) { entry ->
-                        ObsidianGlassPanel(
+                        ObsidianFrostedPanel(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(19.dp),
+                            shape = RoundedCornerShape(23.dp),
                             contentPadding = PaddingValues(9.dp),
+                            fillAlpha = .50f,
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Image(
@@ -834,27 +841,30 @@ fun SrukryptPage(autoLockMinutes: Int) {
                                 contentDescription = "Open ${entry.title} in full-screen viewer",
                                 modifier = Modifier.fillMaxWidth()
                                     .height(148.dp)
-                                    .clip(RoundedCornerShape(13.dp))
+                                    .clip(RoundedCornerShape(15.dp))
                                     .clickable { openVaultImage(entry) },
                                 contentScale = androidx.compose.ui.layout.ContentScale.Crop
                             )
                             Text(
                                 "Tap image to view and zoom",
-                                color = SruvikColors.TextMuted,
+                                color = Color(0xFF58637D),
                                 style = MaterialTheme.typography.labelSmall
                             )
-                            Text(entry.title, color = SruvikColors.TextPrimary,
+                            Text(entry.title, color = Color(0xFF17203A),
                                 style = MaterialTheme.typography.titleSmall, maxLines = 1)
                             Text(String.format("%.1f MB", entry.byteCount / (1024f * 1024f)),
-                                color = SruvikColors.TextMuted, style = MaterialTheme.typography.labelSmall)
-                            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                                TextButton(onClick = { export(entry) }, modifier = Modifier.weight(1f)) {
+                                color = Color(0xFF53607D), style = MaterialTheme.typography.labelSmall)
+                            Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                                ObsidianSecondaryButton(onClick = { export(entry) }, modifier = Modifier.weight(1f)) {
                                     Icon(Icons.Rounded.FileDownload, null, modifier = Modifier.size(16.dp))
-                                    Text("Export")
+                                    Text("Export", style = MaterialTheme.typography.labelSmall)
                                 }
-                                IconButton(onClick = { confirmDelete = entry }, modifier = Modifier.size(36.dp)) {
-                                    Icon(Icons.Rounded.DeleteOutline, "Delete " + entry.title,
-                                        tint = Color(0xFFFF9B9B), modifier = Modifier.size(18.dp))
+                                ObsidianGlassIconButton(
+                                    onClick = { confirmDelete = entry },
+                                    contentDescription = "Delete ${entry.title}",
+                                    size = 40.dp
+                                ) {
+                                    Icon(Icons.Rounded.DeleteOutline, null, tint = Color(0xFF963B4B), modifier = Modifier.size(18.dp))
                                 }
                             }
                         }
@@ -932,7 +942,7 @@ fun SrukryptPage(autoLockMinutes: Int) {
                         color = SruvikColors.TextSecondary,
                         style = MaterialTheme.typography.bodySmall
                     )
-                    OutlinedButton(
+                    ObsidianSecondaryButton(
                         onClick = {
                             vaultSettingsDialog = false
                             openPassphrase("set")
@@ -952,18 +962,18 @@ fun SrukryptPage(autoLockMinutes: Int) {
                         color = SruvikColors.TextSecondary,
                         style = MaterialTheme.typography.bodySmall
                     )
-                    OutlinedButton(
+                    ObsidianGlassButton(
                         onClick = {
                             vaultSettingsDialog = false
                             requestVaultReset()
                         },
                         enabled = !busy,
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF9B9B))
+                        fillAlpha = .40f
                     ) {
-                        Icon(Icons.Rounded.DeleteForever, null)
+                        Icon(Icons.Rounded.DeleteForever, null, tint = Color(0xFF963B4B))
                         Spacer(Modifier.width(7.dp))
-                        Text("Reset and erase vault")
+                        Text("Reset and erase vault", color = Color(0xFF813344))
                     }
                 }
             },
