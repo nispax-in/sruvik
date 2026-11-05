@@ -720,7 +720,7 @@ private fun AppNavigationBar(
                         .fillMaxHeight()
                         .semantics(mergeDescendants = true) {
                             contentDescription = destination.label
-                            selected = isSelected
+                            this.selected = isSelected
                         }
                         .clickable(
                             role = androidx.compose.ui.semantics.Role.Tab,
