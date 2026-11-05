@@ -68,4 +68,45 @@ class SruGenColorEditParserTest {
             SruGenColorEditParser.targetColor("change my shirt to red and blue")
         )
     }
+    @Test
+    fun routesHairColourToHairMaskAndNotClothingMask() {
+        assertEquals("blue", SruGenColorEditParser.targetColor("make my hair blue"))
+        assertEquals("hair", SruGenColorEditParser.targetRegion("make my hair blue"))
+        assertNull(SruGenColorEditParser.targetRegion("make my hair and shirt blue"))
+    }
+
+    @Test
+    fun hairStyleChangesAreNotMisroutedToColourTransform() {
+        assertNull(SruGenColorEditParser.targetColor("give me curly hair"))
+        assertNull(SruGenColorEditParser.targetColor("make my hairstyle shorter"))
+    }
+
+    @Test
+    fun detectsHairPlusClothingAsSeparateEditRegions() {
+        assertEquals(true, SruGenColorEditParser.requiresMultiRegionEdit("make my hair blue and my shirt black"))
+        assertEquals(true, SruGenColorEditParser.requiresMultiRegionEdit("white blazer over a black turtleneck"))
+        assertEquals(false, SruGenColorEditParser.requiresMultiRegionEdit("make my hair blue"))
+        assertEquals(false, SruGenColorEditParser.requiresMultiRegionEdit("make my shirt black"))
+    }
+
+    @Test
+    fun identifiesClothingForRegionPreservingStructuralEdits() {
+        assertEquals(true, SruGenColorEditParser.hasClothingTarget("change my blazer to a darker style"))
+        assertEquals(true, SruGenColorEditParser.hasClothingTarget("replace my turtleneck with a shirt"))
+        assertEquals(false, SruGenColorEditParser.hasClothingTarget("change the background to a beach"))
+        assertEquals(false, SruGenColorEditParser.hasClothingTarget("give me curly hair"))
+    }
+
+    @Test
+    fun blazerAndTurtleneckAreRecognizedAsTwoDistinctGarments() {
+        assertEquals(
+            setOf("outerwear", "inner-top"),
+            SruGenColorEditParser.garmentTargets("black blazer over a white turtleneck")
+        )
+        assertEquals(
+            true,
+            SruGenColorEditParser.requiresMultiRegionEdit("black blazer over a white turtleneck")
+        )
+    }
+
 }

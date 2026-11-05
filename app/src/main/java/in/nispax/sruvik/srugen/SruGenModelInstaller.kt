@@ -143,6 +143,7 @@ object SruGenModelInstaller {
         clearDownloadId(context)
     }
 
+    @Synchronized
     fun importArchive(context: Context, input: InputStream, onProgress: (String) -> Unit = {}) {
         // The ZIP has already consumed storage when this is invoked from DownloadManager.
         // Check device capability and the remaining staging reserve before extraction.
@@ -240,6 +241,80 @@ object SruGenModelInstaller {
             onProgress("Model ready")
         } finally {
             staging.deleteRecursively()
+        }
+    }
+
+    private fun removableInternalArtifacts(context: Context): List<File> {
+        val modelRoot = modelDirectory(context)
+        val modelsRoot = modelRoot.parentFile
+            ?: throw IllegalStateException("The model storage path is invalid.")
+        val stagingDirs = context.filesDir.listFiles()
+            .orEmpty()
+            .filter { it.isDirectory && it.name.startsWith("srugen-model-staging-") }
+        return listOf(
+            modelRoot,
+            File(modelsRoot, BACKUP_DIR_NAME),
+            File(modelsRoot, "sd15-mediapipe-next")
+        ) + stagingDirs
+    }
+
+    private fun removableDownloadedArchive(context: Context): File? =
+        context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+            ?.let { File(it, "srugen-sd15-mediapipe.zip") }
+
+    fun hasRemovableData(context: Context): Boolean =
+        savedDownloadId(context) >= 0L ||
+            removableInternalArtifacts(context).any { it.exists() } ||
+            removableDownloadedArchive(context)?.exists() == true
+
+    fun removableBytes(context: Context): Long =
+        removableInternalArtifacts(context).sumOf(::ownedArtifactBytes) +
+            (removableDownloadedArchive(context)?.let(::ownedArtifactBytes) ?: 0L)
+
+    /**
+     * Permanently removes the MediaPipe model and its installer-owned recovery data.
+     * Must run on Dispatchers.IO; synchronization prevents a concurrent import from
+     * deleting a staging directory while it is being promoted.
+     */
+    @Synchronized
+    fun deleteInstalled(context: Context): Long {
+        val internalArtifacts = removableInternalArtifacts(context)
+        val downloadRoot = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+        val downloadedArchive = removableDownloadedArchive(context)
+        val bytesBefore = internalArtifacts.sumOf(::ownedArtifactBytes) +
+            (downloadedArchive?.let(::ownedArtifactBytes) ?: 0L)
+
+        val downloadId = savedDownloadId(context)
+        if (downloadId >= 0L) {
+            // Stop DownloadManager before touching its app-specific destination.
+            (context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).remove(downloadId)
+        }
+        clearDownloadId(context)
+
+        internalArtifacts.forEach { deleteOwnedArtifact(context.filesDir, it) }
+        if (downloadRoot != null && downloadedArchive != null) {
+            deleteOwnedArtifact(downloadRoot, downloadedArchive)
+        }
+        check(internalArtifacts.none { it.exists() } && downloadedArchive?.exists() != true) {
+            "Sruvik could not completely remove every MediaPipe model file. Check storage and retry."
+        }
+        return bytesBefore
+    }
+
+    private fun ownedArtifactBytes(file: File): Long = when {
+        !file.exists() -> 0L
+        file.isFile -> file.length().coerceAtLeast(0L)
+        else -> file.walkTopDown().filter { it.isFile }.sumOf { it.length().coerceAtLeast(0L) }
+    }
+
+    private fun deleteOwnedArtifact(parent: File, target: File) {
+        val parentPath = parent.canonicalFile.path
+        val targetPath = target.canonicalFile.path
+        check(targetPath.startsWith(parentPath + File.separator)) {
+            "Sruvik refused to delete a path outside its app-owned model storage."
+        }
+        if (target.exists() && !target.deleteRecursively()) {
+            throw IllegalStateException("Sruvik could not remove ${target.name}. Remaining files were left in place.")
         }
     }
 

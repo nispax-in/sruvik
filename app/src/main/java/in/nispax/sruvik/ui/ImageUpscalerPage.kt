@@ -314,7 +314,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                     letterSpacing = 1.4.sp)
             }
             Spacer(Modifier.weight(1f))
-            Surface(color = Color(0xFF252525), shape = CircleShape) {
+            Surface(color = Color(0xAA252525), shape = CircleShape) {
                 Row(Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(6.dp).clip(CircleShape).background(LabCyan))
@@ -334,7 +334,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                 contentScale = ContentScale.Crop
             )
             Box(Modifier.fillMaxSize().background(
-                Brush.verticalGradient(listOf(Color(0x16212D4A), Color(0x8C101727), Color(0xF20C1421)))
+                Brush.verticalGradient(listOf(Color(0x16212D4A), Color(0x70101727), Color(0x80101421)))
             ))
             Column(
                 Modifier.fillMaxSize().padding(19.dp),
@@ -349,16 +349,14 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
             }
         }
 
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = LabSurface,
+        ObsidianGlassPanel(
             shape = RoundedCornerShape(28.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .09f))
+            contentPadding = PaddingValues(0.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
+            accent = LabViolet
         ) {
             Column(
-                Modifier.background(Brush.linearGradient(
-                    listOf(Color(0xFF262626), Color(0xFF1D1D1D), Color(0xFF141414))
-                )).padding(17.dp),
+                Modifier.padding(17.dp),
                 verticalArrangement = Arrangement.spacedBy(13.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -388,13 +386,12 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
             }
         }
 
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = LabSurface,
+        ObsidianGlassPanel(
             shape = RoundedCornerShape(26.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .08f))
+            contentPadding = PaddingValues(15.dp),
+            verticalArrangement = Arrangement.spacedBy(13.dp),
+            accent = LabCyan
         ) {
-            Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.Image, null, tint = LabCyan)
                     Text("  SOURCE PHOTO", color = LabText,
@@ -440,18 +437,17 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                    OutlinedButton(
+                    ObsidianSecondaryButton(
                         onClick = {
                             launchImagePicker()
                         },
                         modifier = Modifier.weight(1f).height(48.dp),
-                        shape = RoundedCornerShape(15.dp),
                         enabled = !isProcessing && !isSaving && !isLoading
                     ) {
                         Icon(Icons.Rounded.AddPhotoAlternate, null)
                         Text(if (original == null) "Photo library" else "Change photo")
                     }
-                    OutlinedButton(
+                    ObsidianSecondaryButton(
                         onClick = {
                             if (!isProcessing && !isSaving && !isLoading) {
                                 runCatching { filePicker.launch(arrayOf("image/*")) }
@@ -461,7 +457,6 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                             }
                         },
                         modifier = Modifier.weight(1f).height(48.dp),
-                        shape = RoundedCornerShape(15.dp),
                         enabled = !isProcessing && !isSaving && !isLoading
                     ) {
                         Icon(Icons.Rounded.FolderOpen, null)
@@ -501,16 +496,14 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                     color = LabMuted.copy(alpha = .85f),
                     style = MaterialTheme.typography.labelSmall
                 )
-            }
         }
 
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = Color(0xFF2A2A2A),
+        ObsidianGlassPanel(
             shape = RoundedCornerShape(25.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, LabViolet.copy(alpha = .24f))
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(13.dp),
+            accent = LabViolet
         ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("OUTPUT SIZE", color = LabText,
                         style = MaterialTheme.typography.labelLarge, letterSpacing = 1.5.sp)
@@ -553,19 +546,13 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                     color = LabMuted,
                     style = MaterialTheme.typography.bodySmall
                 )
-                Button(
+                ObsidianPrimaryButton(
                     onClick = {
-                        val uri = selectedUri ?: return@Button
+                        val uri = selectedUri ?: return@ObsidianPrimaryButton
                         requestUpscale(uri, scale)
                     },
                     modifier = Modifier.fillMaxWidth().height(55.dp),
-                    enabled = original != null && !isLoading && !isProcessing && !isSaving,
-                    shape = RoundedCornerShape(17.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = LabViolet, contentColor = LabInk,
-                        disabledContainerColor = Color(0xFF45413F),
-                        disabledContentColor = Color(0xFF96918D)
-                    )
+                    enabled = original != null && !isLoading && !isProcessing && !isSaving
                 ) {
                     if (isProcessing) {
                         CircularProgressIndicator(Modifier.size(19.dp), color = LabInk, strokeWidth = 2.dp)
@@ -601,17 +588,20 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                             style = MaterialTheme.typography.labelSmall
                         )
                     }
-                    TextButton(
+                    ObsidianGlassButton(
                         onClick = {
                             context.startService(
                                 Intent(context, ImageUpscaleService::class.java)
                                     .setAction(ImageUpscaleService.ACTION_CANCEL)
                             )
                         },
-                        modifier = Modifier.align(Alignment.End)
+                        modifier = Modifier.align(Alignment.End),
+                        shape = RoundedCornerShape(22.dp),
+                        fillAlpha = .38f,
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                     ) {
                         Icon(Icons.Rounded.Close, null, tint = LabCoral)
-                        Text("  Cancel", color = LabCoral)
+                        Text("Cancel", color = LabCoral, style = MaterialTheme.typography.labelSmall)
                     }
                 } else {
                     val currentMessage = if (session.status == UpscaleStatus.IDLE) message else session.message
@@ -620,9 +610,9 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                 }
 
                 if (showQuickResize && original != null) {
-                    OutlinedButton(
+                    ObsidianSecondaryButton(
                         onClick = {
-                            val source = original ?: return@OutlinedButton
+                            val source = original ?: return@ObsidianSecondaryButton
                             UpscaleSession.clearResult()
                             scope.launch {
                                 isQuickResizing = true
@@ -640,13 +630,12 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                                 }
                             }
                         },
-                        modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(15.dp)
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Use quick resize instead  ·  not AI")
+                        Text("Use quick resize instead · not AI")
                     }
                 }
             }
-        }
 
         AnimatedVisibility(visible = result != null, enter = fadeIn() + slideInVertically { it / 6 }) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -678,29 +667,30 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                     }
                 }
                 result?.let {
-                    Button(
+                    ObsidianGlassButton(
                         onClick = { saver.launch("sruvik-ai-upscaled.png") },
-                        modifier = Modifier.fillMaxWidth().height(54.dp),
-                        shape = RoundedCornerShape(17.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         enabled = !isSaving && !isProcessing,
-                        colors = ButtonDefaults.buttonColors(containerColor = LabCyan, contentColor = LabInk)
+                        shape = RoundedCornerShape(28.dp),
+                        fillAlpha = .62f
                     ) {
                         Icon(Icons.Rounded.Download, null)
-                        Text(if (isSaving) "  Saving…" else "  Save enhanced PNG", fontWeight = FontWeight.Bold)
+                        Text(if (isSaving) "Saving…" else "Save enhanced PNG", fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
 
-        Surface(
-            color = SruvikColors.Surface, shape = RoundedCornerShape(18.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, LabCyan.copy(alpha = .14f))
+        ObsidianFrostedSurface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            fillAlpha = .40f
         ) {
             Row(Modifier.padding(13.dp), verticalAlignment = Alignment.Top) {
-                Icon(Icons.Rounded.Shield, null, tint = LabCyan, modifier = Modifier.size(18.dp))
+                Icon(Icons.Rounded.Shield, null, tint = Color(0xFF4F588D), modifier = Modifier.size(18.dp))
                 Text(
                     "  Your photo is processed locally and is never uploaded. The first run may prepare the LiteRT runtime through Google Play services.",
-                    color = LabMuted, style = MaterialTheme.typography.labelSmall
+                    color = Color(0xFF35415D), style = MaterialTheme.typography.labelSmall
                 )
             }
         }
@@ -718,15 +708,16 @@ private fun ModelTag(label: String) {
 
 @Composable
 private fun ComparisonCard(title: String, size: String, bitmap: Bitmap, modifier: Modifier, accent: Color) {
-    Surface(
-        modifier = modifier, color = SruvikColors.Surface, shape = RoundedCornerShape(20.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = .22f))
+    ObsidianFrostedSurface(
+        modifier = modifier,
+        shape = RoundedCornerShape(22.dp),
+        fillAlpha = .48f
     ) {
-        Column(Modifier.padding(9.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Text(title, color = accent, style = MaterialTheme.typography.labelSmall,
-                letterSpacing = 1.sp, fontWeight = FontWeight.Bold)
+        Column(Modifier.fillMaxWidth().padding(9.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text(title, color = if (accent == LabCyan) Color(0xFF354C82) else Color(0xFF53607D),
+                style = MaterialTheme.typography.labelSmall, letterSpacing = 1.sp, fontWeight = FontWeight.Bold)
             ImagePreview(bitmap, Modifier.fillMaxWidth().height(126.dp))
-            Text(size, color = LabMuted, style = MaterialTheme.typography.labelSmall)
+            Text(size, color = Color(0xFF3F4B67), style = MaterialTheme.typography.labelSmall)
         }
     }
 }

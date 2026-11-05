@@ -53,6 +53,67 @@ object SruGenEngineFactory {
         }
     }
 
+    /**
+     * Stops a mapped native runtime before removing its model files. Run on Dispatchers.IO.
+     */
+    fun deleteInstalled(context: Context, modelId: String): Long {
+        val model = SruGenGalleryCatalog.find(modelId)
+            ?: throw IllegalArgumentException("The selected model is not in Sruvik's trusted gallery.")
+        require(model.engine != null) {
+            "This gallery entry has no known model storage format to remove."
+        }
+        require(hasRemovableData(context, modelId)) {
+            "No model files or installer data remain to remove."
+        }
+
+        val wasActive = SruGenActiveModelStore.activeModelId(context) == modelId
+        if (wasActive) {
+            val engine = SruGenEngineRegistry.engine
+            engine?.requestStop()
+            SruGenEngineRegistry.closeAndDetach(engine)
+        }
+
+        val removedBytes = when (model.engine) {
+            SruGenGalleryEngine.MEDIAPIPE_SD15 ->
+                SruGenModelInstaller.deleteInstalled(context)
+            SruGenGalleryEngine.NEZUMI_MNN_SD15 ->
+                SruGenModelPackInstaller.deleteInstalled(context, model)
+            null -> 0L
+        }
+        check(!isInstalled(context, modelId)) {
+            "Sruvik removed the model payload but the installed-state check still sees model files."
+        }
+        // Uninstalling an inactive gallery entry must not change the user's selection.
+        if (wasActive) {
+            SruGenActiveModelStore.selectFallbackAfterRemoval(context, modelId)
+        }
+        return removedBytes
+    }
+
+    /** True when an install, rollback, staging or managed download artifact remains. */
+    fun hasRemovableData(context: Context, modelId: String): Boolean {
+        val model = SruGenGalleryCatalog.find(modelId) ?: return false
+        return when (model.engine) {
+            SruGenGalleryEngine.MEDIAPIPE_SD15 ->
+                SruGenModelInstaller.hasRemovableData(context)
+            SruGenGalleryEngine.NEZUMI_MNN_SD15 ->
+                SruGenModelPackInstaller.hasRemovableData(context, model)
+            null -> false
+        }
+    }
+
+    /** Total app-owned storage which the delete operation will attempt to reclaim. */
+    fun removableBytes(context: Context, modelId: String): Long {
+        val model = SruGenGalleryCatalog.find(modelId) ?: return 0L
+        return when (model.engine) {
+            SruGenGalleryEngine.MEDIAPIPE_SD15 ->
+                SruGenModelInstaller.removableBytes(context)
+            SruGenGalleryEngine.NEZUMI_MNN_SD15 ->
+                SruGenModelPackInstaller.removableBytes(context, model)
+            null -> 0L
+        }
+    }
+
     fun create(context: Context, modelId: String): SruGenEngine {
         val model = SruGenGalleryCatalog.find(modelId)
             ?: throw IllegalArgumentException("The selected SruGen model is not in the trusted gallery.")

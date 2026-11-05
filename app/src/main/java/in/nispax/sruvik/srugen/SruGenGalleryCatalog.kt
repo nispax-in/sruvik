@@ -369,10 +369,14 @@ object SruGenActiveModelStore {
     private const val KEY_ACTIVE_MODEL = "active_model_id"
 
     fun activeModelId(context: Context): String {
-        val stored = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_ACTIVE_MODEL, null)
-        return stored?.takeIf { SruGenGalleryCatalog.find(it)?.canInstall == true }
-            ?: "sd15-mediapipe"
+        val preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        // Preserve the original default on first launch. An explicitly empty value
+        // means the user removed the final installed model.
+        if (!preferences.contains(KEY_ACTIVE_MODEL)) return "sd15-mediapipe"
+        val stored = preferences.getString(KEY_ACTIVE_MODEL, null)
+        return stored?.takeIf {
+            it.isNotBlank() && SruGenGalleryCatalog.find(it) != null
+        }.orEmpty()
     }
 
     fun setActiveModel(context: Context, modelId: String) {
@@ -381,5 +385,16 @@ object SruGenActiveModelStore {
         }
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit().putString(KEY_ACTIVE_MODEL, modelId).apply()
+    }
+
+    /** Picks another verified local model, or records that no model is installed. */
+    fun selectFallbackAfterRemoval(context: Context, removedModelId: String) {
+        val replacement = SruGenGalleryCatalog.models.firstOrNull { candidate ->
+            candidate.id != removedModelId &&
+                candidate.canInstall &&
+                SruGenEngineFactory.isInstalled(context, candidate.id)
+        }
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putString(KEY_ACTIVE_MODEL, replacement?.id.orEmpty()).apply()
     }
 }

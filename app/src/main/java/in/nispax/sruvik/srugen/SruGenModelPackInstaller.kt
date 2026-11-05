@@ -146,6 +146,7 @@ object SruGenModelPackInstaller {
             (status.totalBytes > 0L && status.totalBytes > maximum)
     }
 
+    @Synchronized
     fun installArchive(
         context: Context,
         model: SruGenGalleryModel,
@@ -245,6 +246,87 @@ object SruGenModelPackInstaller {
             onProgress("Model installed and verified")
         } finally {
             staging.deleteRecursively()
+        }
+    }
+
+    private fun removableInternalArtifacts(context: Context, modelId: String): List<File> {
+        val filesRoot = context.filesDir
+        val modelsRoot = File(filesRoot, "srugen-models")
+        val modelRoot = modelDirectory(context, modelId)
+        return listOf(
+            modelRoot,
+            File(modelsRoot, "${modelId}.next"),
+            File(modelsRoot, "${modelId}.previous")
+        ) + filesRoot.listFiles()
+            .orEmpty()
+            .filter { it.isDirectory && it.name.startsWith("srugen-pack-${modelId}-") }
+    }
+
+    private fun removableDownloadedArchive(context: Context, model: SruGenGalleryModel): File? {
+        val archiveName = model.archiveFileName?.takeIf { it.isNotBlank() } ?: return null
+        require(File(archiveName).name == archiveName) {
+            "The model archive name is not a safe file name."
+        }
+        return context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)?.let { File(it, archiveName) }
+    }
+
+    fun hasRemovableData(context: Context, model: SruGenGalleryModel): Boolean =
+        savedDownloadId(context, model.id) >= 0L ||
+            removableInternalArtifacts(context, model.id).any { it.exists() } ||
+            removableDownloadedArchive(context, model)?.exists() == true
+
+    fun removableBytes(context: Context, model: SruGenGalleryModel): Long =
+        removableInternalArtifacts(context, model.id).sumOf(::ownedArtifactBytes) +
+            (removableDownloadedArchive(context, model)?.let(::ownedArtifactBytes) ?: 0L)
+
+    /**
+     * Permanently removes one model pack and only the installer-owned files for that ID.
+     * Must run on Dispatchers.IO. The install method shares this object's monitor so an
+     * in-flight verified promotion cannot race with deletion.
+     */
+    @Synchronized
+    fun deleteInstalled(context: Context, model: SruGenGalleryModel): Long {
+        require(model.engine == SruGenGalleryEngine.NEZUMI_MNN_SD15) {
+            "This is not an MNN model pack."
+        }
+        val filesRoot = context.filesDir
+        val internalArtifacts = removableInternalArtifacts(context, model.id)
+        val downloadRoot = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+        val downloadedArchive = removableDownloadedArchive(context, model)
+        val bytesBefore = internalArtifacts.sumOf(::ownedArtifactBytes) +
+            (downloadedArchive?.let(::ownedArtifactBytes) ?: 0L)
+
+        val downloadId = savedDownloadId(context, model.id)
+        if (downloadId >= 0L) {
+            // Cancel an active transfer before deleting its app-private destination.
+            (context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).remove(downloadId)
+        }
+        clearDownloadId(context, model.id)
+
+        internalArtifacts.forEach { deleteOwnedArtifact(filesRoot, it) }
+        if (downloadRoot != null && downloadedArchive != null) {
+            deleteOwnedArtifact(downloadRoot, downloadedArchive)
+        }
+        check(internalArtifacts.none { it.exists() } && downloadedArchive?.exists() != true) {
+            "Sruvik could not completely remove every file for ${model.name}. Check storage and retry."
+        }
+        return bytesBefore
+    }
+
+    private fun ownedArtifactBytes(file: File): Long = when {
+        !file.exists() -> 0L
+        file.isFile -> file.length().coerceAtLeast(0L)
+        else -> file.walkTopDown().filter { it.isFile }.sumOf { it.length().coerceAtLeast(0L) }
+    }
+
+    private fun deleteOwnedArtifact(parent: File, target: File) {
+        val parentPath = parent.canonicalFile.path
+        val targetPath = target.canonicalFile.path
+        check(targetPath.startsWith(parentPath + File.separator)) {
+            "Sruvik refused to delete a path outside its app-owned model storage."
+        }
+        if (target.exists() && !target.deleteRecursively()) {
+            throw IllegalStateException("Sruvik could not remove ${target.name}. Remaining files were left in place.")
         }
     }
 

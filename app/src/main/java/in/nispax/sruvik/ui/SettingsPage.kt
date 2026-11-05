@@ -92,23 +92,17 @@ fun FirstRunProfileDialog(onContinue: (SruvikProfile) -> Unit) {
                     "This is saved only on this device. Age is for personalisation, not age verification.",
                     style = MaterialTheme.typography.bodySmall, color = SruvikColors.TextMuted
                 )
-                Button(
+                ObsidianGlassButton(
                     onClick = {
                         if (valid && parsedAge != null) onContinue(SruvikProfile(name.trim(), parsedAge))
                     },
                     enabled = valid,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = RoundedCornerShape(17.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = SruvikColors.Primary,
-                        contentColor = Color.White,
-                        disabledContainerColor = Color(0xFF45413F),
-                        disabledContentColor = Color.White.copy(alpha = .45f)
-                    )
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(28.dp)
                 ) {
-                    Text("Continue to Sruvik", style = MaterialTheme.typography.labelLarge)
+                    Text("Continue to Sruvik", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.width(8.dp))
-                    Icon(Icons.Rounded.ArrowForward, null, modifier = Modifier.size(17.dp))
+                    Icon(Icons.Rounded.ArrowForward, null, modifier = Modifier.size(18.dp))
                 }
             }
         }
@@ -175,8 +169,8 @@ fun SettingsPage(
                 focusedBorderColor = SruvikColors.LimeMuted,
                 unfocusedBorderColor = Color.White.copy(alpha = .13f),
                 cursorColor = SruvikColors.Lime,
-                focusedContainerColor = Color(0x66232842),
-                unfocusedContainerColor = Color(0x55232842)
+                focusedContainerColor = Color(0x66171D2A),
+                unfocusedContainerColor = Color(0x44111520)
             )
         )
 
@@ -243,9 +237,13 @@ fun SettingsPage(
                                         style = MaterialTheme.typography.bodySmall, color = SruvikColors.TextSecondary)
                                 }
                                 Box {
-                                    TextButton(onClick = { lockMenuExpanded = true }) {
-                                        Text(autoLockLabel(autoLock), color = SruvikColors.Lime)
-                                        Icon(Icons.Rounded.ExpandMore, null, tint = SruvikColors.Lime)
+                                    ObsidianGlassButton(
+                                        onClick = { lockMenuExpanded = true },
+                                        shape = RoundedCornerShape(22.dp),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                    ) {
+                                        Text(autoLockLabel(autoLock), style = MaterialTheme.typography.labelSmall)
+                                        Icon(Icons.Rounded.ExpandMore, null, modifier = Modifier.size(16.dp))
                                     }
                                     DropdownMenu(expanded = lockMenuExpanded,
                                         onDismissRequest = { lockMenuExpanded = false }) {
@@ -395,12 +393,9 @@ private fun SettingsSection(
 
 @Composable
 private fun SettingsPanel(content: @Composable ColumnScope.() -> Unit) {
-    Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(23.dp))
-            .background(Brush.linearGradient(listOf(Color(0xAA30304B), Color(0xB8181A2B))))
-            .border(1.dp, Color.White.copy(alpha = .11f), RoundedCornerShape(23.dp))
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ObsidianGlassPanel(
+        shape = RoundedCornerShape(23.dp),
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 13.dp),
         content = content
     )
 }
@@ -420,7 +415,7 @@ private fun SettingsSwitchRow(
             Text(title, style = MaterialTheme.typography.titleSmall, color = SruvikColors.TextPrimary)
             Text(description, style = MaterialTheme.typography.bodySmall, color = SruvikColors.TextSecondary)
         }
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Switch(checked = checked, onCheckedChange = onCheckedChange, colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF07121A), checkedTrackColor = Color(0xFF75E3F3), checkedBorderColor = Color(0xFF75E3F3), uncheckedThumbColor = Color(0xFFB0B8C9), uncheckedTrackColor = Color(0xFF303849), uncheckedBorderColor = Color(0xFF566176)))
     }
 }
 

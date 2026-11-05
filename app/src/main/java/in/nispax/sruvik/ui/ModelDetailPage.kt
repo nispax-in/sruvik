@@ -4,6 +4,7 @@ import android.app.DownloadManager
 import android.content.Context
 import android.net.Uri
 import android.os.StatFs
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -26,16 +28,19 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CloudDownload
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.Storage
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -88,6 +93,10 @@ fun ModelDetailPage(
     val scope = rememberCoroutineScope()
     val model = remember(modelId) { SruGenGalleryCatalog.find(modelId) }
     var installed by remember(modelId) { mutableStateOf(false) }
+    var hasRemovableData by remember(modelId) { mutableStateOf(false) }
+    var installedBytes by remember(modelId) { mutableLongStateOf(0L) }
+    var showDeleteConfirmation by remember(modelId) { mutableStateOf(false) }
+    var deleting by remember(modelId) { mutableStateOf(false) }
     var checking by remember(modelId) { mutableStateOf(true) }
     var active by remember(modelId) { mutableStateOf(false) }
     var assessment by remember(modelId) { mutableStateOf<SruGenModelDeviceAssessment?>(null) }
@@ -104,11 +113,15 @@ fun ModelDetailPage(
             val ready = model?.let { SruGenEngineFactory.isInstalled(context, it.id) } == true
             val check = model?.let { SruGenModelCompatibility.assess(context, it) }
             val activeId = SruGenActiveModelStore.activeModelId(context)
-            Triple(ready, check, activeId == modelId)
+            val removable = model?.let { SruGenEngineFactory.hasRemovableData(context, it.id) } == true
+            val bytes = model?.let { SruGenEngineFactory.removableBytes(context, it.id) } ?: 0L
+            Triple(Triple(ready, check, activeId == modelId), removable, bytes)
         }
-        installed = result.first
-        assessment = result.second
-        active = result.third
+        installed = result.first.first
+        hasRemovableData = result.second
+        installedBytes = result.third
+        assessment = result.first.second
+        active = result.first.third
         checking = false
     }
 
@@ -129,7 +142,18 @@ fun ModelDetailPage(
                 else SruGenModelPackInstaller.queryDownload(context, downloadId)
             }
             if (status == null) {
-                delay(1000)
+                // A removed DownloadManager row must not leave the page polling forever.
+                // Cancel/clear the stale ID, then re-read any partial files left on disk.
+                withContext(Dispatchers.IO) {
+                    if (legacy) {
+                        SruGenModelInstaller.cancelDownload(context, downloadId)
+                    } else {
+                        SruGenModelPackInstaller.cancelDownload(context, model.id, downloadId)
+                    }
+                }
+                downloadId = -1L
+                error = "The previous download record is no longer available. Any remaining model files can be removed below."
+                refreshState()
                 continue
             }
             downloadPercent = status.percent
@@ -256,37 +280,29 @@ fun ModelDetailPage(
         verticalArrangement = Arrangement.spacedBy(15.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Surface(
+            ObsidianGlassButton(
                 onClick = onBack,
-                color = Color.White.copy(alpha = .07f),
-                shape = RoundedCornerShape(14.dp)
+                shape = RoundedCornerShape(24.dp),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
             ) {
-                Row(Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(Icons.Rounded.ArrowBack, null, tint = SruvikColors.TextPrimary, modifier = Modifier.size(17.dp))
-                    Text("MODEL LIBRARY", color = SruvikColors.TextSecondary, style = MaterialTheme.typography.labelSmall)
-                }
+                Icon(Icons.Rounded.ArrowBack, null, modifier = Modifier.size(17.dp))
+                Text("MODEL LIBRARY", style = MaterialTheme.typography.labelSmall, letterSpacing = .5.sp)
             }
             Spacer(Modifier.weight(1f))
             if (active) ModelStatusChip("ACTIVE", SruvikColors.Primary)
             else if (installed) ModelStatusChip("INSTALLED", SruvikColors.Lime)
         }
 
-        Box(
-            Modifier.fillMaxWidth().height(184.dp)
-                .background(
-                    Brush.linearGradient(
-                        listOf(SruvikColors.SurfaceElevated, SruvikColors.Surface, SruvikColors.Background)
-                    ),
-                    RoundedCornerShape(25.dp)
-                )
-                .border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(25.dp))
+        ObsidianFrostedSurface(
+            modifier = Modifier.fillMaxWidth().height(184.dp),
+            shape = RoundedCornerShape(28.dp),
+            fillAlpha = .48f
         ) {
-            Column(Modifier.align(Alignment.BottomStart).padding(18.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(actualModel.runtime.uppercase(Locale.ROOT), color = Color(0xFFC5C0BB),
+            Column(Modifier.align(Alignment.BottomStart).padding(19.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text(actualModel.runtime.uppercase(Locale.ROOT), color = Color(0xFF4B5580),
                     style = MaterialTheme.typography.labelSmall, letterSpacing = 1.6.sp)
-                Text(actualModel.name, color = Color.White, style = MaterialTheme.typography.headlineLarge)
-                Text(actualModel.subtitle, color = Color(0xFFC5C0BB), style = MaterialTheme.typography.bodySmall)
+                Text(actualModel.name, color = Color(0xFF141B34), style = MaterialTheme.typography.headlineLarge)
+                Text(actualModel.subtitle, color = Color(0xFF3F4B67), style = MaterialTheme.typography.bodySmall)
             }
         }
 
@@ -295,17 +311,16 @@ fun ModelDetailPage(
         }
 
         SectionTitle("THE STORY")
-        Surface(
-            color = Color(0x772F2F4E),
-            shape = RoundedCornerShape(20.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .08f))
+        ObsidianFrostedPanel(
+            shape = RoundedCornerShape(23.dp),
+            contentPadding = PaddingValues(16.dp),
+            fillAlpha = .43f,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("“${actualModel.lore}”", color = SruvikColors.TextPrimary,
-                    style = MaterialTheme.typography.titleMedium, lineHeight = 24.sp)
-                Text(actualModel.description, color = SruvikColors.TextSecondary,
-                    style = MaterialTheme.typography.bodyMedium, lineHeight = 21.sp)
-            }
+            Text("“${actualModel.lore}”", color = Color(0xFF1A2440),
+                style = MaterialTheme.typography.titleMedium, lineHeight = 24.sp)
+            Text(actualModel.description, color = Color(0xFF37435F),
+                style = MaterialTheme.typography.bodyMedium, lineHeight = 21.sp)
         }
 
         SectionTitle("MODEL PROFILE")
@@ -315,6 +330,7 @@ fun ModelDetailPage(
             actualModel.engine == SruGenGalleryEngine.NEZUMI_MNN_SD15
         } ?: actualModel.baseModel)
         ModelDetailInfo("Model download", if (actualModel.approximateDownloadBytes > 0L) formatBytes(actualModel.approximateDownloadBytes) else "Not available yet")
+        ModelDetailInfo("Model storage", if (hasRemovableData) formatBytes(installedBytes) else "No model files")
         ModelDetailInfo(
             "Free space before install",
             if (actualModel.canInstall) {
@@ -396,12 +412,12 @@ fun ModelDetailPage(
             style = MaterialTheme.typography.labelSmall, lineHeight = 17.sp)
 
         SectionTitle("BEFORE YOU INSTALL")
-        Surface(
-            color = Color(0x66372F27),
+        ObsidianGlassPanel(
             shape = RoundedCornerShape(18.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x66E7B77A))
+            contentPadding = PaddingValues(14.dp),
+            accent = Color(0xFFE7B77A)
         ) {
-            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     Icon(Icons.Rounded.Security, null, tint = SruvikColors.SecondaryAccent)
                     Text("Third-party model warning", color = SruvikColors.SecondaryAccent, fontWeight = FontWeight.SemiBold)
@@ -429,25 +445,25 @@ fun ModelDetailPage(
         if (info.isNotBlank()) FeedbackPanel(info, isError = false)
 
         if (downloadId >= 0L || installing) {
-            Surface(
-                color = Color(0x77303448),
-                shape = RoundedCornerShape(17.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .09f))
+            ObsidianFrostedSurface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(21.dp),
+                fillAlpha = .54f
             ) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         if (installing) installLabel else "DOWNLOADING  ·  $downloadPercent%",
-                        color = SruvikColors.Lime,
+                        color = Color(0xFF1D2843),
                         style = MaterialTheme.typography.labelSmall,
                         letterSpacing = .8.sp
                     )
                     LinearProgressIndicator(
                         progress = { if (installing) 0.5f else downloadPercent / 100f },
                         modifier = Modifier.fillMaxWidth(),
-                        color = SruvikColors.Lime,
-                        trackColor = Color.White.copy(alpha = .1f)
+                        color = Color(0xFF555B99),
+                        trackColor = Color(0x55404B66)
                     )
-                    if (downloadId >= 0L) TextButton(onClick = {
+                    if (downloadId >= 0L) ObsidianSecondaryButton(onClick = {
                         scope.launch {
                             withContext(Dispatchers.IO) {
                                 if (actualModel.engine == SruGenGalleryEngine.MEDIAPIPE_SD15) {
@@ -459,13 +475,13 @@ fun ModelDetailPage(
                             downloadId = -1L
                             error = "Download cancelled. Temporary files were removed."
                         }
-                    }) { Text("CANCEL DOWNLOAD", color = SruvikColors.TextSecondary) }
+                    }) { Text("CANCEL DOWNLOAD", style = MaterialTheme.typography.labelSmall) }
                 }
             }
         }
 
         if (installed) {
-            Button(
+            ObsidianPrimaryButton(
                 onClick = {
                     scope.launch {
                         error = ""
@@ -498,16 +514,14 @@ fun ModelDetailPage(
                     }
                 },
                 enabled = canSelectActive && !active && downloadId < 0L && !installing,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = SruvikColors.Primary, contentColor = Color.White)
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(Icons.Rounded.CheckCircle, null)
                 Spacer(Modifier.width(8.dp))
                 Text(if (active) "ACTIVE IN SRUGEN" else "SET AS ACTIVE MODEL")
             }
         } else {
-            Button(
+            ObsidianPrimaryButton(
                 onClick = {
                     scope.launch {
                         try {
@@ -545,14 +559,7 @@ fun ModelDetailPage(
                     }
                 },
                 enabled = installAllowed,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = SruvikColors.Lime,
-                    contentColor = Color(0xFF1A100D),
-                    disabledContainerColor = Color(0xFF45413F),
-                    disabledContentColor = SruvikColors.TextMuted
-                )
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(Icons.Rounded.CloudDownload, null)
                 Spacer(Modifier.width(8.dp))
@@ -567,6 +574,72 @@ fun ModelDetailPage(
                 )
             }
         }
+
+        if (installed || hasRemovableData) {
+            ObsidianGlassButton(
+                onClick = { showDeleteConfirmation = true },
+                enabled = !deleting && !installing && downloadId < 0L,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(26.dp),
+                fillAlpha = .43f
+            ) {
+                Icon(Icons.Rounded.DeleteOutline, contentDescription = null, tint = Color(0xFF963B4B))
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    if (deleting) "DELETING MODEL…" else "DELETE MODEL",
+                    color = Color(0xFF813344),
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+
+    if (showDeleteConfirmation && model != null) {
+        AlertDialog(
+            onDismissRequest = { if (!deleting) showDeleteConfirmation = false },
+            title = { Text("Delete ${actualModel.name}?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("This permanently removes the model weights, tokenizer/config files, rollback copies, temporary staging data and Sruvik-managed download archive.")
+                    Text("Model storage to be removed: ${formatBytes(installedBytes)}. This includes leftover download or recovery data when an install did not finish.")
+                    Text("Your encrypted SruGen chats and generated images will not be deleted. If this model is active, Sruvik will stop and close its runtime before removing the files.")
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !deleting,
+                    onClick = {
+                        scope.launch {
+                            deleting = true
+                            error = ""
+                            info = ""
+                            try {
+                                val removedBytes = withContext(Dispatchers.IO) {
+                                    SruGenEngineFactory.deleteInstalled(context, actualModel.id)
+                                }
+                                installed = false
+                                hasRemovableData = false
+                                active = false
+                                installedBytes = 0L
+                                downloadId = -1L
+                                info = "${actualModel.name} was removed. Its model files and installer-owned temporary data (about ${formatBytes(removedBytes)}) were cleared. Encrypted chats and generated images were kept."
+                                showDeleteConfirmation = false
+                            } catch (failure: Exception) {
+                                error = failure.message ?: "Sruvik could not completely remove this model."
+                                runCatching { refreshState() }
+                            } finally {
+                                deleting = false
+                            }
+                        }
+                    }
+                ) { Text(if (deleting) "DELETING…" else "Delete model", color = Color(0xFFFF829B)) }
+            },
+            dismissButton = {
+                TextButton(enabled = !deleting, onClick = { showDeleteConfirmation = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 

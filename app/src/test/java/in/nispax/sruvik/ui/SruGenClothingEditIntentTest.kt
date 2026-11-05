@@ -10,6 +10,20 @@ class SruGenClothingEditIntentTest {
         assertTrue(isSruGenClothingEditInstruction("change my clothes color to red"))
         assertTrue(isSruGenClothingEditInstruction("make my shirt black"))
         assertTrue(isSruGenClothingEditInstruction("recolour the jacket blue"))
+        assertTrue(isSruGenClothingEditInstruction("change my blazer to black"))
+        assertTrue(isSruGenClothingEditInstruction("make my turtleneck white"))
+    }
+
+    @Test
+    fun attachedPhotoHairColourInstructionIsRecognized() {
+        assertTrue(isSruGenClothingEditInstruction("make my hair blue"))
+        assertTrue(isSruGenClothingEditInstruction("change my hair colour to auburn"))
+    }
+
+    @Test
+    fun structuralHairEditIsRecognizedForSafeCapabilityGuidance() {
+        assertTrue(isSruGenClothingEditInstruction("give me curly hair"))
+        assertTrue(isSruGenClothingEditInstruction("make my hairstyle shorter"))
     }
 
     @Test

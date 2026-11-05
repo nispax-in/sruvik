@@ -118,6 +118,7 @@ class NezumiMnnSruGenEngine(
         }
         require(request.prompt.isNotBlank()) { "Describe the image you want to create or how you want to edit it." }
         val editing = request.mode == SruGenMode.PROMPT_EDIT
+        val clothingEdit = editing && SruGenColorEditParser.hasClothingTarget(request.prompt)
         require(!editing || request.sourceImage?.isNotEmpty() == true) {
             "Attach an image before starting a prompt edit."
         }
@@ -126,20 +127,25 @@ class NezumiMnnSruGenEngine(
         // recolour than full img2img: preserve the exact garment shape, folds,
         // stitching and illumination rather than asking diffusion to redraw it.
         val targetColor = if (editing) SruGenColorEditParser.targetColor(request.prompt) else null
-        if (targetColor != null) {
+        val targetRegion = if (targetColor != null) SruGenColorEditParser.targetRegion(request.prompt) else null
+        if (targetColor != null && targetRegion != null) {
             SruGenDeviceGuard.requireSafeToStart(context)
-            onProgress(5, "Finding the clothing region")
+            onProgress(5, if (targetRegion == "hair") "Selecting hair while protecting face and skin" else "Selecting clothing while protecting skin and background")
             val original = SruGenAutoMasker.decodeBounded(requireNotNull(request.sourceImage))
             var recoloured: Bitmap? = null
             try {
                 SruGenDeviceGuard.assertSafeToContinue(context)
-                recoloured = SruGenAutoMasker.recolorClothing(context, original, targetColor)
+                recoloured = if (targetRegion == "hair") {
+                    SruGenAutoMasker.recolorHair(context, original, targetColor)
+                } else {
+                    SruGenAutoMasker.recolorClothing(context, original, targetColor)
+                }
                 val png = SruGenAutoMasker.encodePng(requireNotNull(recoloured))
-                onProgress(100, "Done · original clothing texture preserved")
+                onProgress(100, "Done · source texture and pixels outside the selected region preserved")
                 return@withContext SruGenResult(
                     imageBytes = png,
                     mimeType = "image/png",
-                    modelName = "SruGen · precision $targetColor clothing recolour"
+                    modelName = "SruGen · precision $targetColor $targetRegion recolour"
                 )
             } finally {
                 original.recycle()
@@ -174,11 +180,19 @@ class NezumiMnnSruGenEngine(
                 if (editing) {
                     onProgress(4, "Preparing your private reference image")
                     sourceBitmap = SruGenAutoMasker.decodeBounded(requireNotNull(request.sourceImage))
-                    clothingCrop = SruGenAutoMasker.cropForClothingEdit(
-                        context,
+                    // A single clothing target can use the semantic-clothing composite.
+                    // All other edits must see the complete reference frame; cropping
+                    // every prompt to clothing was the reason background/object edits
+                    // could not meaningfully modify the supplied photo.
+                    val editInput = if (clothingEdit) {
+                        SruGenAutoMasker.cropForClothingEdit(
+                            context,
+                            requireNotNull(sourceBitmap)
+                        ).also { clothingCrop = it }
+                    } else {
                         requireNotNull(sourceBitmap)
-                    )
-                    resizedSource = SruGenAutoMasker.resizeForDiffusion(requireNotNull(clothingCrop))
+                    }
+                    resizedSource = SruGenAutoMasker.resizeForDiffusion(editInput)
                     generationWidth = resizedSource!!.width
                     generationHeight = resizedSource!!.height
                     sourceRgb = SruGenAutoMasker.toPackedRgb(resizedSource!!)
@@ -219,15 +233,23 @@ class NezumiMnnSruGenEngine(
                 }
 
                 onProgress(5, if (editing) "Preparing image-to-image inference · CPU-safe mode" else "Loading $displayName · CPU-safe mode")
-                val diffusionPrompt = if (editing) {
-                    "Faithful photorealistic edit of the supplied original photo. Keep the same person, identity, face, hair, expression, pose, camera framing, background and lighting. Change only the visible clothing as requested: ${request.prompt}. Preserve every non-clothing detail."
-                } else {
-                    request.prompt
+                val diffusionPrompt = when {
+                    clothingEdit ->
+                        "Faithful photorealistic edit of the supplied original photo. Keep the same person, identity, face, hair, expression, pose, camera framing and lighting. Change the visible clothing as requested: ${request.prompt}. Preserve the garment silhouette and every non-clothing detail."
+                    editing ->
+                        "Edit the supplied photograph according to this instruction: ${request.prompt}. Preserve the original subject identity, main composition, camera viewpoint and natural photographic detail wherever the instruction does not request a change. Make the requested edit clearly visible and avoid unrelated changes."
+                    else -> request.prompt
                 }
                 packed = MnnSdNative.generate(
                     handle = currentHandle,
                     prompt = diffusionPrompt,
-                    negativePrompt = "low quality, blurry, deformed, distorted, different person, changed identity, changed face, changed hair, changed expression, changed pose, changed camera, changed background, watermark",
+                    negativePrompt = if (clothingEdit) {
+                        "low quality, blurry, deformed, distorted, different person, changed identity, changed face, changed hair, changed expression, changed pose, changed camera, changed background, watermark"
+                    } else {
+                        // Do not negate a class of change that the user may have
+                        // explicitly requested (for example, a new hairstyle or background).
+                        "low quality, blurry, deformed anatomy, duplicate subject, extra limbs, watermark, text, compression artifacts"
+                    },
                     width = generationWidth,
                     height = generationHeight,
                     steps = 20,
@@ -241,7 +263,13 @@ class NezumiMnnSruGenEngine(
                     // full-frame img2img strength re-synthesised the whole torso;
                     // the later mask merely pasted that invented body fragment
                     // into the shirt area. Lower strength preserves garment shape.
-                    denoiseStrength = if (editing) 0.38f else 0.0f,
+                    // Conservative img2img strength for a clothing crop; a full-frame
+                    // edit needs more freedom to express a non-clothing instruction.
+                    denoiseStrength = when {
+                        !editing -> 0.0f
+                        clothingEdit -> 0.38f
+                        else -> 0.55f
+                    },
                     progressListener = progress
                 )
                 stopReason?.let { throw IllegalStateException(it) }
@@ -252,24 +280,47 @@ class NezumiMnnSruGenEngine(
                     "DreamShaper image operation failed: ${MnnSdNative.getLastError()}"
                 }
                 SruGenDeviceGuard.assertSafeToContinue(context)
-                onProgress(92, if (editing) "Applying the automatic clothing mask" else "Decoding generated image")
+                onProgress(
+                    92,
+                    when {
+                        !editing -> "Decoding generated image"
+                        clothingEdit -> "Compositing the clothing edit through its semantic mask"
+                        else -> "Restoring the full-frame image edit"
+                    }
+                )
                 generatedBitmap = SruGenAutoMasker.decodePackedRgb(requireNotNull(packed))
-                finalBitmap = if (editing) {
-                    SruGenAutoMasker.editClothing(
+                finalBitmap = when {
+                    !editing -> generatedBitmap
+                    clothingEdit -> SruGenAutoMasker.editClothing(
                         context,
                         requireNotNull(sourceBitmap),
                         requireNotNull(generatedBitmap)
                     )
-                } else {
-                    generatedBitmap
+                    else -> Bitmap.createScaledBitmap(
+                        requireNotNull(generatedBitmap),
+                        requireNotNull(sourceBitmap).width,
+                        requireNotNull(sourceBitmap).height,
+                        true
+                    )
                 }
 
                 val png = SruGenAutoMasker.encodePng(requireNotNull(finalBitmap))
-                onProgress(100, if (editing) "Done · clothing edited locally" else "Done · generated locally")
+                onProgress(
+                    100,
+                    when {
+                        !editing -> "Done · generated locally"
+                        clothingEdit -> "Done · clothing edit composited locally"
+                        else -> "Done · full-frame image-to-image edit"
+                    }
+                )
                 SruGenResult(
                     imageBytes = png,
                     mimeType = "image/png",
-                    modelName = if (editing) "$displayName · automatic clothing edit" else displayName
+                    modelName = when {
+                        !editing -> displayName
+                        clothingEdit -> "$displayName · clothing-region edit"
+                        else -> "$displayName · full-frame image-to-image edit"
+                    }
                 )
             } finally {
                 sourceBitmap?.recycle()

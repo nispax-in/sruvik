@@ -45,6 +45,8 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.foundation.horizontalScroll
@@ -57,6 +59,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -491,7 +495,7 @@ fun SruGenPage(
                     mode = SruGenMode.PROMPT_EDIT
                 }
                 info = if (mode == SruGenMode.PROMPT_EDIT) {
-                    "Image attached. Edit clothes mode selected; choose Create to use text-to-image instead."
+                    "Image attached. Edit photo mode selected; choose Create to use text-to-image instead."
                 } else {
                     "Image attached and encrypted in this local conversation."
                 }
@@ -566,7 +570,7 @@ fun SruGenPage(
             )
             generating = true
             progress = 0
-            progressLabel = if (request.mode == SruGenMode.PROMPT_EDIT) "Preparing automatic image edit"
+            progressLabel = if (request.mode == SruGenMode.PROMPT_EDIT) "Preparing local photo edit"
                 else if (request.mode == SruGenMode.REMOVE_BACKGROUND) "Preparing subject mask"
                 else "Preparing local model"
             error = ""
@@ -708,7 +712,7 @@ fun SruGenPage(
                 "good morning", "good afternoon", "good evening" ->
                     "Hey! I'm here. SruGen creates images locally with your selected model, ${activeModel?.name ?: "installed image model"}. General conversation needs a separate language model."
                 "help", "what can you do", "what can you do here" ->
-                    "I can create images locally, automatically edit clothing in a compatible model, and remove photo backgrounds. Object-specific removal is not enabled yet."
+                    "I can create images locally and edit attached photos with a compatible image-to-image model. Simple hair and clothing colour changes use segmentation masks; background removal is available. Object-specific removal still needs an inpainting model."
                 else -> null
             }
         } else null
@@ -751,11 +755,11 @@ fun SruGenPage(
 
         if (
             requestMode == SruGenMode.PROMPT_EDIT &&
-            SruGenColorEditParser.requiresMultiGarmentEdit(text)
+            SruGenColorEditParser.requiresMultiRegionEdit(text)
         ) {
             persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
                 role = "assistant",
-                text = "I didn't generate this edit because it asks for separate garment layers (${SruGenColorEditParser.garmentTargets(text).joinToString(" + ")}). This build's on-device segmenter only returns one broad clothes mask, and its diffusion engine does not accept an inpainting mask. It cannot independently edit an outer blazer and an inner shirt reliably. A true layered edit needs garment-specific masks plus a mask-conditioned inpainting model. For now, try one visible garment at a time; your original photo is unchanged."
+                text = "This edit needs separate selections that aren't available in the current local model setup. Your photo is unchanged. Try one visible region at a time."
             )))
             return
         }
@@ -763,7 +767,7 @@ fun SruGenPage(
         if (requestMode == SruGenMode.PROMPT_EDIT && text.isBlank()) {
             persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
                 role = "assistant",
-                text = "Describe the clothing change you want, for example: change the shirt to black. Your original image remains attached in this encrypted chat."
+                text = "Describe the photo change you want, for example: change the background to a beach. Your original image remains attached in this encrypted chat."
             )))
             return
         }
@@ -780,7 +784,7 @@ fun SruGenPage(
             if (editModel == null) {
                 persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
                     role = "assistant",
-                    text = "Your photo is safely saved, but ${activeModel?.name ?: "the active model"} does not have the VAE encoder required for image editing. Install majicMIX Realistic v6 from Models (about 1.24 GB). After installation, return here, reattach the photo and choose Edit clothes. Nothing was generated from text alone."
+                    text = "Your photo is safely saved, but ${activeModel?.name ?: "the active model"} does not have the VAE encoder required for image editing. Install majicMIX Realistic v6 from Models (about 1.24 GB). After installation, return here, reattach the photo and choose Edit photo. Nothing was generated from text alone."
                 )))
                 return
             }
@@ -849,10 +853,31 @@ fun SruGenPage(
     val studioText = SruvikColors.TextPrimary
     val studioSecondary = SruvikColors.TextSecondary
 
-    Box(
-        Modifier.fillMaxSize().background(studioInk),
-        contentAlignment = Alignment.TopCenter
-    ) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        Image(
+            painter = painterResource(R.drawable.sruvik_glass_art),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize()
+                .then(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) Modifier.blur(30.dp) else Modifier)
+                .alpha(.46f),
+            contentScale = ContentScale.Crop
+        )
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.linearGradient(
+                    listOf(Color(0x99090D1D), Color(0x66202A49), Color(0xAA080C17))
+                )
+            )
+        )
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.radialGradient(
+                    colors = listOf(Color(0x376E65C6), Color(0x1769D8E8), Color.Transparent),
+                    center = Offset(0.82f, 0.18f),
+                    radius = 920f
+                )
+            )
+        )
         Column(
             Modifier.widthIn(max = 920.dp).fillMaxWidth().fillMaxHeight()
                 .windowInsetsPadding(WindowInsets.statusBars)
@@ -861,62 +886,76 @@ fun SruGenPage(
         ) {
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val useCompactHeader = maxWidth < 390.dp
-                Row(
-                    Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ObsidianFrostedSurface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(26.dp),
+                    fillAlpha = .60f
                 ) {
-                    IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Rounded.ArrowBack, "Back to Sruvik", tint = studioText)
-                    }
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                        Text("SruGen", color = studioText, style = MaterialTheme.typography.headlineMedium, maxLines = 1)
-                        Text(
-                            activeModel?.name ?: "Choose a local model",
-                            color = if (modelReady) studioSecondary else studioAccent,
-                            style = MaterialTheme.typography.labelSmall,
-                            maxLines = 1
-                        )
-                    }
-                    IconButton(onClick = onOpenModels, modifier = Modifier.size(48.dp)) {
-                        Icon(
-                            Icons.Rounded.Memory,
-                            "Active model: ${activeModel?.name ?: "Choose a model"}. Open model library",
-                            tint = studioAccent
-                        )
-                    }
-                    IconButton(onClick = { historyOpen = true }, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Rounded.History, "Conversation history", tint = studioText)
-                    }
-                    if (!useCompactHeader) {
-                        IconButton(onClick = { monitorExpanded = !monitorExpanded }, modifier = Modifier.size(48.dp)) {
-                            Icon(Icons.Rounded.Tune, "Device performance details", tint = studioSecondary)
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 7.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        ObsidianGlassIconButton(
+                            onClick = onBack,
+                            contentDescription = "Back to Sruvik",
+                            size = 46.dp
+                        ) { Icon(Icons.Rounded.ArrowBack, null) }
+                        Column(Modifier.weight(1f).padding(start = 4.dp), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                            Text("SruGen", color = Color(0xFF11172D), style = MaterialTheme.typography.headlineSmall, maxLines = 1)
+                            Text(
+                                activeModel?.name ?: "Choose a local model",
+                                color = if (modelReady) Color(0xFF35415F) else Color(0xFF4B477B),
+                                style = MaterialTheme.typography.labelSmall,
+                                maxLines = 1
+                            )
                         }
-                        IconButton(onClick = { newChat() }, modifier = Modifier.size(48.dp)) {
-                            Icon(Icons.Rounded.Add, "New conversation", tint = studioAccent)
-                        }
-                    } else {
-                        Box {
-                            IconButton(onClick = { headerMenuExpanded = true }, modifier = Modifier.size(48.dp)) {
-                                Icon(Icons.Rounded.MoreVert, "More studio actions", tint = studioSecondary)
-                            }
-                            DropdownMenu(expanded = headerMenuExpanded, onDismissRequest = { headerMenuExpanded = false }) {
-                                DropdownMenuItem(
-                                    text = { Text("Device performance") },
-                                    leadingIcon = { Icon(Icons.Rounded.Tune, null) },
-                                    onClick = {
-                                        headerMenuExpanded = false
-                                        monitorExpanded = !monitorExpanded
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("New conversation") },
-                                    leadingIcon = { Icon(Icons.Rounded.Add, null) },
-                                    onClick = {
-                                        headerMenuExpanded = false
-                                        newChat()
-                                    }
-                                )
+                        ObsidianGlassIconButton(
+                            onClick = onOpenModels,
+                            contentDescription = "Active model: ${activeModel?.name ?: "Choose a model"}. Open model library",
+                            size = 46.dp
+                        ) { Icon(Icons.Rounded.Memory, null) }
+                        ObsidianGlassIconButton(
+                            onClick = { historyOpen = true },
+                            contentDescription = "Conversation history",
+                            size = 46.dp
+                        ) { Icon(Icons.Rounded.History, null) }
+                        if (!useCompactHeader) {
+                            ObsidianGlassIconButton(
+                                onClick = { monitorExpanded = !monitorExpanded },
+                                contentDescription = "Device performance details",
+                                size = 46.dp
+                            ) { Icon(Icons.Rounded.Tune, null) }
+                            ObsidianGlassIconButton(
+                                onClick = { newChat() },
+                                contentDescription = "New conversation",
+                                size = 46.dp
+                            ) { Icon(Icons.Rounded.Add, null) }
+                        } else {
+                            Box {
+                                ObsidianGlassIconButton(
+                                    onClick = { headerMenuExpanded = true },
+                                    contentDescription = "More studio actions",
+                                    size = 46.dp
+                                ) { Icon(Icons.Rounded.MoreVert, null) }
+                                DropdownMenu(expanded = headerMenuExpanded, onDismissRequest = { headerMenuExpanded = false }) {
+                                    DropdownMenuItem(
+                                        text = { Text("Device performance") },
+                                        leadingIcon = { Icon(Icons.Rounded.Tune, null) },
+                                        onClick = {
+                                            headerMenuExpanded = false
+                                            monitorExpanded = !monitorExpanded
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("New conversation") },
+                                        leadingIcon = { Icon(Icons.Rounded.Add, null) },
+                                        onClick = {
+                                            headerMenuExpanded = false
+                                            newChat()
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -924,72 +963,87 @@ fun SruGenPage(
             }
 
             AnimatedVisibility(visible = monitorExpanded) {
-                Row(
-                    Modifier.fillMaxWidth().padding(bottom = 8.dp)
-                        .background(studioPanel, RoundedCornerShape(8.dp))
-                        .padding(horizontal = 12.dp, vertical = 9.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                ObsidianFrostedSurface(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    fillAlpha = .52f
                 ) {
-                    Text("CPU  ${String.format("%.1f", resourceStats.cpu)}%", color = studioSecondary, style = MaterialTheme.typography.labelMedium)
-                    Text("RAM  ${resourceStats.pss} MB", color = studioSecondary, style = MaterialTheme.typography.labelMedium)
-                    Text("FREE  ${resourceStats.available} MB", color = studioSecondary, style = MaterialTheme.typography.labelMedium)
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 11.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("APP CPU  ${String.format("%.1f", resourceStats.cpu)}%", color = Color(0xFF28334E), style = MaterialTheme.typography.labelMedium)
+                        Text("APP PSS  ${resourceStats.pss} MiB", color = Color(0xFF28334E), style = MaterialTheme.typography.labelMedium)
+                        Text("DEVICE AVAIL  ${resourceStats.available} MiB", color = Color(0xFF28334E), style = MaterialTheme.typography.labelMedium)
+                    }
                 }
             }
 
             AnimatedVisibility(visible = !modelReady && !installing && downloadId < 0L) {
-                Row(
-                    Modifier.fillMaxWidth().padding(bottom = 8.dp)
-                        .background(studioPanel, RoundedCornerShape(8.dp))
-                        .padding(horizontal = 12.dp, vertical = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ObsidianFrostedSurface(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    fillAlpha = .58f
                 ) {
-                    Icon(Icons.Rounded.Info, null, tint = studioAccent, modifier = Modifier.size(18.dp))
-                    Text(
-                        "No compatible model is ready. Choose or install one to create images.",
-                        Modifier.weight(1f),
-                        color = studioSecondary,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    TextButton(onClick = onOpenModels, contentPadding = PaddingValues(horizontal = 6.dp)) {
-                        Text("Models")
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(9.dp)
+                    ) {
+                        Icon(Icons.Rounded.Info, null, tint = Color(0xFF343C75), modifier = Modifier.size(19.dp))
+                        Text(
+                            "No compatible model is ready. Choose or install one to create images.",
+                            Modifier.weight(1f),
+                            color = Color(0xFF27334E),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        ObsidianGlassButton(
+                            onClick = onOpenModels,
+                            shape = RoundedCornerShape(22.dp),
+                            contentPadding = PaddingValues(horizontal = 13.dp, vertical = 9.dp)
+                        ) { Text("Models", style = MaterialTheme.typography.labelMedium) }
                     }
                 }
             }
 
             AnimatedVisibility(visible = downloadId >= 0L || installing) {
-                Column(
-                    Modifier.fillMaxWidth().padding(bottom = 8.dp)
-                        .background(studioPanel, RoundedCornerShape(8.dp))
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ObsidianFrostedSurface(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    fillAlpha = .58f
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            if (installing) installMessage else "Downloading model · $downloadPercent%",
-                            Modifier.weight(1f),
-                            color = studioText,
-                            style = MaterialTheme.typography.labelLarge
-                        )
-                        if (downloadId >= 0L) {
-                            TextButton(
-                                onClick = {
-                                    (context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).remove(downloadId)
-                                    SruGenModelInstaller.clearDownloadId(context)
-                                    downloadId = -1L
-                                    info = "Model download cancelled."
-                                },
-                                contentPadding = PaddingValues(horizontal = 8.dp)
-                            ) { Text("Cancel") }
+                    Column(
+                        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp),
+                        verticalArrangement = Arrangement.spacedBy(7.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                if (installing) installMessage else "Downloading model · $downloadPercent%",
+                                Modifier.weight(1f),
+                                color = Color(0xFF1C2741),
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                            if (downloadId >= 0L) {
+                                ObsidianGlassButton(
+                                    onClick = {
+                                        (context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).remove(downloadId)
+                                        SruGenModelInstaller.clearDownloadId(context)
+                                        downloadId = -1L
+                                        info = "Model download cancelled."
+                                    },
+                                    shape = RoundedCornerShape(20.dp),
+                                    contentPadding = PaddingValues(horizontal = 13.dp, vertical = 8.dp)
+                                ) { Text("Cancel", style = MaterialTheme.typography.labelSmall) }
+                            }
                         }
+                        LinearProgressIndicator(
+                            progress = { animatedDownloadProgress },
+                            modifier = Modifier.fillMaxWidth(),
+                            color = Color(0xFF575B9B),
+                            trackColor = Color(0x55404B66)
+                        )
                     }
-                    LinearProgressIndicator(
-                        progress = { animatedDownloadProgress },
-                        modifier = Modifier.fillMaxWidth(),
-                        color = studioAccent,
-                        trackColor = studioRaised
-                    )
                 }
             }
 
@@ -1002,26 +1056,39 @@ fun SruGenPage(
                 ) {
                     if (chat.messages.isEmpty()) {
                         item(key = "srugen-empty") {
-                            Column(
-                                Modifier.fillParentMaxSize().padding(horizontal = 12.dp, vertical = 20.dp),
-                                verticalArrangement = Arrangement.Center,
-                                horizontalAlignment = Alignment.Start
+                            Box(
+                                Modifier.fillParentMaxSize().padding(horizontal = 7.dp, vertical = 18.dp),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Text("01 / CREATE", color = studioAccent, style = MaterialTheme.typography.labelMedium, letterSpacing = 1.6.sp)
-                                Spacer(Modifier.height(12.dp))
-                                Text("Make an image.", color = studioText, style = MaterialTheme.typography.displaySmall)
-                                Spacer(Modifier.height(8.dp))
-                                Text(
-                                    "Describe a scene, or attach a photo to edit. Generation runs locally; this conversation is stored encrypted on this device.",
-                                    color = studioSecondary,
-                                    style = MaterialTheme.typography.bodyLarge
-                                )
-                                if (!modelReady) {
-                                    Spacer(Modifier.height(18.dp))
-                                    OutlinedButton(onClick = onOpenModels) {
-                                        Icon(Icons.Rounded.Memory, null)
-                                        Spacer(Modifier.width(8.dp))
-                                        Text("Choose a model")
+                                ObsidianFrostedPanel(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(30.dp),
+                                    contentPadding = PaddingValues(22.dp),
+                                    fillAlpha = .60f,
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                                        ObsidianGlassPill(selected = true) {
+                                            Icon(Icons.Rounded.AutoAwesome, null, modifier = Modifier.size(15.dp))
+                                            Text("LOCAL IMAGE STUDIO", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+                                        }
+                                        Spacer(Modifier.weight(1f))
+                                        Text("PRIVATE", color = Color(0xFF46516E), style = MaterialTheme.typography.labelSmall, letterSpacing = 1.sp)
+                                    }
+                                    Text("Make an image.", color = Color(0xFF121A34), style = MaterialTheme.typography.displaySmall)
+                                    Text(
+                                        "Describe a scene or attach a photo to edit. Your prompt and conversation stay in this encrypted on-device studio.",
+                                        color = Color(0xFF35415D),
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                    if (!modelReady) {
+                                        Spacer(Modifier.height(4.dp))
+                                        ObsidianGlassButton(onClick = onOpenModels, modifier = Modifier.fillMaxWidth()) {
+                                            Icon(Icons.Rounded.Memory, null)
+                                            Text("Choose a model")
+                                            Spacer(Modifier.weight(1f))
+                                            Icon(Icons.Rounded.ArrowForward, null)
+                                        }
                                     }
                                 }
                             }
@@ -1038,27 +1105,34 @@ fun SruGenPage(
                     }
                     if (generating) {
                         item(key = "srugen-generation-progress") {
-                            Column(
-                                Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ObsidianFrostedSurface(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                shape = RoundedCornerShape(22.dp),
+                                fillAlpha = .58f
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = studioAccent)
-                                    Spacer(Modifier.width(10.dp))
-                                    Text("Creating your image · $progress%", Modifier.weight(1f), color = studioText, style = MaterialTheme.typography.titleSmall)
-                                    TextButton(onClick = { SruGenGenerationService.stop(context) }) {
-                                        Icon(Icons.Rounded.Stop, null)
-                                        Spacer(Modifier.width(4.dp))
-                                        Text("Stop")
+                                Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Color(0xFF555B99))
+                                        Spacer(Modifier.width(10.dp))
+                                        Text("Creating your image · $progress%", Modifier.weight(1f), color = Color(0xFF18223C), style = MaterialTheme.typography.titleSmall)
+                                        ObsidianGlassButton(
+                                            onClick = { SruGenGenerationService.stop(context) },
+                                            shape = RoundedCornerShape(22.dp),
+                                            contentPadding = PaddingValues(horizontal = 13.dp, vertical = 8.dp)
+                                        ) {
+                                            Icon(Icons.Rounded.Stop, null, modifier = Modifier.size(15.dp))
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("Stop", style = MaterialTheme.typography.labelSmall)
+                                        }
                                     }
+                                    LinearProgressIndicator(
+                                        progress = { animatedGenerationProgress },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        color = Color(0xFF555B99),
+                                        trackColor = Color(0x55404B66)
+                                    )
+                                    Text(progressLabel, color = Color(0xFF3C4967), style = MaterialTheme.typography.bodySmall)
                                 }
-                                LinearProgressIndicator(
-                                    progress = { animatedGenerationProgress },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    color = studioAccent,
-                                    trackColor = studioRaised
-                                )
-                                Text(progressLabel, color = studioSecondary, style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
@@ -1073,115 +1147,138 @@ fun SruGenPage(
 
             AnimatedVisibility(visible = error.isNotBlank() || info.isNotBlank()) {
                 val isError = error.isNotBlank()
-                Text(
-                    if (isError) error else info,
-                    Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 7.dp),
-                    color = if (isError) SruvikColors.Danger else SruvikColors.Mint,
-                    style = MaterialTheme.typography.bodySmall
-                )
+                ObsidianFrostedSurface(
+                    modifier = Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 7.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    fillAlpha = .44f
+                ) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            if (isError) Icons.Rounded.ErrorOutline else Icons.Rounded.CheckCircle,
+                            null,
+                            tint = if (isError) Color(0xFF9B3F48) else Color(0xFF2E725B),
+                            modifier = Modifier.size(17.dp)
+                        )
+                        Text(
+                            if (isError) error else info,
+                            Modifier.padding(start = 9.dp),
+                            color = if (isError) Color(0xFF6F2634) else Color(0xFF245944),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
             }
 
-            Column(
-                Modifier.fillMaxWidth().background(studioInk).padding(top = 8.dp, bottom = 6.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ObsidianFrostedSurface(
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 5.dp),
+                shape = RoundedCornerShape(29.dp),
+                fillAlpha = .70f
             ) {
-                HorizontalDivider(color = SruvikColors.Border.copy(alpha = .75f))
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    Modifier.fillMaxWidth().padding(11.dp),
+                    verticalArrangement = Arrangement.spacedBy(9.dp)
                 ) {
-                    StudioModeControl("Create", mode == SruGenMode.TEXT_TO_IMAGE) { mode = SruGenMode.TEXT_TO_IMAGE }
-                    StudioModeControl("Edit clothes", mode == SruGenMode.PROMPT_EDIT) { mode = SruGenMode.PROMPT_EDIT }
-                    StudioModeControl("Remove background", mode == SruGenMode.REMOVE_BACKGROUND) { mode = SruGenMode.REMOVE_BACKGROUND }
-                }
-
-                selectedImage?.let { id ->
                     Row(
-                        Modifier.fillMaxWidth().background(studioPanel, RoundedCornerShape(8.dp))
-                            .padding(horizontal = 9.dp, vertical = 7.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        thumbnails[id]?.let { bitmap ->
-                            Image(bitmap.asImageBitmap(), "Attached reference image", Modifier.size(44.dp).clip(RoundedCornerShape(5.dp)), contentScale = ContentScale.Crop)
-                        }
-                        Text("Reference image attached", Modifier.weight(1f), color = studioText, style = MaterialTheme.typography.bodySmall)
-                        IconButton(
-                            onClick = {
-                                selectedImage = null
-                                if (mode == SruGenMode.PROMPT_EDIT) mode = SruGenMode.TEXT_TO_IMAGE
-                                SruGenChatStore.deleteAttachment(context, id)
-                                thumbnails[id]?.takeIf { !it.isRecycled }?.recycle()
-                                thumbnails = thumbnails - id
-                            },
-                            modifier = Modifier.size(44.dp)
-                        ) {
-                            Icon(Icons.Rounded.Close, "Remove attached image", tint = studioSecondary)
-                        }
+                        StudioModeControl("Create", mode == SruGenMode.TEXT_TO_IMAGE) { mode = SruGenMode.TEXT_TO_IMAGE }
+                        StudioModeControl("Edit photo", mode == SruGenMode.PROMPT_EDIT) { mode = SruGenMode.PROMPT_EDIT }
+                        StudioModeControl("Remove background", mode == SruGenMode.REMOVE_BACKGROUND) { mode = SruGenMode.REMOVE_BACKGROUND }
                     }
-                }
 
-                Row(
-                    Modifier.fillMaxWidth().background(studioPanel, RoundedCornerShape(10.dp))
-                        .padding(start = 13.dp, end = 5.dp, top = 5.dp, bottom = 5.dp),
-                    verticalAlignment = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    BasicTextField(
-                        value = prompt,
-                        onValueChange = { prompt = it.take(1800) },
-                        modifier = Modifier.weight(1f).heightIn(min = 46.dp, max = 116.dp)
-                            .semantics { contentDescription = "Image prompt" }
-                            .padding(vertical = 10.dp),
-                        textStyle = MaterialTheme.typography.bodyLarge.copy(color = studioText),
-                        cursorBrush = SolidColor(studioAccent),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                        keyboardActions = KeyboardActions(onSend = { if (!generating && (prompt.isNotBlank() || selectedImage != null)) sendMessage() }),
-                        decorationBox = { innerTextField ->
-                            Box(Modifier.fillMaxWidth()) {
-                                if (prompt.isBlank()) {
-                                    Text(
-                                        when (mode) {
-                                            SruGenMode.TEXT_TO_IMAGE -> "Describe an image…"
-                                            SruGenMode.PROMPT_EDIT -> "Describe the clothing change…"
-                                            SruGenMode.REMOVE_BACKGROUND -> "Describe the subject to keep…"
-                                            SruGenMode.REMOVE_OBJECT -> "Describe what to remove…"
-                                        },
-                                        color = SruvikColors.TextMuted,
-                                        style = MaterialTheme.typography.bodyLarge
-                                    )
+                    selectedImage?.let { id ->
+                        ObsidianFrostedSurface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(18.dp),
+                            fillAlpha = .36f
+                        ) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                thumbnails[id]?.let { bitmap ->
+                                    Image(bitmap.asImageBitmap(), "Attached reference image", Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop)
                                 }
-                                innerTextField()
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text("Reference image", color = Color(0xFF1C2741), style = MaterialTheme.typography.labelLarge)
+                                    Text("Encrypted in this conversation", color = Color(0xFF46516D), style = MaterialTheme.typography.labelSmall)
+                                }
+                                ObsidianGlassIconButton(
+                                    onClick = {
+                                        selectedImage = null
+                                        if (mode == SruGenMode.PROMPT_EDIT) mode = SruGenMode.TEXT_TO_IMAGE
+                                        SruGenChatStore.deleteAttachment(context, id)
+                                        thumbnails[id]?.takeIf { !it.isRecycled }?.recycle()
+                                        thumbnails = thumbnails - id
+                                    },
+                                    contentDescription = "Remove attached image",
+                                    size = 42.dp
+                                ) { Icon(Icons.Rounded.Close, null) }
                             }
                         }
-                    )
-                    Box {
-                        IconButton(
-                            onClick = { attachMenuExpanded = true },
-                            enabled = !importingImage && !generating,
-                            modifier = Modifier.size(48.dp)
-                        ) {
-                            if (importingImage) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = studioAccent)
-                            else Icon(Icons.Rounded.AddPhotoAlternate, "Attach image", tint = studioSecondary)
-                        }
-                        DropdownMenu(expanded = attachMenuExpanded, onDismissRequest = { attachMenuExpanded = false }) {
-                            DropdownMenuItem(text = { Text("Photo library") }, leadingIcon = { Icon(Icons.Rounded.PhotoLibrary, null) }, onClick = { attachMenuExpanded = false; launchImagePicker() })
-                            DropdownMenuItem(text = { Text("Browse files") }, leadingIcon = { Icon(Icons.Rounded.FolderOpen, null) }, onClick = { attachMenuExpanded = false; launchImageFilePicker() })
-                        }
                     }
-                    FilledIconButton(
-                        onClick = { sendMessage() },
-                        enabled = !generating && (prompt.isNotBlank() || selectedImage != null),
-                        modifier = Modifier.size(48.dp),
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = studioAccent,
-                            contentColor = SruvikColors.OnPrimary,
-                            disabledContainerColor = SruvikColors.SurfaceElevated,
-                            disabledContentColor = SruvikColors.TextMuted
-                        )
+
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(Color.White.copy(alpha = .33f), RoundedCornerShape(24.dp))
+                            .border(1.dp, Color.White.copy(alpha = .65f), RoundedCornerShape(24.dp))
+                            .padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+                        verticalAlignment = Alignment.Bottom,
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
                     ) {
-                        Icon(Icons.Rounded.ArrowUpward, "Send prompt and create image")
+                        BasicTextField(
+                            value = prompt,
+                            onValueChange = { prompt = it.take(1800) },
+                            modifier = Modifier.weight(1f).heightIn(min = 48.dp, max = 116.dp)
+                                .semantics { contentDescription = "Image prompt" }
+                                .padding(vertical = 11.dp),
+                            textStyle = MaterialTheme.typography.bodyLarge.copy(color = Color(0xFF121A34)),
+                            cursorBrush = SolidColor(Color(0xFF565B9A)),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                            keyboardActions = KeyboardActions(onSend = { if (!generating && (prompt.isNotBlank() || selectedImage != null)) sendMessage() }),
+                            decorationBox = { innerTextField ->
+                                Box(Modifier.fillMaxWidth()) {
+                                    if (prompt.isBlank()) {
+                                        Text(
+                                            when (mode) {
+                                                SruGenMode.TEXT_TO_IMAGE -> "Describe an image…"
+                                                SruGenMode.PROMPT_EDIT -> "Describe the change to your photo…"
+                                                SruGenMode.REMOVE_BACKGROUND -> "Describe the subject to keep…"
+                                                SruGenMode.REMOVE_OBJECT -> "Describe what to remove…"
+                                            },
+                                            color = Color(0xFF5F6982),
+                                            style = MaterialTheme.typography.bodyLarge
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            }
+                        )
+                        Box {
+                            ObsidianGlassIconButton(
+                                onClick = { attachMenuExpanded = true },
+                                contentDescription = "Attach image",
+                                enabled = !importingImage && !generating,
+                                size = 48.dp
+                            ) {
+                                if (importingImage) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Color(0xFF505A97))
+                                else Icon(Icons.Rounded.AddPhotoAlternate, null)
+                            }
+                            DropdownMenu(expanded = attachMenuExpanded, onDismissRequest = { attachMenuExpanded = false }) {
+                                DropdownMenuItem(text = { Text("Photo library") }, leadingIcon = { Icon(Icons.Rounded.PhotoLibrary, null) }, onClick = { attachMenuExpanded = false; launchImagePicker() })
+                                DropdownMenuItem(text = { Text("Browse files") }, leadingIcon = { Icon(Icons.Rounded.FolderOpen, null) }, onClick = { attachMenuExpanded = false; launchImageFilePicker() })
+                            }
+                        }
+                        ObsidianGlassIconButton(
+                            onClick = { sendMessage() },
+                            contentDescription = "Send prompt and create image",
+                            enabled = !generating && (prompt.isNotBlank() || selectedImage != null),
+                            size = 52.dp
+                        ) { Icon(Icons.Rounded.ArrowUpward, null, modifier = Modifier.size(22.dp)) }
                     }
                 }
             }
@@ -1334,11 +1431,12 @@ fun SruGenPage(
 
 internal fun isSruGenClothingEditInstruction(prompt: String): Boolean {
     val normalized = prompt.lowercase()
-    val hasEditVerb = Regex("\\b(change|edit|recolor|recolour|turn|make|replace|switch)\\b")
+    val hasEditVerb = Regex("\\b(change|edit|recolor|recolour|turn|make|replace|switch|give)\\b")
         .containsMatchIn(normalized)
-    val hasClothingTarget = Regex("\\b(clothes|clothing|outfit|shirt|t-shirt|tee|jacket|coat|hoodie|sweater|dress|trousers|pants|jeans)\\b")
+    val hasClothingTarget = Regex("\\b(clothes|clothing|outfit|shirt|t-shirt|tee|blazer|jacket|coat|hoodie|sweater|cardigan|vest|blouse|tank top|undershirt|turtleneck|dress|gown|trousers|pants|jeans|shorts|skirt)\\b")
         .containsMatchIn(normalized)
-    return hasEditVerb && hasClothingTarget
+    val hasHairTarget = Regex("\\b(hair|hairstyle|hairstyles)\\b").containsMatchIn(normalized)
+    return (hasEditVerb && hasClothingTarget) || (hasEditVerb && hasHairTarget)
 }
 
 private const val MAX_SRUGEN_IMAGE_BYTES = 24 * 1024 * 1024
@@ -1529,7 +1627,7 @@ private fun SruGenCreativeSpark() {
 private fun SruGenGlassPanel(
     modifier: Modifier = Modifier,
     shape: RoundedCornerShape = RoundedCornerShape(22.dp),
-    fill: Brush = Brush.linearGradient(listOf(Color(0xCC29264D), Color(0xCC1B2440))),
+    fill: Brush = Brush.linearGradient(listOf(Color(0x781B2230), Color(0x700D111A))),
     content: @Composable BoxScope.() -> Unit
 ) {
     Box(
@@ -1571,7 +1669,7 @@ private fun SruGenHeroArtwork(
         Box(
             Modifier.fillMaxSize().background(
                 Brush.verticalGradient(
-                    listOf(Color(0x11101428), Color(0x55201C40), Color(0xED111326))
+                    listOf(Color(0x08080A10), Color(0x55202A3A), Color(0xF2080A10))
                 )
             )
         )
@@ -1637,63 +1735,72 @@ private fun SruGenMessageBubble(
         Modifier.fillMaxWidth(),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
     ) {
-        Column(
-            Modifier.widthIn(max = if (isUser) 560.dp else 680.dp)
-                .then(
-                    if (isUser) Modifier.clip(RoundedCornerShape(16.dp))
-                        .background(SruvikColors.SurfaceElevated)
-                        .padding(horizontal = 14.dp, vertical = 11.dp)
-                    else Modifier.padding(vertical = 2.dp)
-                ),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ObsidianFrostedSurface(
+            modifier = Modifier.widthIn(max = if (isUser) 560.dp else 680.dp).fillMaxWidth(),
+            shape = RoundedCornerShape(if (isUser) 26.dp else 22.dp),
+            fillAlpha = if (isUser) .64f else .48f
         ) {
-            Text(
-                if (isUser) "YOU" else "SRUGEN · LOCAL",
-                color = if (isUser) SruvikColors.TextSecondary else SruvikColors.Primary,
-                style = MaterialTheme.typography.labelSmall,
-                letterSpacing = 1.1.sp
-            )
-            if (message.text.isNotBlank()) {
-                Text(message.text, color = SruvikColors.TextPrimary, style = MaterialTheme.typography.bodyLarge)
-            }
-            image?.let { bitmap ->
-                Image(
-                    bitmap.asImageBitmap(),
-                    "Open image in full-screen viewer",
-                    Modifier.fillMaxWidth().heightIn(max = 440.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable(enabled = message.attachmentId != null) {
-                            message.attachmentId?.let(onViewImage)
-                        },
-                    contentScale = ContentScale.Fit
-                )
-                if (message.attachmentId != null) {
-                    Text("Tap image to view and zoom", color = SruvikColors.TextMuted, style = MaterialTheme.typography.labelSmall)
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 17.dp, vertical = 15.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Icon(
+                        if (isUser) Icons.Rounded.Person else Icons.Rounded.AutoAwesome,
+                        null,
+                        tint = if (isUser) Color(0xFF58649A) else Color(0xFF7863B6),
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Text(
+                        if (isUser) "YOU" else "SRUGEN · LOCAL",
+                        color = Color(0xFF293653),
+                        style = MaterialTheme.typography.labelSmall,
+                        letterSpacing = 1.1.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
-            }
-            if (!isUser && message.attachmentId != null) {
-                Text("Encrypted in this conversation", color = SruvikColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(
-                        onClick = { onSaveToDevice(message.attachmentId, message.attachmentMime ?: "image/png") },
-                        modifier = Modifier.heightIn(min = 48.dp)
-                    ) {
-                        Icon(Icons.Rounded.SaveAlt, null, modifier = Modifier.size(17.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Save to device")
-                    }
-                    TextButton(
-                        onClick = { onSaveToVault(message.attachmentId, message.attachmentMime ?: "image/png") },
-                        modifier = Modifier.heightIn(min = 48.dp)
-                    ) {
-                        Icon(Icons.Rounded.Security, null, modifier = Modifier.size(17.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Import to Srukrypt")
+                if (message.text.isNotBlank()) {
+                    Text(message.text, color = Color(0xFF121A34), style = MaterialTheme.typography.bodyLarge)
+                }
+                image?.let { bitmap ->
+                    Image(
+                        bitmap.asImageBitmap(),
+                        "Open image in full-screen viewer",
+                        Modifier.fillMaxWidth().heightIn(max = 440.dp)
+                            .clip(RoundedCornerShape(13.dp))
+                            .clickable(enabled = message.attachmentId != null) {
+                                message.attachmentId?.let(onViewImage)
+                            },
+                        contentScale = ContentScale.Fit
+                    )
+                    if (message.attachmentId != null) {
+                        Text("Tap image to view and zoom", color = Color(0xFF46516D), style = MaterialTheme.typography.labelSmall)
                     }
                 }
-            }
-            message.modelName?.let {
-                Text(it, color = SruvikColors.TextMuted, style = MaterialTheme.typography.labelSmall)
+                if (!isUser && message.attachmentId != null) {
+                    Text("Encrypted in this conversation", color = Color(0xFF35415D), style = MaterialTheme.typography.bodySmall)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        ObsidianSecondaryButton(
+                            onClick = { onSaveToDevice(message.attachmentId, message.attachmentMime ?: "image/png") },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Rounded.SaveAlt, null, modifier = Modifier.size(17.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Save to device", style = MaterialTheme.typography.labelSmall)
+                        }
+                        ObsidianSecondaryButton(
+                            onClick = { onSaveToVault(message.attachmentId, message.attachmentMime ?: "image/png") },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Rounded.Security, null, modifier = Modifier.size(17.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Import to Srukrypt", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+                message.modelName?.let {
+                    Text(it, color = Color(0xFF53607D), style = MaterialTheme.typography.labelSmall)
+                }
             }
         }
     }
@@ -1701,33 +1808,22 @@ private fun SruGenMessageBubble(
 @Composable
 private fun StudioModeControl(label: String, selected: Boolean, onClick: () -> Unit) {
     val isSelected = selected
-    val selectionProgress by animateFloatAsState(
-        targetValue = if (selected) 1f else 0f,
-        animationSpec = tween(180),
-        label = "studio-mode-selection"
-    )
-    Row(
-        Modifier.heightIn(min = 48.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(SruvikColors.Lime.copy(alpha = .04f + .12f * selectionProgress))
-            .border(
-                1.dp,
-                SruvikColors.Lime.copy(alpha = .08f + .22f * selectionProgress),
-                RoundedCornerShape(10.dp)
-            )
-            .clickable(onClick = onClick)
+    Box(
+        Modifier
             .semantics {
                 contentDescription = "$label mode"
                 stateDescription = if (isSelected) "Selected" else "Not selected"
             }
-            .padding(horizontal = 13.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .clickable(role = Role.Button, onClick = onClick)
     ) {
-        Text(
-            label,
-            color = if (selected) SruvikColors.Lime else SruvikColors.TextSecondary,
-            style = MaterialTheme.typography.labelMedium
-        )
+        ObsidianGlassPill(selected = selected) {
+            Text(
+                label,
+                color = Color(0xFF17213B),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
+            )
+        }
     }
 }
 
@@ -1755,37 +1851,37 @@ private fun ResourceMonitor(
 ) {
     Column(modifier, horizontalAlignment = Alignment.End) {
         if (expanded) {
-            Column(
-                Modifier.width(188.dp).clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xEE211F3E))
-                    .border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(18.dp))
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ObsidianFrostedSurface(
+                modifier = Modifier.width(206.dp),
+                shape = RoundedCornerShape(22.dp),
+                fillAlpha = .62f
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("LIVE RESOURCES", color = SruvikColors.LimeMuted,
-                        style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
-                    IconButton(onClick = onToggle, modifier = Modifier.size(25.dp)) {
-                        Icon(Icons.Rounded.Close, "Minimise", tint = SruvikColors.TextSecondary)
+                Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("LIVE RESOURCES", color = Color(0xFF4C5088),
+                            style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                        ObsidianGlassIconButton(
+                            onClick = onToggle,
+                            contentDescription = "Minimise resources",
+                            size = 32.dp
+                        ) { Icon(Icons.Rounded.Close, null, modifier = Modifier.size(15.dp)) }
                     }
+                    ResourceLine("App CPU", String.format("%.1f%%", stats.cpu))
+                    ResourceLine("App PSS", "${stats.pss} MiB")
+                    ResourceLine("Java heap", "${stats.heap} MiB")
+                    ResourceLine("Available RAM", "${stats.available} MiB")
+                    Text("Approximate whole-app process sampling.",
+                        color = Color(0xFF53607D), style = MaterialTheme.typography.labelSmall)
                 }
-                ResourceLine("App CPU", String.format("%.1f%%", stats.cpu))
-                ResourceLine("App RAM", "${stats.pss} MB")
-                ResourceLine("Java heap", "${stats.heap} MB")
-                ResourceLine("Free system RAM", "${stats.available} MB")
-                Text("Approximate whole-app process sampling.",
-                    color = SruvikColors.TextMuted, style = MaterialTheme.typography.labelSmall)
             }
         } else {
-            Surface(onClick = onToggle,
-                shape = RoundedCornerShape(topStart = 15.dp, bottomStart = 15.dp),
-                color = Color(0xEE211F3E),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .12f))) {
-                Row(Modifier.padding(horizontal = 9.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Icon(Icons.Rounded.Memory, null, tint = SruvikColors.LimeMuted, modifier = Modifier.size(15.dp))
-                    Text("${stats.pss} MB", color = SruvikColors.TextPrimary, style = MaterialTheme.typography.labelSmall)
-                }
+            ObsidianGlassButton(
+                onClick = onToggle,
+                shape = RoundedCornerShape(topStart = 22.dp, bottomStart = 22.dp),
+                contentPadding = PaddingValues(horizontal = 11.dp, vertical = 9.dp)
+            ) {
+                Icon(Icons.Rounded.Memory, null, modifier = Modifier.size(15.dp))
+                Text("${stats.pss} MiB", style = MaterialTheme.typography.labelSmall)
             }
         }
     }
@@ -1794,8 +1890,8 @@ private fun ResourceMonitor(
 @Composable
 private fun ResourceLine(label: String, value: String) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = SruvikColors.TextSecondary, style = MaterialTheme.typography.bodySmall,
+        Text(label, color = Color(0xFF3C4967), style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.weight(1f))
-        Text(value, color = SruvikColors.TextPrimary, style = MaterialTheme.typography.labelMedium)
+        Text(value, color = Color(0xFF18223C), style = MaterialTheme.typography.labelMedium)
     }
 }
