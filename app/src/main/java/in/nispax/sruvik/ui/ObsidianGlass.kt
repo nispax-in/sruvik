@@ -131,7 +131,8 @@ fun ObsidianGlassButton(
     enabled: Boolean = true,
     shape: Shape = RoundedCornerShape(30.dp),
     fillAlpha: Float = .58f,
-    contentPadding: PaddingValues = PaddingValues(horizontal = 24.dp, vertical = 18.dp),    content: @Composable RowScope.() -> Unit
+    contentPadding: PaddingValues = PaddingValues(horizontal = 24.dp, vertical = 18.dp),
+    content: @Composable RowScope.() -> Unit
 ) {
     val alpha = if (enabled) fillAlpha else .18f
     Row(
