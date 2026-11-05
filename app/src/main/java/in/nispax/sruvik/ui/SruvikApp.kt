@@ -119,7 +119,7 @@ fun SruvikApp() {
                 bottom = if (
                     selected == Destination.SruGen ||
                     (modelsReturnToSruGen && selected in setOf(Destination.Models, Destination.ModelDetail))
-                ) 0.dp else 80.dp
+                ) 0.dp else 100.dp
             ).graphicsLayer {
                 translationX = predictiveBackProgress * size.width * 0.12f
                 val scale = 1f - predictiveBackProgress * 0.025f
@@ -209,7 +209,6 @@ fun SruvikApp() {
                     Destination.ModelDetail -> Destination.Models
                     else -> selected
                 },
-                glass = true,
                 onSelect = {
                     modelsReturnToSruGen = false
                     vaultReturnToSruGen = false
@@ -636,8 +635,7 @@ private fun GlassCard(modifier: Modifier, shape: RoundedCornerShape, fill: Brush
 private fun AppNavigationBar(
     selected: Destination,
     onSelect: (Destination) -> Unit,
-    modifier: Modifier = Modifier,
-    glass: Boolean = true
+    modifier: Modifier = Modifier
 ) {
     val destinations = listOf(
         Destination.Home,
@@ -646,48 +644,150 @@ private fun AppNavigationBar(
         Destination.Device,
         Destination.Settings
     )
-    NavigationBar(
-        modifier = modifier.fillMaxWidth()
-            .height(72.dp)
-            .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-            .background(Brush.verticalGradient(
-                listOf(Color(0x791B2230), Color(0x800B0E16))
-            ))
-            .border(
-                androidx.compose.foundation.BorderStroke(
-                    1.dp,
-                    Brush.horizontalGradient(
-                        listOf(Color.Transparent, Color(0x667F91B5), Color(0x5575DCEB), Color.Transparent)
-                    )
-                ),
-                RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
-            ),
-        containerColor = Color.Transparent,
-        contentColor = SruvikColors.TextPrimary,
-        tonalElevation = 0.dp,
-        windowInsets = WindowInsets(0, 0, 0, 0)
-    ) {
-        destinations.forEach { destination ->
-            NavigationBarItem(
-                selected = selected == destination,
-                onClick = { onSelect(destination) },
-                icon = {
-                    Icon(
-                        destination.icon,
-                        contentDescription = null,
-                        modifier = Modifier.size(21.dp)
-                    )
-                },
-                label = { Text(destination.label, style = MaterialTheme.typography.labelSmall) },
-                alwaysShowLabel = true,
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = Color(0xFF07121A),
-                    selectedTextColor = Color(0xFF75E3F3),
-                    indicatorColor = Color(0xFF75E3F3),
-                    unselectedIconColor = Color(0xFFB0B8C9),
-                    unselectedTextColor = Color(0xFFB0B8C9)
+    val dockShape = RoundedCornerShape(34.dp)
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 13.dp, vertical = 8.dp)
+            .shadow(20.dp, dockShape, clip = false)
+            .clip(dockShape)
+            .background(
+                Brush.linearGradient(
+                    listOf(Color(0xD92A3348), Color(0xD01B2438), Color(0xDF202237))
                 )
             )
+            .border(
+                androidx.compose.foundation.BorderStroke(
+                    1.15.dp,
+                    Brush.linearGradient(
+                        listOf(
+                            Color.White.copy(alpha = .76f),
+                            Color(0xFF94E7E8).copy(alpha = .42f),
+                            Color(0xFFC8D1F5).copy(alpha = .50f),
+                            Color.White.copy(alpha = .66f)
+                        )
+                    )
+                ),
+                dockShape
+            )
+    ) {
+        Box(
+            Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 34.dp)
+                .height(1.dp)
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            Color.Transparent,
+                            Color.White.copy(alpha = .74f),
+                            Color(0xFF87E7E7).copy(alpha = .58f),
+                            Color.White.copy(alpha = .48f),
+                            Color.Transparent
+                        )
+                    )
+                )
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(76.dp)
+                .padding(horizontal = 5.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(1.dp)
+        ) {
+            destinations.forEach { destination ->
+                val isSelected = selected == destination
+                val scale by animateFloatAsState(
+                    targetValue = if (isSelected) 1.05f else 1f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessMedium
+                    ),
+                    label = "glass-navigation-${destination.name}"
+                )
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .semantics(mergeDescendants = true) {
+                            contentDescription = destination.label
+                            stateDescription = if (isSelected) "Selected" else "Not selected"
+                        }
+                        .clickable(
+                            role = androidx.compose.ui.semantics.Role.Tab,
+                            onClickLabel = "Open ${destination.label}",
+                            onClick = { onSelect(destination) }
+                        )
+                        .padding(vertical = 1.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .graphicsLayer {
+                                scaleX = scale
+                                scaleY = scale
+                                translationY = if (isSelected) -1.5.dp.toPx() else 0f
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isSelected) {
+                            Box(
+                                Modifier
+                                    .matchParentSize()
+                                    .background(
+                                        Brush.radialGradient(
+                                            listOf(Color(0x7777F2E8), Color(0x3D70D8E8), Color.Transparent)
+                                        ),
+                                        CircleShape
+                                    )
+                            )
+                            Box(
+                                Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.linearGradient(
+                                            listOf(Color(0xA05EE4D9), Color(0x7950B9D2), Color(0x657F8FC6))
+                                        )
+                                    )
+                                    .border(
+                                        1.dp,
+                                        Brush.linearGradient(
+                                            listOf(
+                                                Color.White.copy(alpha = .88f),
+                                                Color(0xFF9BF5EC).copy(alpha = .62f),
+                                                Color.White.copy(alpha = .48f)
+                                            )
+                                        ),
+                                        CircleShape
+                                    )
+                            )
+                        }
+                        Icon(
+                            destination.icon,
+                            contentDescription = null,
+                            tint = if (isSelected) Color(0xFFF3FFFF) else Color(0xFFE0E5F1),
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        destination.label,
+                        color = if (isSelected) Color(0xFF9AF4ED) else Color(0xFFC0C7D8),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
+            }
         }
     }
 }

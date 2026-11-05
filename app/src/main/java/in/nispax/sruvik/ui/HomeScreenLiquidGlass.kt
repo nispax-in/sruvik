@@ -121,27 +121,17 @@ fun HomeScreenLiquidGlass(
                     Spacer(Modifier.weight(1f))
                     Box(
                         Modifier
-                            .size(46.dp)
+                            .size(50.dp)
                             .clip(CircleShape)
-                            .background(
-                                Brush.linearGradient(
-                                    listOf(
-                                        Color(0x66FFFFFF),
-                                        Color(0x332D3958),
-                                        Color(0x664A426C)
-                                    )
-                                )
-                            )
-                            .border(1.dp, Color(0x88FFFFFF), CircleShape)
-                            .clickable(role = Role.Button, onClickLabel = "Open profile and settings", onClick = onSettings),
+                            .clickable(
+                                role = Role.Button,
+                                onClickLabel = "Open profile and settings",
+                                onClick = onSettings
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            name.trim().take(1).uppercase().ifBlank { "S" },
-                            color = Color(0xFFF7F5FF),
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        // Reuse the user's assigned, name-derived Sruvik identity mark.
+                        SruvikAvatar(name, Modifier.fillMaxSize())
                     }
                 }
             }
