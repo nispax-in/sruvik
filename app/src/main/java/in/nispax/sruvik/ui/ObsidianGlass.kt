@@ -173,7 +173,14 @@ fun ObsidianGlassButton(
             tonalElevation = 0.dp,
             shadowElevation = 0.dp
         ) {
-            content()
+            // Surface's content container is a Box. Keep the caller's RowScope
+            // children in an actual Row so labels, icons and weighted spacers
+            // are measured and placed horizontally instead of overlapping.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                content = content
+            )
         }
     }
 }
@@ -220,7 +227,11 @@ fun ObsidianGlassPill(
             tonalElevation = 0.dp,
             shadowElevation = 0.dp
         ) {
-            content()
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                content = content
+            )
         }
     }
 }
