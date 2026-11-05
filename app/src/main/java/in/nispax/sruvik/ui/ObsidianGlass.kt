@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -29,7 +28,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.Surface
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -168,8 +167,11 @@ fun ObsidianGlassButton(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
     ) {
-        CompositionLocalProvider(
-            LocalContentColor provides if (enabled) GlassInk else GlassInkMuted.copy(alpha = .72f)
+        Surface(
+            color = Color.Transparent,
+            contentColor = if (enabled) GlassInk else GlassInkMuted.copy(alpha = .72f),
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp
         ) {
             content()
         }
@@ -212,8 +214,11 @@ fun ObsidianGlassPill(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
     ) {
-        CompositionLocalProvider(
-            LocalContentColor provides if (enabled) GlassInk else GlassInkMuted.copy(alpha = .52f)
+        Surface(
+            color = Color.Transparent,
+            contentColor = if (enabled) GlassInk else GlassInkMuted.copy(alpha = .52f),
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp
         ) {
             content()
         }
@@ -251,8 +256,11 @@ fun ObsidianGlassIconButton(
             },
         contentAlignment = Alignment.Center
     ) {
-        CompositionLocalProvider(
-            LocalContentColor provides if (enabled) GlassInk else GlassInkMuted.copy(alpha = .45f)
+        Surface(
+            color = Color.Transparent,
+            contentColor = if (enabled) GlassInk else GlassInkMuted.copy(alpha = .45f),
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp
         ) {
             content()
         }
