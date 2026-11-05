@@ -131,13 +131,12 @@ fun ObsidianGlassButton(
     enabled: Boolean = true,
     shape: Shape = RoundedCornerShape(30.dp),
     fillAlpha: Float = .58f,
-    contentPadding: PaddingValues = PaddingValues(horizontal = 21.dp, vertical = 15.dp),
-    content: @Composable RowScope.() -> Unit
+    contentPadding: PaddingValues = PaddingValues(horizontal = 24.dp, vertical = 18.dp),    content: @Composable RowScope.() -> Unit
 ) {
     val alpha = if (enabled) fillAlpha else .18f
     Row(
         modifier = modifier
-            .heightIn(min = 54.dp)
+            .heightIn(min = 64.dp)
             .shadow(if (enabled) 12.dp else 0.dp, shape, clip = false)
             .clip(shape)
             .background(
@@ -151,7 +150,7 @@ fun ObsidianGlassButton(
             )
             .border(
                 BorderStroke(
-                    1.4.dp,
+                    1.6.dp,
                     Brush.linearGradient(
                         listOf(
                             Color.White.copy(alpha = if (enabled) .91f else .28f),
@@ -288,15 +287,15 @@ fun ObsidianGlassPanel(
             .background(
                 Brush.linearGradient(
                     listOf(
-                        Color(0x8B222E43),
-                        Color(0x75141D2B),
-                        Color(0x8010141E)
+                        Color(0x842A3852),
+                        Color(0x74182438),
+                        Color(0x7B0D1523)
                     )
                 )
             )
             .border(
                 BorderStroke(
-                    1.15.dp,
+                    1.3.dp,
                     Brush.linearGradient(
                         listOf(
                             Color.White.copy(alpha = .58f),
@@ -310,16 +309,23 @@ fun ObsidianGlassPanel(
             .drawBehind {
                 drawRect(
                     Brush.radialGradient(
-                        colors = listOf(accent.copy(alpha = .12f), Color.Transparent),
-                        center = Offset(size.width * .92f, 0f),
-                        radius = size.maxDimension * .85f
+                        colors = listOf(accent.copy(alpha = .17f), Color.Transparent),
+                        center = Offset(size.width * .94f, size.height * .02f),
+                        radius = size.maxDimension * .92f
                     )
                 )
                 drawRect(
                     Brush.verticalGradient(
-                        colors = listOf(Color.White.copy(alpha = .09f), Color.Transparent),
+                        colors = listOf(Color.White.copy(alpha = .14f), Color.Transparent),
                         startY = 0f,
-                        endY = 30.dp.toPx()
+                        endY = 42.dp.toPx()
+                    )
+                )
+                drawRect(
+                    Brush.horizontalGradient(
+                        colors = listOf(Color.White.copy(alpha = .10f), Color.Transparent),
+                        startX = 0f,
+                        endX = 1.2.dp.toPx()
                     )
                 )
             }
