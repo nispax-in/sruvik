@@ -32,7 +32,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
@@ -720,7 +720,7 @@ private fun AppNavigationBar(
                         .fillMaxHeight()
                         .semantics(mergeDescendants = true) {
                             contentDescription = destination.label
-                            stateDescription = if (isSelected) "Selected" else "Not selected"
+                            selected = isSelected
                         }
                         .clickable(
                             role = androidx.compose.ui.semantics.Role.Tab,
