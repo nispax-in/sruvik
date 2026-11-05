@@ -1813,7 +1813,6 @@ private fun StudioModeControl(label: String, selected: Boolean, onClick: () -> U
             .semantics {
                 contentDescription = "$label mode"
                 stateDescription = if (isSelected) "Selected" else "Not selected"
-                role = Role.Button
             }
             .clickable(role = Role.Button, onClick = onClick)
     ) {
