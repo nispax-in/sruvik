@@ -39,6 +39,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
@@ -377,7 +378,7 @@ private fun HomeScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 ObsidianGlassButton(
                                     onClick = onSruGen,
-                                    modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp),
+                                    modifier = Modifier.weight(1f).heightIn(min = 72.dp),
                                     shape = RoundedCornerShape(30.dp),
                                     fillAlpha = .62f,
                                     contentPadding = PaddingValues(horizontal = 26.dp, vertical = 18.dp)
