@@ -418,31 +418,21 @@ private fun ObsidianGlassHero(
                 lineHeight = 19.sp
             )
             Spacer(Modifier.height(12.dp))
-            Row(
-                Modifier
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(
-                        Brush.linearGradient(
-                            listOf(Color(0x99FFFFFF), Color(0x55D7E6FF), Color(0x668B9CC7))
-                        )
-                    )
-                    .border(1.dp, Color(0xB3FFFFFF), RoundedCornerShape(18.dp))
-                    .clickable(role = Role.Button, onClickLabel = "Open SruGen", onClick = onCreate)
-                    .padding(start = 17.dp, end = 14.dp, top = 13.dp, bottom = 13.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ObsidianGlassButton(
+                onClick = onCreate,
+                shape = RoundedCornerShape(30.dp),
+                fillAlpha = .62f,
+                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 15.dp)
             ) {
                 Text(
                     "Open SruGen",
-                    color = Color(0xFF111725),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Icon(
                     Icons.Rounded.ArrowForward,
                     contentDescription = null,
-                    tint = Color(0xFF111725),
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(19.dp)
                 )
             }
         }
