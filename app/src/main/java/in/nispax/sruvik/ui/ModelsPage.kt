@@ -6,6 +6,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -32,6 +35,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -40,8 +44,12 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -163,7 +171,19 @@ fun ModelsPage(
             selectedTabIndex = tab.ordinal,
             containerColor = Color.Transparent,
             contentColor = SruvikColors.Lime,
-            divider = {}
+            divider = {},
+            indicator = { positions ->
+                Box(
+                    Modifier
+                        .tabIndicatorOffset(positions[tab.ordinal])
+                        .height(2.dp)
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(Color.Transparent, SruvikColors.Primary, Color(0xFFB5A8FF), Color.Transparent)
+                            )
+                        )
+                )
+            }
         ) {
             ModelLibraryTab.entries.forEach { item ->
                 Tab(
@@ -244,18 +264,34 @@ private fun LibrarySummaryTile(
     value: String,
     label: String
 ) {
-    ObsidianFrostedPanel(
+    val accent = if (icon == Icons.Rounded.CloudDownload) {
+        Color(0xFF80DDEB)
+    } else {
+        Color(0xFFB4A8FF)
+    }
+    Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(18.dp),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 11.dp),
-        fillAlpha = .50f,
-        verticalArrangement = Arrangement.spacedBy(5.dp)
+        color = Color(0xA91A2432),
+        shape = RoundedCornerShape(17.dp),
+        border = BorderStroke(.8.dp, Color.White.copy(alpha = .15f))
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Icon(icon, null, tint = Color(0xFF50558F), modifier = Modifier.size(15.dp))
-            Text(value, color = Color(0xFF17213A), style = MaterialTheme.typography.titleSmall)
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(9.dp)
+        ) {
+            Box(
+                Modifier.size(31.dp).clip(CircleShape).background(accent.copy(alpha = .13f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, null, tint = accent, modifier = Modifier.size(16.dp))
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(value, color = Color(0xFFF0F3FA), style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold)
+                Text(label, color = Color(0xFFA8B3C5), style = MaterialTheme.typography.labelSmall)
+            }
         }
-        Text(label, color = Color(0xFF4D5872), style = MaterialTheme.typography.labelSmall)
     }
 }
 
@@ -267,118 +303,167 @@ private fun ModelGalleryCard(
     assessment: SruGenModelDeviceAssessment?,
     onClick: () -> Unit
 ) {
-    val accent = when {
-        active -> SruvikColors.Primary
-        model.engine == `in`.nispax.sruvik.srugen.SruGenGalleryEngine.NEZUMI_MNN_SD15 -> Color(0xFFBDB9B5)
-        else -> Color(0xFFBDB9B5)
-    }
-    ObsidianFrostedSurface(
+    val accent = if (active) Color(0xFF79DFEC) else Color(0xFFA99BFF)
+    CatalogGlassSurface(
         modifier = Modifier.fillMaxWidth().clickable(
             role = Role.Button,
             onClickLabel = "Open ${model.name}",
             onClick = onClick
         ),
-        shape = RoundedCornerShape(25.dp),
-        fillAlpha = .52f
+        accent = accent,
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp)
     ) {
-        Column(Modifier.fillMaxWidth()) {
-            Box(
-                Modifier.fillMaxWidth().height(2.dp)
-                    .background(Brush.horizontalGradient(listOf(accent.copy(alpha = .65f), Color(0x3375E3F3), Color.Transparent)))
+        Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text(
+                model.name,
+                color = Color(0xFFF2F4FA),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold
             )
-            Column(
-                Modifier.fillMaxWidth().padding(15.dp),
-                verticalArrangement = Arrangement.spacedBy(9.dp)
-            ) {
-                Row(verticalAlignment = Alignment.Top) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(model.name, color = Color(0xFF131A32), style = MaterialTheme.typography.titleLarge)
-                        Text(model.subtitle, color = Color(0xFF3F4A67), style = MaterialTheme.typography.bodySmall)
-                    }
-                    ModelStatusPill(
-                        label = when {
-                            active -> "ACTIVE"
-                            installed -> "INSTALLED"
-                            model.canInstall && assessment?.canDownload == true -> "READY"
-                            model.canInstall -> "DEVICE BLOCK"
-                            else -> "COMING SOON"
-                        },
-                        tint = when {
-                            active || installed -> SruvikColors.Primary
-                            model.canInstall && assessment?.canDownload == true -> SruvikColors.Lime
-                            model.canInstall -> Color(0xFFF0B58F)
-                            else -> SruvikColors.TextMuted
-                        }
-                    )
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    model.styleTags.take(3).forEach { tag ->
-                        ObsidianGlassPill(shape = RoundedCornerShape(14.dp)) {
-                            Text(tag, color = Color(0xFF3B4664), style = MaterialTheme.typography.labelSmall)
-                        }
-                    }
-                }
+            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    "“${model.lore}”",
-                    color = Color(0xFF303C59),
+                    model.subtitle,
+                    modifier = Modifier.weight(1f),
+                    color = Color(0xFFC0C8D7),
                     style = MaterialTheme.typography.bodySmall,
                     lineHeight = 18.sp
                 )
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    ModelMetadataChip(model.baseModel.substringBefore(" · "), "BASE")
-                    ModelMetadataChip(formatModelSize(model.approximateDownloadBytes), "PACKAGE")
-                }
+                ModelStatusPill(
+                    label = when {
+                        active -> "ACTIVE"
+                        installed -> "INSTALLED"
+                        model.canInstall && assessment?.canDownload == true -> "READY"
+                        model.canInstall -> "DEVICE BLOCK"
+                        else -> "COMING SOON"
+                    },
+                    tint = when {
+                        active -> Color(0xFF83E8EF)
+                        installed -> Color(0xFF9BD9D2)
+                        model.canInstall && assessment?.canDownload == true -> Color(0xFFBDB0FF)
+                        model.canInstall -> Color(0xFFF0BE83)
+                        else -> Color(0xFFADB7C8)
+                    }
+                )
+            }
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                model.styleTags.take(3).forEach { tag -> CatalogTag(tag) }
+            }
+            Text(
+                "“${model.lore}”",
+                color = Color(0xFFD0D6E2),
+                style = MaterialTheme.typography.bodySmall,
+                lineHeight = 18.sp
+            )
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ModelMetadataChip(model.baseModel.substringBefore(" · "), "BASE")
+                ModelMetadataChip(formatModelSize(model.approximateDownloadBytes), "PACKAGE")
+            }
+            Text(
+                "Android ${model.minAndroidApi}+  ·  ${model.recommendedRamGb} GB recommended RAM",
+                color = Color(0xFFAAB5C6),
+                style = MaterialTheme.typography.labelSmall,
+                lineHeight = 16.sp
+            )
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(Icons.Rounded.Memory, null, tint = Color(0xFF9BAAC3), modifier = Modifier.size(15.dp))
                 Text(
-                    "Android ${model.minAndroidApi}+  ·  ${model.recommendedRamGb} GB recommended RAM",
-                    color = SruvikColors.TextMuted,
+                    model.runtime,
+                    modifier = Modifier.weight(1f),
+                    color = Color(0xFFB9C3D2),
                     style = MaterialTheme.typography.labelSmall
                 )
-                Row(
-                    Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Icon(Icons.Rounded.Memory, null, tint = Color(0xFF56617C), modifier = Modifier.size(15.dp))
-                    Text(model.runtime, color = Color(0xFF4C5875), style = MaterialTheme.typography.labelSmall)
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        if (installed) "View details  ›" else if (model.canInstall && assessment?.canDownload == true) "View & install  ›" else "View profile  ›",
-                        color = SruvikColors.LimeMuted,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-                if (model.canInstall && assessment != null && !assessment.canDownload && !installed) {
-                    Text(
-                        assessment.reasons.firstOrNull() ?: "This model is currently blocked by the device check.",
-                        color = Color(0xFF8B4F37),
-                        style = MaterialTheme.typography.labelSmall,
-                        lineHeight = 16.sp
-                    )
-                }
+                Text(
+                    if (installed) "View details  ›" else if (model.canInstall && assessment?.canDownload == true) "View & install  ›" else "View profile  ›",
+                    color = Color(0xFF83E5EF),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            if (model.canInstall && assessment != null && !assessment.canDownload && !installed) {
+                Text(
+                    assessment.reasons.firstOrNull() ?: "This model is currently blocked by the device check.",
+                    color = Color(0xFFF0BE83),
+                    style = MaterialTheme.typography.labelSmall,
+                    lineHeight = 16.sp
+                )
             }
         }
     }
 }
 
 @Composable
+private fun CatalogGlassSurface(
+    modifier: Modifier = Modifier,
+    accent: Color,
+    contentPadding: PaddingValues = PaddingValues(14.dp),
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val shape = RoundedCornerShape(22.dp)
+    Column(
+        modifier = modifier
+            .shadow(12.dp, shape, clip = false)
+            .clip(shape)
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color(0xD51B2534), Color(0xCC111925), Color(0xD00B111A))
+                )
+            )
+            .border(
+                BorderStroke(
+                    .8.dp,
+                    Brush.linearGradient(
+                        listOf(Color.White.copy(alpha = .22f), accent.copy(alpha = .25f), Color.White.copy(alpha = .09f))
+                    )
+                ),
+                shape
+            )
+            .padding(contentPadding),
+        verticalArrangement = Arrangement.spacedBy(7.dp),
+        content = content
+    )
+}
+
+@Composable
+private fun CatalogTag(label: String) {
+    Surface(
+        color = Color(0xA8212B3B),
+        shape = RoundedCornerShape(11.dp),
+        border = BorderStroke(.7.dp, Color.White.copy(alpha = .14f))
+    ) {
+        Text(
+            label,
+            Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            color = Color(0xFFD3DBE8),
+            style = MaterialTheme.typography.labelSmall
+        )
+    }
+}
+
+@Composable
 private fun ModelMetadataChip(value: String, label: String) {
     Surface(
-        color = Color.White.copy(alpha = .36f),
-        shape = RoundedCornerShape(12.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .52f))
+        color = Color(0xA90C131E),
+        shape = RoundedCornerShape(10.dp),
+        border = BorderStroke(.7.dp, Color.White.copy(alpha = .14f))
     ) {
         Row(
             Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(label, color = Color(0xFF59637D), style = MaterialTheme.typography.labelSmall)
-            Text(value, color = Color(0xFF202B46), style = MaterialTheme.typography.labelSmall,
+            Text(label, color = Color(0xFF9AA8BC), style = MaterialTheme.typography.labelSmall)
+            Text(value, color = Color(0xFFE7ECF4), style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold)
         }
     }
@@ -389,15 +474,16 @@ private fun ModelStatusPill(label: String, tint: Color) {
     Surface(
         color = tint.copy(alpha = .13f),
         shape = CircleShape,
-        border = androidx.compose.foundation.BorderStroke(1.dp, tint.copy(alpha = .34f))
+        border = BorderStroke(.7.dp, tint.copy(alpha = .38f))
     ) {
         Text(
             label,
-            Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+            Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
             color = tint,
             style = MaterialTheme.typography.labelSmall,
-            letterSpacing = .5.sp,
-            fontWeight = FontWeight.SemiBold
+            letterSpacing = .35.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1
         )
     }
 }

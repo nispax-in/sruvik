@@ -123,7 +123,7 @@ fun SruvikApp() {
                 bottom = if (
                     selected == Destination.SruGen ||
                     (modelsReturnToSruGen && selected in setOf(Destination.Models, Destination.ModelDetail))
-                ) 0.dp else 100.dp
+                ) 0.dp else 84.dp
             ).graphicsLayer {
                 translationX = predictiveBackProgress * size.width * 0.12f
                 val scale = 1f - predictiveBackProgress * 0.025f
@@ -648,28 +648,27 @@ private fun AppNavigationBar(
         Destination.Device,
         Destination.Settings
     )
-    val dockShape = RoundedCornerShape(34.dp)
+    val dockShape = RoundedCornerShape(29.dp)
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 13.dp, vertical = 8.dp)
-            .shadow(20.dp, dockShape, clip = false)
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .shadow(12.dp, dockShape, clip = false)
             .clip(dockShape)
             .background(
-                Brush.linearGradient(
-                    listOf(Color(0xD92A3348), Color(0xD01B2438), Color(0xDF202237))
+                Brush.verticalGradient(
+                    listOf(Color(0xE51A2230), Color(0xE00F1621), Color(0xE80B1019))
                 )
             )
             .border(
                 androidx.compose.foundation.BorderStroke(
-                    1.15.dp,
+                    .8.dp,
                     Brush.linearGradient(
                         listOf(
-                            Color.White.copy(alpha = .76f),
-                            Color(0xFF94E7E8).copy(alpha = .42f),
-                            Color(0xFFC8D1F5).copy(alpha = .50f),
-                            Color.White.copy(alpha = .66f)
+                            Color.White.copy(alpha = .28f),
+                            Color(0xFF8EDDE5).copy(alpha = .20f),
+                            Color.White.copy(alpha = .12f)
                         )
                     )
                 ),
@@ -680,17 +679,11 @@ private fun AppNavigationBar(
             Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
-                .padding(horizontal = 34.dp)
+                .padding(horizontal = 40.dp)
                 .height(1.dp)
                 .background(
                     Brush.horizontalGradient(
-                        listOf(
-                            Color.Transparent,
-                            Color.White.copy(alpha = .74f),
-                            Color(0xFF87E7E7).copy(alpha = .58f),
-                            Color.White.copy(alpha = .48f),
-                            Color.Transparent
-                        )
+                        listOf(Color.Transparent, Color.White.copy(alpha = .22f), Color(0xFF82DDE7).copy(alpha = .20f), Color.Transparent)
                     )
                 )
         )
@@ -698,22 +691,18 @@ private fun AppNavigationBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(76.dp)
-                .padding(horizontal = 5.dp, vertical = 4.dp),
+                .height(64.dp)
+                .padding(horizontal = 5.dp, vertical = 3.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(1.dp)
         ) {
             destinations.forEach { destination ->
                 val isSelected = selected == destination
                 val scale by animateFloatAsState(
-                    targetValue = if (isSelected) 1.05f else 1f,
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                        stiffness = Spring.StiffnessMedium
-                    ),
+                    targetValue = if (isSelected) 1.025f else 1f,
+                    animationSpec = tween(durationMillis = 150),
                     label = "glass-navigation-${destination.name}"
                 )
-
                 Column(
                     modifier = Modifier
                         .weight(1f)
@@ -726,65 +715,41 @@ private fun AppNavigationBar(
                             role = androidx.compose.ui.semantics.Role.Tab,
                             onClickLabel = "Open ${destination.label}",
                             onClick = { onSelect(destination) }
-                        )
-                        .padding(vertical = 1.dp),
+                        ),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(44.dp)
+                            .size(width = 42.dp, height = 30.dp)
                             .graphicsLayer {
                                 scaleX = scale
                                 scaleY = scale
-                                translationY = if (isSelected) -1.5.dp.toPx() else 0f
-                            },
+                            }
+                            .then(
+                                if (isSelected) Modifier
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(Color(0xB01A3540))
+                                    .border(
+                                        .7.dp,
+                                        Color(0x7778DDE8),
+                                        RoundedCornerShape(14.dp)
+                                    )
+                                else Modifier
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (isSelected) {
-                            Box(
-                                Modifier
-                                    .matchParentSize()
-                                    .background(
-                                        Brush.radialGradient(
-                                            listOf(Color(0x7777F2E8), Color(0x3D70D8E8), Color.Transparent)
-                                        ),
-                                        CircleShape
-                                    )
-                            )
-                            Box(
-                                Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        Brush.linearGradient(
-                                            listOf(Color(0xA05EE4D9), Color(0x7950B9D2), Color(0x657F8FC6))
-                                        )
-                                    )
-                                    .border(
-                                        1.dp,
-                                        Brush.linearGradient(
-                                            listOf(
-                                                Color.White.copy(alpha = .88f),
-                                                Color(0xFF9BF5EC).copy(alpha = .62f),
-                                                Color.White.copy(alpha = .48f)
-                                            )
-                                        ),
-                                        CircleShape
-                                    )
-                            )
-                        }
                         Icon(
                             destination.icon,
                             contentDescription = null,
-                            tint = if (isSelected) Color(0xFFF3FFFF) else Color(0xFFE0E5F1),
-                            modifier = Modifier.size(22.dp)
+                            tint = if (isSelected) Color(0xFF8DE7EF) else Color(0xFFB7C0D0),
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                     Spacer(Modifier.height(2.dp))
                     Text(
                         destination.label,
-                        color = if (isSelected) Color(0xFF9AF4ED) else Color(0xFFC0C7D8),
+                        color = if (isSelected) Color(0xFF8DE7EF) else Color(0xFFB7C0D0),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
                         maxLines = 1,
