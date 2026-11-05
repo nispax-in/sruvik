@@ -1064,7 +1064,7 @@ fun SruGenPage(
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(30.dp),
                                     contentPadding = PaddingValues(22.dp),
-                                    fillAlpha = .50f,
+                                    fillAlpha = .60f,
                                     verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
@@ -1108,7 +1108,7 @@ fun SruGenPage(
                             ObsidianFrostedSurface(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                                 shape = RoundedCornerShape(22.dp),
-                                fillAlpha = .48f
+                                fillAlpha = .58f
                             ) {
                                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1172,7 +1172,7 @@ fun SruGenPage(
             ObsidianFrostedSurface(
                 modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 5.dp),
                 shape = RoundedCornerShape(29.dp),
-                fillAlpha = .64f
+                fillAlpha = .70f
             ) {
                 Column(
                     Modifier.fillMaxWidth().padding(11.dp),
@@ -1737,18 +1737,18 @@ private fun SruGenMessageBubble(
     ) {
         ObsidianFrostedSurface(
             modifier = Modifier.widthIn(max = if (isUser) 560.dp else 680.dp).fillMaxWidth(),
-            shape = RoundedCornerShape(if (isUser) 24.dp else 22.dp),
-            fillAlpha = if (isUser) .57f else .40f
+            shape = RoundedCornerShape(if (isUser) 26.dp else 22.dp),
+            fillAlpha = if (isUser) .64f else .48f
         ) {
             Column(
-                Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 13.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 17.dp, vertical = 15.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     Icon(
                         if (isUser) Icons.Rounded.Person else Icons.Rounded.AutoAwesome,
                         null,
-                        tint = Color(0xFF46508A),
+                        tint = if (isUser) Color(0xFF58649A) else Color(0xFF7863B6),
                         modifier = Modifier.size(15.dp)
                     )
                     Text(
