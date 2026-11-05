@@ -375,19 +375,17 @@ private fun HomeScreen(
                                 style = MaterialTheme.typography.bodyMedium, color = SruvikColors.TextSecondary)
                             Spacer(Modifier.height(2.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Button(
+                                ObsidianGlassButton(
                                     onClick = onSruGen,
-                                    modifier = Modifier.heightIn(min = 48.dp),
-                                    shape = RoundedCornerShape(14.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = SruvikColors.Primary,
-                                        contentColor = SruvikColors.OnPrimary
-                                    ),
-                                    contentPadding = PaddingValues(horizontal = 17.dp, vertical = 11.dp)
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp),
+                                    shape = RoundedCornerShape(30.dp),
+                                    fillAlpha = .62f,
+                                    contentPadding = PaddingValues(horizontal = 26.dp, vertical = 18.dp)
                                 ) {
-                                    Text("Open SruGen")
-                                    Spacer(Modifier.width(7.dp))
-                                    Icon(Icons.Rounded.ArrowForward, null, modifier = Modifier.size(16.dp))
+                                    Text("Open SruGen", style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold, maxLines = 1)
+                                    Spacer(Modifier.weight(1f))
+                                    Icon(Icons.Rounded.ArrowForward, null, modifier = Modifier.size(29.dp))
                                 }
                                 Spacer(Modifier.width(12.dp))
                                 Text("ON-DEVICE", style = MaterialTheme.typography.labelSmall,
@@ -477,16 +475,15 @@ private fun HeroCard(onExplore: () -> Unit) {
                         color = SruvikColors.TextPrimary)
                 }
                 Spacer(Modifier.weight(1f))
-                Row(Modifier.clip(RoundedCornerShape(30.dp)).background(Color.White.copy(alpha = .16f))
-                    .border(1.dp, Color.White.copy(alpha = .22f), RoundedCornerShape(30.dp))
-                    .clickable(onClick = onExplore)
-                    .padding(start = 17.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Text("Explore tools", style = MaterialTheme.typography.labelLarge, color = SruvikColors.TextPrimary)
-                    Box(Modifier.size(31.dp).clip(CircleShape).background(Color.White.copy(alpha = .18f)),
-                        contentAlignment = Alignment.Center) {
-                        Icon(Icons.Rounded.ArrowForward, null, tint = SruvikColors.TextPrimary, modifier = Modifier.size(17.dp))
-                    }
+                ObsidianGlassButton(
+                    onClick = onExplore,
+                    shape = RoundedCornerShape(26.dp),
+                    fillAlpha = .48f,
+                    contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp)
+                ) {
+                    Text("Explore tools", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.width(10.dp))
+                    Icon(Icons.Rounded.ArrowForward, null, modifier = Modifier.size(18.dp))
                 }
             }
         }
@@ -584,22 +581,27 @@ private fun AppRow(icon: ImageVector, title: String, subtitle: String, status: S
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
         label = "app-row-press"
     )
-    GlassCard(Modifier.fillMaxWidth().scale(pressScale)
-        .clickable(interactionSource = interactionSource, indication = null, onClick = onClick), RoundedCornerShape(21.dp),
-        Brush.linearGradient(listOf(Color(0x761B2230), Color(0x700D111A)))) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp),
+    ObsidianFrostedSurface(
+        modifier = Modifier.fillMaxWidth().scale(pressScale)
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
+        shape = RoundedCornerShape(23.dp),
+        fillAlpha = .48f
+    ) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 15.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(13.dp)) {
-            Box(Modifier.size(43.dp).clip(RoundedCornerShape(15.dp)).background(Color.White.copy(alpha = .08f))
-                .border(1.dp, Color.White.copy(alpha = .10f), RoundedCornerShape(15.dp)), contentAlignment = Alignment.Center) {
-                Icon(icon, null, tint = SruvikColors.TextSecondary, modifier = Modifier.size(21.dp))
+            Box(Modifier.size(46.dp).clip(RoundedCornerShape(16.dp))
+                .background(Color.White.copy(alpha = .38f))
+                .border(1.dp, Color.White.copy(alpha = .58f), RoundedCornerShape(16.dp)),
+                contentAlignment = Alignment.Center) {
+                Icon(icon, null, tint = Color(0xFF273452), modifier = Modifier.size(22.dp))
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, color = SruvikColors.TextPrimary)
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = SruvikColors.TextSecondary)
+                Text(title, style = MaterialTheme.typography.titleMedium, color = Color(0xFF17213A))
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Color(0xFF46516D))
             }
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(status, style = MaterialTheme.typography.labelSmall, color = SruvikColors.LimeMuted)
-                Icon(Icons.Rounded.ArrowForward, "Open $title", tint = SruvikColors.TextMuted, modifier = Modifier.size(16.dp))
+                Text(status, style = MaterialTheme.typography.labelSmall, color = Color(0xFF515B83))
+                Icon(Icons.Rounded.ArrowForward, "Open $title", tint = Color(0xFF202B46), modifier = Modifier.size(18.dp))
             }
         }
     }
