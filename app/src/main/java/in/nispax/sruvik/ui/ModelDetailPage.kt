@@ -280,35 +280,29 @@ fun ModelDetailPage(
         verticalArrangement = Arrangement.spacedBy(15.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Surface(
+            ObsidianGlassButton(
                 onClick = onBack,
-                color = Color.White.copy(alpha = .07f),
-                shape = RoundedCornerShape(14.dp)
+                shape = RoundedCornerShape(24.dp),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
             ) {
-                Row(Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(Icons.Rounded.ArrowBack, null, tint = SruvikColors.TextPrimary, modifier = Modifier.size(17.dp))
-                    Text("MODEL LIBRARY", color = SruvikColors.TextSecondary, style = MaterialTheme.typography.labelSmall)
-                }
+                Icon(Icons.Rounded.ArrowBack, null, modifier = Modifier.size(17.dp))
+                Text("MODEL LIBRARY", style = MaterialTheme.typography.labelSmall, letterSpacing = .5.sp)
             }
             Spacer(Modifier.weight(1f))
             if (active) ModelStatusChip("ACTIVE", SruvikColors.Primary)
             else if (installed) ModelStatusChip("INSTALLED", SruvikColors.Lime)
         }
 
-        ObsidianGlassBox(
+        ObsidianFrostedSurface(
             modifier = Modifier.fillMaxWidth().height(184.dp),
-            shape = RoundedCornerShape(25.dp),
-            accent = SruvikColors.Primary,
-            fill = Brush.linearGradient(
-                listOf(Color(0x77313B52), Color(0x66182030), Color(0x880C111A))
-            )
+            shape = RoundedCornerShape(28.dp),
+            fillAlpha = .48f
         ) {
-            Column(Modifier.align(Alignment.BottomStart).padding(18.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(actualModel.runtime.uppercase(Locale.ROOT), color = Color(0xFFC5C0BB),
+            Column(Modifier.align(Alignment.BottomStart).padding(19.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text(actualModel.runtime.uppercase(Locale.ROOT), color = Color(0xFF4B5580),
                     style = MaterialTheme.typography.labelSmall, letterSpacing = 1.6.sp)
-                Text(actualModel.name, color = Color.White, style = MaterialTheme.typography.headlineLarge)
-                Text(actualModel.subtitle, color = Color(0xFFC5C0BB), style = MaterialTheme.typography.bodySmall)
+                Text(actualModel.name, color = Color(0xFF141B34), style = MaterialTheme.typography.headlineLarge)
+                Text(actualModel.subtitle, color = Color(0xFF3F4B67), style = MaterialTheme.typography.bodySmall)
             }
         }
 
@@ -317,14 +311,15 @@ fun ModelDetailPage(
         }
 
         SectionTitle("THE STORY")
-        ObsidianGlassPanel(
-            shape = RoundedCornerShape(20.dp),
+        ObsidianFrostedPanel(
+            shape = RoundedCornerShape(23.dp),
             contentPadding = PaddingValues(16.dp),
+            fillAlpha = .43f,
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("“${actualModel.lore}”", color = SruvikColors.TextPrimary,
+            Text("“${actualModel.lore}”", color = Color(0xFF1A2440),
                 style = MaterialTheme.typography.titleMedium, lineHeight = 24.sp)
-            Text(actualModel.description, color = SruvikColors.TextSecondary,
+            Text(actualModel.description, color = Color(0xFF37435F),
                 style = MaterialTheme.typography.bodyMedium, lineHeight = 21.sp)
         }
 
@@ -450,25 +445,25 @@ fun ModelDetailPage(
         if (info.isNotBlank()) FeedbackPanel(info, isError = false)
 
         if (downloadId >= 0L || installing) {
-            Surface(
-                color = Color(0x77303448),
-                shape = RoundedCornerShape(17.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .09f))
+            ObsidianFrostedSurface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(21.dp),
+                fillAlpha = .54f
             ) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         if (installing) installLabel else "DOWNLOADING  ·  $downloadPercent%",
-                        color = SruvikColors.Lime,
+                        color = Color(0xFF1D2843),
                         style = MaterialTheme.typography.labelSmall,
                         letterSpacing = .8.sp
                     )
                     LinearProgressIndicator(
                         progress = { if (installing) 0.5f else downloadPercent / 100f },
                         modifier = Modifier.fillMaxWidth(),
-                        color = SruvikColors.Lime,
-                        trackColor = Color.White.copy(alpha = .1f)
+                        color = Color(0xFF555B99),
+                        trackColor = Color(0x55404B66)
                     )
-                    if (downloadId >= 0L) TextButton(onClick = {
+                    if (downloadId >= 0L) ObsidianSecondaryButton(onClick = {
                         scope.launch {
                             withContext(Dispatchers.IO) {
                                 if (actualModel.engine == SruGenGalleryEngine.MEDIAPIPE_SD15) {
@@ -480,7 +475,7 @@ fun ModelDetailPage(
                             downloadId = -1L
                             error = "Download cancelled. Temporary files were removed."
                         }
-                    }) { Text("CANCEL DOWNLOAD", color = SruvikColors.TextSecondary) }
+                    }) { Text("CANCEL DOWNLOAD", style = MaterialTheme.typography.labelSmall) }
                 }
             }
         }
@@ -581,20 +576,20 @@ fun ModelDetailPage(
         }
 
         if (installed || hasRemovableData) {
-            OutlinedButton(
+            ObsidianGlassButton(
                 onClick = { showDeleteConfirmation = true },
                 enabled = !deleting && !installing && downloadId < 0L,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, Color(0x99FF829B)),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = Color(0xFFFF829B),
-                    disabledContentColor = SruvikColors.TextMuted
-                )
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(26.dp),
+                fillAlpha = .43f
             ) {
-                Icon(Icons.Rounded.DeleteOutline, contentDescription = null)
+                Icon(Icons.Rounded.DeleteOutline, contentDescription = null, tint = Color(0xFF963B4B))
                 Spacer(Modifier.width(8.dp))
-                Text(if (deleting) "DELETING MODEL…" else "DELETE MODEL")
+                Text(
+                    if (deleting) "DELETING MODEL…" else "DELETE MODEL",
+                    color = Color(0xFF813344),
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
     }
