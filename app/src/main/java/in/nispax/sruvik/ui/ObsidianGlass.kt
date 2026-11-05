@@ -136,7 +136,7 @@ fun ObsidianGlassButton(
     val alpha = if (enabled) fillAlpha else .18f
     Row(
         modifier = modifier
-            .heightIn(min = 64.dp)
+            .heightIn(min = 56.dp)
             .shadow(if (enabled) 12.dp else 0.dp, shape, clip = false)
             .clip(shape)
             .background(
