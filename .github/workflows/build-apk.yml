@@ -1,7 +1,10 @@
 name: Build Sruvik Debug APK
 on:
+  # Feature branches are built by their pull_request workflow below. GitHub
+  # scopes pull_request caches to refs/pull/<number>/merge, so a separate
+  # push run on the feature branch cannot restore the PR-scoped signing cache.
   push:
-    branches: [main, 'fix/**', 'feature/**']
+    branches: [main, 'fix/**']
   pull_request:
     branches: ['fix/**']
   workflow_dispatch:
