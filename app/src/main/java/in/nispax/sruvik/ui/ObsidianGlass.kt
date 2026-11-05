@@ -32,7 +32,6 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -248,7 +247,6 @@ fun ObsidianGlassIconButton(
             .border(1.1.dp, Color.White.copy(alpha = if (enabled) .86f else .28f), CircleShape)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .semantics {
-                role = Role.Button
                 this.contentDescription = contentDescription
             },
         contentAlignment = Alignment.Center
