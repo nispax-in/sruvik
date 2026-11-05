@@ -208,7 +208,7 @@ fun ModelsPage(
                 item {
                     Text(
                         if (tab == ModelLibraryTab.DISCOVER) "THE COLLECTION" else "LOCAL MODEL VAULT",
-                        color = SruvikColors.LimeMuted,
+                        color = Color(0xFF414A86),
                         style = MaterialTheme.typography.labelSmall,
                         letterSpacing = 1.4.sp
                     )
@@ -244,17 +244,18 @@ private fun LibrarySummaryTile(
     value: String,
     label: String
 ) {
-    ObsidianGlassPanel(
+    ObsidianFrostedPanel(
         modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(18.dp),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 11.dp),
+        fillAlpha = .50f,
         verticalArrangement = Arrangement.spacedBy(5.dp)
     ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(icon, null, tint = SruvikColors.LimeMuted, modifier = Modifier.size(15.dp))
-                Text(value, color = SruvikColors.TextPrimary, style = MaterialTheme.typography.titleSmall)
-            }
-        Text(label, color = SruvikColors.TextMuted, style = MaterialTheme.typography.labelSmall)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(icon, null, tint = Color(0xFF50558F), modifier = Modifier.size(15.dp))
+            Text(value, color = Color(0xFF17213A), style = MaterialTheme.typography.titleSmall)
+        }
+        Text(label, color = Color(0xFF4D5872), style = MaterialTheme.typography.labelSmall)
     }
 }
 
@@ -271,16 +272,14 @@ private fun ModelGalleryCard(
         model.engine == `in`.nispax.sruvik.srugen.SruGenGalleryEngine.NEZUMI_MNN_SD15 -> Color(0xFFBDB9B5)
         else -> Color(0xFFBDB9B5)
     }
-    ObsidianGlassPanel(
+    ObsidianFrostedSurface(
         modifier = Modifier.fillMaxWidth().clickable(
             role = Role.Button,
             onClickLabel = "Open ${model.name}",
             onClick = onClick
         ),
-        shape = RoundedCornerShape(23.dp),
-        contentPadding = PaddingValues(0.dp),
-        accent = accent,
-        verticalArrangement = Arrangement.spacedBy(0.dp)
+        shape = RoundedCornerShape(25.dp),
+        fillAlpha = .52f
     ) {
         Column(Modifier.fillMaxWidth()) {
             Box(
@@ -293,8 +292,8 @@ private fun ModelGalleryCard(
             ) {
                 Row(verticalAlignment = Alignment.Top) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(model.name, color = SruvikColors.TextPrimary, style = MaterialTheme.typography.titleLarge)
-                        Text(model.subtitle, color = SruvikColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                        Text(model.name, color = Color(0xFF131A32), style = MaterialTheme.typography.titleLarge)
+                        Text(model.subtitle, color = Color(0xFF3F4A67), style = MaterialTheme.typography.bodySmall)
                     }
                     ModelStatusPill(
                         label = when {
@@ -314,15 +313,14 @@ private fun ModelGalleryCard(
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     model.styleTags.take(3).forEach { tag ->
-                        Surface(color = Color.White.copy(alpha = .06f), shape = RoundedCornerShape(20.dp)) {
-                            Text(tag, Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                                color = SruvikColors.TextSecondary, style = MaterialTheme.typography.labelSmall)
+                        ObsidianGlassPill(shape = RoundedCornerShape(14.dp)) {
+                            Text(tag, color = Color(0xFF3B4664), style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 }
                 Text(
                     "“${model.lore}”",
-                    color = Color(0xFFD1CCBE),
+                    color = Color(0xFF303C59),
                     style = MaterialTheme.typography.bodySmall,
                     lineHeight = 18.sp
                 )
@@ -344,8 +342,8 @@ private fun ModelGalleryCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(Icons.Rounded.Memory, null, tint = SruvikColors.TextMuted, modifier = Modifier.size(15.dp))
-                    Text(model.runtime, color = SruvikColors.TextMuted, style = MaterialTheme.typography.labelSmall)
+                    Icon(Icons.Rounded.Memory, null, tint = Color(0xFF56617C), modifier = Modifier.size(15.dp))
+                    Text(model.runtime, color = Color(0xFF4C5875), style = MaterialTheme.typography.labelSmall)
                     Spacer(Modifier.weight(1f))
                     Text(
                         if (installed) "View details  ›" else if (model.canInstall && assessment?.canDownload == true) "View & install  ›" else "View profile  ›",
@@ -357,7 +355,7 @@ private fun ModelGalleryCard(
                 if (model.canInstall && assessment != null && !assessment.canDownload && !installed) {
                     Text(
                         assessment.reasons.firstOrNull() ?: "This model is currently blocked by the device check.",
-                        color = Color(0xFFF0B58F),
+                        color = Color(0xFF8B4F37),
                         style = MaterialTheme.typography.labelSmall,
                         lineHeight = 16.sp
                     )
@@ -370,17 +368,17 @@ private fun ModelGalleryCard(
 @Composable
 private fun ModelMetadataChip(value: String, label: String) {
     Surface(
-        color = Color(0x332C3A4B),
-        shape = RoundedCornerShape(9.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .08f))
+        color = Color.White.copy(alpha = .36f),
+        shape = RoundedCornerShape(12.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .52f))
     ) {
         Row(
             Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(label, color = SruvikColors.TextMuted, style = MaterialTheme.typography.labelSmall)
-            Text(value, color = SruvikColors.TextSecondary, style = MaterialTheme.typography.labelSmall,
+            Text(label, color = Color(0xFF59637D), style = MaterialTheme.typography.labelSmall)
+            Text(value, color = Color(0xFF202B46), style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold)
         }
     }
