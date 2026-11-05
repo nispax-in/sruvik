@@ -92,23 +92,17 @@ fun FirstRunProfileDialog(onContinue: (SruvikProfile) -> Unit) {
                     "This is saved only on this device. Age is for personalisation, not age verification.",
                     style = MaterialTheme.typography.bodySmall, color = SruvikColors.TextMuted
                 )
-                Button(
+                ObsidianGlassButton(
                     onClick = {
                         if (valid && parsedAge != null) onContinue(SruvikProfile(name.trim(), parsedAge))
                     },
                     enabled = valid,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = RoundedCornerShape(17.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = SruvikColors.Primary,
-                        contentColor = Color.White,
-                        disabledContainerColor = Color(0xFF45413F),
-                        disabledContentColor = Color.White.copy(alpha = .45f)
-                    )
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(28.dp)
                 ) {
-                    Text("Continue to Sruvik", style = MaterialTheme.typography.labelLarge)
+                    Text("Continue to Sruvik", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.width(8.dp))
-                    Icon(Icons.Rounded.ArrowForward, null, modifier = Modifier.size(17.dp))
+                    Icon(Icons.Rounded.ArrowForward, null, modifier = Modifier.size(18.dp))
                 }
             }
         }
@@ -243,9 +237,13 @@ fun SettingsPage(
                                         style = MaterialTheme.typography.bodySmall, color = SruvikColors.TextSecondary)
                                 }
                                 Box {
-                                    TextButton(onClick = { lockMenuExpanded = true }) {
-                                        Text(autoLockLabel(autoLock), color = SruvikColors.Lime)
-                                        Icon(Icons.Rounded.ExpandMore, null, tint = SruvikColors.Lime)
+                                    ObsidianGlassButton(
+                                        onClick = { lockMenuExpanded = true },
+                                        shape = RoundedCornerShape(22.dp),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                    ) {
+                                        Text(autoLockLabel(autoLock), style = MaterialTheme.typography.labelSmall)
+                                        Icon(Icons.Rounded.ExpandMore, null, modifier = Modifier.size(16.dp))
                                     }
                                     DropdownMenu(expanded = lockMenuExpanded,
                                         onDismissRequest = { lockMenuExpanded = false }) {
