@@ -588,17 +588,20 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                             style = MaterialTheme.typography.labelSmall
                         )
                     }
-                    TextButton(
+                    ObsidianGlassButton(
                         onClick = {
                             context.startService(
                                 Intent(context, ImageUpscaleService::class.java)
                                     .setAction(ImageUpscaleService.ACTION_CANCEL)
                             )
                         },
-                        modifier = Modifier.align(Alignment.End)
+                        modifier = Modifier.align(Alignment.End),
+                        shape = RoundedCornerShape(22.dp),
+                        fillAlpha = .38f,
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                     ) {
                         Icon(Icons.Rounded.Close, null, tint = LabCoral)
-                        Text("  Cancel", color = LabCoral)
+                        Text("Cancel", color = LabCoral, style = MaterialTheme.typography.labelSmall)
                     }
                 } else {
                     val currentMessage = if (session.status == UpscaleStatus.IDLE) message else session.message
@@ -607,9 +610,9 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                 }
 
                 if (showQuickResize && original != null) {
-                    OutlinedButton(
+                    ObsidianSecondaryButton(
                         onClick = {
-                            val source = original ?: return@OutlinedButton
+                            val source = original ?: return@ObsidianSecondaryButton
                             UpscaleSession.clearResult()
                             scope.launch {
                                 isQuickResizing = true
@@ -627,9 +630,9 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                                 }
                             }
                         },
-                        modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(15.dp)
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Use quick resize instead  ·  not AI")
+                        Text("Use quick resize instead · not AI")
                     }
                 }
             }
@@ -664,29 +667,30 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                     }
                 }
                 result?.let {
-                    Button(
+                    ObsidianGlassButton(
                         onClick = { saver.launch("sruvik-ai-upscaled.png") },
-                        modifier = Modifier.fillMaxWidth().height(54.dp),
-                        shape = RoundedCornerShape(17.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         enabled = !isSaving && !isProcessing,
-                        colors = ButtonDefaults.buttonColors(containerColor = LabCyan, contentColor = LabInk)
+                        shape = RoundedCornerShape(28.dp),
+                        fillAlpha = .62f
                     ) {
                         Icon(Icons.Rounded.Download, null)
-                        Text(if (isSaving) "  Saving…" else "  Save enhanced PNG", fontWeight = FontWeight.Bold)
+                        Text(if (isSaving) "Saving…" else "Save enhanced PNG", fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
 
-        Surface(
-            color = SruvikColors.Surface, shape = RoundedCornerShape(18.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, LabCyan.copy(alpha = .14f))
+        ObsidianFrostedSurface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            fillAlpha = .40f
         ) {
             Row(Modifier.padding(13.dp), verticalAlignment = Alignment.Top) {
-                Icon(Icons.Rounded.Shield, null, tint = LabCyan, modifier = Modifier.size(18.dp))
+                Icon(Icons.Rounded.Shield, null, tint = Color(0xFF4F588D), modifier = Modifier.size(18.dp))
                 Text(
                     "  Your photo is processed locally and is never uploaded. The first run may prepare the LiteRT runtime through Google Play services.",
-                    color = LabMuted, style = MaterialTheme.typography.labelSmall
+                    color = Color(0xFF35415D), style = MaterialTheme.typography.labelSmall
                 )
             }
         }
@@ -704,15 +708,16 @@ private fun ModelTag(label: String) {
 
 @Composable
 private fun ComparisonCard(title: String, size: String, bitmap: Bitmap, modifier: Modifier, accent: Color) {
-    Surface(
-        modifier = modifier, color = SruvikColors.Surface.copy(alpha = .58f), shape = RoundedCornerShape(20.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = .22f))
+    ObsidianFrostedSurface(
+        modifier = modifier,
+        shape = RoundedCornerShape(22.dp),
+        fillAlpha = .48f
     ) {
-        Column(Modifier.padding(9.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Text(title, color = accent, style = MaterialTheme.typography.labelSmall,
-                letterSpacing = 1.sp, fontWeight = FontWeight.Bold)
+        Column(Modifier.fillMaxWidth().padding(9.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text(title, color = if (accent == LabCyan) Color(0xFF354C82) else Color(0xFF53607D),
+                style = MaterialTheme.typography.labelSmall, letterSpacing = 1.sp, fontWeight = FontWeight.Bold)
             ImagePreview(bitmap, Modifier.fillMaxWidth().height(126.dp))
-            Text(size, color = LabMuted, style = MaterialTheme.typography.labelSmall)
+            Text(size, color = Color(0xFF3F4B67), style = MaterialTheme.typography.labelSmall)
         }
     }
 }
