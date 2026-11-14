@@ -23,6 +23,7 @@ import kotlin.math.max
 object SruGenAutoMasker {
     private const val MODEL_ASSET = "models/selfie_multiclass_256x256.tflite"
     private const val HAIR_LABEL = 1
+    private const val HAIR_MODEL_ASSET = "models/hair_segmenter.tflite"
     private const val CLOTHES_LABEL = 4
     private const val MAX_DECODE_SIDE = 1536
 
@@ -95,7 +96,7 @@ object SruGenAutoMasker {
      */
     fun cropForHairEdit(context: Context, sourceImage: Bitmap): Bitmap {
         require(!sourceImage.isRecycled) { "The original photo was released before hair detection." }
-        val mask = segment(context, sourceImage) { label -> label == HAIR_LABEL }
+        val mask = segment(\n            context, sourceImage,\n            select = { label -> label == HAIR_LABEL },\n            modelAsset = HAIR_MODEL_ASSET\n        )
         try {
             val selected = mask.values.count { (it.toInt() and 0xff) > 0 }
             val ratio = selected.toFloat() / mask.values.size.toFloat()
@@ -283,7 +284,7 @@ object SruGenAutoMasker {
         var softMask: ByteArray? = null
         var compositedPixels: IntArray? = null
         try {
-            val semanticMask = segment(context, sourceImage) { label -> label == targetLabel }
+            val semanticMask = segment(\n                context, sourceImage,\n                select = { label -> label == targetLabel },\n                modelAsset = if (targetLabel == HAIR_LABEL) HAIR_MODEL_ASSET else MODEL_ASSET\n            )
             mask = semanticMask
             val selected = semanticMask.values.count { (it.toInt() and 0xff) > 0 }
             val ratio = selected.toFloat() / semanticMask.values.size.toFloat()
@@ -457,13 +458,14 @@ object SruGenAutoMasker {
     private fun segment(
         context: Context,
         bitmap: Bitmap,
-        select: (Int) -> Boolean
+        select: (Int) -> Boolean,
+        modelAsset: String = MODEL_ASSET
     ): SegmentationMask {
         require(!bitmap.isRecycled) { "The source photo was released before segmentation." }
         val segmentationBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, false)
             ?: throw IllegalStateException("Unable to prepare a private segmentation copy.")
         val options = ImageSegmenter.ImageSegmenterOptions.builder()
-            .setBaseOptions(BaseOptions.builder().setModelAssetPath(MODEL_ASSET).build())
+            .setBaseOptions(BaseOptions.builder().setModelAssetPath(modelAsset).build())
             .setRunningMode(RunningMode.IMAGE)
             .setOutputCategoryMask(true)
             .setOutputConfidenceMasks(false)
