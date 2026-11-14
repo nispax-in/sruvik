@@ -120,6 +120,9 @@ class NezumiMnnSruGenEngine(
         val editing = request.mode == SruGenMode.PROMPT_EDIT
         val hairEdit = editing && SruGenEditIntentParser.isHairEdit(request.prompt)
         val fingerEdit = editing && SruGenEditIntentParser.isFingerEdit(request.prompt)
+        require(!editing || SruGenEditIntentParser.isSupportedRegionEdit(request.prompt)) {
+            "SruGen can currently edit a specific clothing item, hairstyle or one named finger. Background removal has its own mode; this edit request was not guessed."
+        }
         require(!editing || request.sourceImage?.isNotEmpty() == true) {
             "Attach an image before starting a prompt edit."
         }
