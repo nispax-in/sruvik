@@ -96,7 +96,11 @@ object SruGenAutoMasker {
      */
     fun cropForHairEdit(context: Context, sourceImage: Bitmap): Bitmap {
         require(!sourceImage.isRecycled) { "The original photo was released before hair detection." }
-        val mask = segment(\n            context, sourceImage,\n            select = { label -> label == HAIR_LABEL },\n            modelAsset = HAIR_MODEL_ASSET\n        )
+        val mask = segment(
+            context, sourceImage,
+            modelAsset = HAIR_MODEL_ASSET,
+            select = { label -> label == HAIR_LABEL }
+        )
         try {
             val selected = mask.values.count { (it.toInt() and 0xff) > 0 }
             val ratio = selected.toFloat() / mask.values.size.toFloat()
