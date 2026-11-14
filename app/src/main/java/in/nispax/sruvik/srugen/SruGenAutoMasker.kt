@@ -288,7 +288,11 @@ object SruGenAutoMasker {
         var softMask: ByteArray? = null
         var compositedPixels: IntArray? = null
         try {
-            val semanticMask = segment(\n                context, sourceImage,\n                select = { label -> label == targetLabel },\n                modelAsset = if (targetLabel == HAIR_LABEL) HAIR_MODEL_ASSET else MODEL_ASSET\n            )
+            val semanticMask = segment(
+                context, sourceImage,
+                modelAsset = if (targetLabel == HAIR_LABEL) HAIR_MODEL_ASSET else MODEL_ASSET,
+                select = { label -> label == targetLabel }
+            )
             mask = semanticMask
             val selected = semanticMask.values.count { (it.toInt() and 0xff) > 0 }
             val ratio = selected.toFloat() / semanticMask.values.size.toFloat()
