@@ -12,7 +12,7 @@ object SruGenEditIntentParser {
 
     enum class HandSide { LEFT, RIGHT }
 
-    private val editVerb = Regex("\\b(change|edit|make|modify|reshape|lengthen|shorten|replace|style|cut|grow)\\b")
+    private val editVerb = Regex("\\b(change|edit|make|modify|reshape|lengthen|shorten|replace|style|cut|grow|give|add|recolor|recolour|turn|switch|dye|color|colour)\\b")
 
     fun isHairEdit(prompt: String): Boolean {
         val text = prompt.lowercase()
