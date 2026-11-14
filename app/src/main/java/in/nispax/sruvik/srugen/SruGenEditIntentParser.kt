@@ -22,9 +22,18 @@ object SruGenEditIntentParser {
 
     fun isFingerEdit(prompt: String): Boolean {
         val text = prompt.lowercase()
-        return Regex("\\b(hand|hands|finger|fingers|thumb|index finger|pointer finger|middle finger|ring finger|pinky|little finger)\\b")
+        return Regex("\\b(finger|fingers|thumb|index finger|pointer finger|middle finger|ring finger|pinky|little finger)\\b")
             .containsMatchIn(text)
     }
+
+    fun isClothingEdit(prompt: String): Boolean {
+        val text = prompt.lowercase()
+        val target = Regex("\\b(clothes|clothing|outfit|shirt|t-shirt|tee|jacket|coat|hoodie|sweater|dress|trousers|pants|jeans|skirt|shorts|blouse|uniform|suit)\\b")
+        return editVerb.containsMatchIn(text) && target.containsMatchIn(text)
+    }
+
+    fun isSupportedRegionEdit(prompt: String): Boolean =
+        isHairEdit(prompt) || isFingerEdit(prompt) || isClothingEdit(prompt)
 
     fun finger(prompt: String): Finger? {
         val text = prompt.lowercase()
