@@ -491,7 +491,7 @@ fun SruGenPage(
                     mode = SruGenMode.PROMPT_EDIT
                 }
                 info = if (mode == SruGenMode.PROMPT_EDIT) {
-                    "Image attached. Edit clothes mode selected; choose Create to use text-to-image instead."
+                    "Image attached. Edit mode selected; choose Create to use text-to-image instead."
                 } else {
                     "Image attached and encrypted in this local conversation."
                 }
@@ -684,7 +684,7 @@ fun SruGenPage(
         val requestMode = if (
             selectedMode == SruGenMode.TEXT_TO_IMAGE &&
             attachment != null &&
-            isSruGenClothingEditInstruction(text)
+            isSruGenImageEditInstruction(text)
         ) SruGenMode.PROMPT_EDIT else selectedMode
         if (text.isBlank() && attachment == null || generating) return
         val userMessage = SruGenMessage(role = "user", text = text, attachmentId = attachment,
@@ -780,7 +780,7 @@ fun SruGenPage(
             if (editModel == null) {
                 persist(updatedChat.copy(messages = updatedChat.messages + SruGenMessage(
                     role = "assistant",
-                    text = "Your photo is safely saved, but ${activeModel?.name ?: "the active model"} does not have the VAE encoder required for image editing. Install majicMIX Realistic v6 from Models (about 1.24 GB). After installation, return here, reattach the photo and choose Edit clothes. Nothing was generated from text alone."
+                    text = "Your photo is safely saved, but ${activeModel?.name ?: "the active model"} does not have the VAE encoder required for image editing. Install majicMIX Realistic v6 from Models (about 1.24 GB). After installation, return here, reattach the photo and choose Edit region. Nothing was generated from text alone."
                 )))
                 return
             }
@@ -1092,7 +1092,7 @@ fun SruGenPage(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     StudioModeControl("Create", mode == SruGenMode.TEXT_TO_IMAGE) { mode = SruGenMode.TEXT_TO_IMAGE }
-                    StudioModeControl("Edit clothes", mode == SruGenMode.PROMPT_EDIT) { mode = SruGenMode.PROMPT_EDIT }
+                    StudioModeControl("Edit region", mode == SruGenMode.PROMPT_EDIT) { mode = SruGenMode.PROMPT_EDIT }
                     StudioModeControl("Remove background", mode == SruGenMode.REMOVE_BACKGROUND) { mode = SruGenMode.REMOVE_BACKGROUND }
                 }
 
@@ -1144,7 +1144,7 @@ fun SruGenPage(
                                     Text(
                                         when (mode) {
                                             SruGenMode.TEXT_TO_IMAGE -> "Describe an image…"
-                                            SruGenMode.PROMPT_EDIT -> "Describe the clothing change…"
+                                            SruGenMode.PROMPT_EDIT -> "Describe what to change (hair, clothes, a finger)…"
                                             SruGenMode.REMOVE_BACKGROUND -> "Describe the subject to keep…"
                                             SruGenMode.REMOVE_OBJECT -> "Describe what to remove…"
                                         },
@@ -1332,13 +1332,16 @@ fun SruGenPage(
 
 
 
-internal fun isSruGenClothingEditInstruction(prompt: String): Boolean {
+internal fun isSruGenImageEditInstruction(prompt: String): Boolean {
     val normalized = prompt.lowercase()
-    val hasEditVerb = Regex("\\b(change|edit|recolor|recolour|turn|make|replace|switch)\\b")
+    val hasEditVerb = Regex("\\b(change|edit|recolor|recolour|turn|make|replace|switch|modify|reshape|lengthen|shorten|style|cut|grow)\\b")
         .containsMatchIn(normalized)
     val hasClothingTarget = Regex("\\b(clothes|clothing|outfit|shirt|t-shirt|tee|jacket|coat|hoodie|sweater|dress|trousers|pants|jeans)\\b")
         .containsMatchIn(normalized)
-    return hasEditVerb && hasClothingTarget
+    val hasRegionTarget = hasClothingTarget ||
+        SruGenEditIntentParser.isHairEdit(prompt) ||
+        SruGenEditIntentParser.isFingerEdit(prompt)
+    return hasEditVerb && hasRegionTarget
 }
 
 private const val MAX_SRUGEN_IMAGE_BYTES = 24 * 1024 * 1024
