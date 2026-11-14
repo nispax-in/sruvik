@@ -118,6 +118,8 @@ class NezumiMnnSruGenEngine(
         }
         require(request.prompt.isNotBlank()) { "Describe the image you want to create or how you want to edit it." }
         val editing = request.mode == SruGenMode.PROMPT_EDIT
+        val hairEdit = editing && SruGenEditIntentParser.isHairEdit(request.prompt)
+        val fingerEdit = editing && SruGenEditIntentParser.isFingerEdit(request.prompt)
         require(!editing || request.sourceImage?.isNotEmpty() == true) {
             "Attach an image before starting a prompt edit."
         }
@@ -152,7 +154,8 @@ class NezumiMnnSruGenEngine(
             stopRequested = false
             stopReason = null
             var sourceBitmap: Bitmap? = null
-            var clothingCrop: Bitmap? = null
+            var editCrop: Bitmap? = null
+            var handEditPlan: SruGenHandMasker.EditPlan? = null
             var resizedSource: Bitmap? = null
             var sourceRgb: ByteArray? = null
             var packed: ByteArray? = null
@@ -174,11 +177,21 @@ class NezumiMnnSruGenEngine(
                 if (editing) {
                     onProgress(4, "Preparing your private reference image")
                     sourceBitmap = SruGenAutoMasker.decodeBounded(requireNotNull(request.sourceImage))
-                    clothingCrop = SruGenAutoMasker.cropForClothingEdit(
-                        context,
-                        requireNotNull(sourceBitmap)
-                    )
-                    resizedSource = SruGenAutoMasker.resizeForDiffusion(requireNotNull(clothingCrop))
+                    editCrop = when {
+                        fingerEdit -> {
+                            handEditPlan = SruGenHandMasker.createEditPlan(
+                                context, requireNotNull(sourceBitmap), request.prompt
+                            )
+                            requireNotNull(handEditPlan).crop
+                        }
+                        hairEdit -> SruGenAutoMasker.cropForHairEdit(
+                            context, requireNotNull(sourceBitmap)
+                        )
+                        else -> SruGenAutoMasker.cropForClothingEdit(
+                            context, requireNotNull(sourceBitmap)
+                        )
+                    }
+                    resizedSource = SruGenAutoMasker.resizeForDiffusion(requireNotNull(editCrop))
                     generationWidth = resizedSource!!.width
                     generationHeight = resizedSource!!.height
                     sourceRgb = SruGenAutoMasker.toPackedRgb(resizedSource!!)
@@ -219,15 +232,25 @@ class NezumiMnnSruGenEngine(
                 }
 
                 onProgress(5, if (editing) "Preparing image-to-image inference · CPU-safe mode" else "Loading $displayName · CPU-safe mode")
-                val diffusionPrompt = if (editing) {
-                    "Faithful photorealistic edit of the supplied original photo. Keep the same person, identity, face, hair, expression, pose, camera framing, background and lighting. Change only the visible clothing as requested: ${request.prompt}. Preserve every non-clothing detail."
-                } else {
-                    request.prompt
+                val diffusionPrompt = when {
+                    hairEdit ->
+                        "Faithful photorealistic portrait edit. Keep the exact same person, face, facial features, skin, expression, pose, clothing, camera framing, background and lighting. Change only the hairstyle/hair region as requested: ${request.prompt}. Keep the hairline believable and preserve the subject's identity."
+                    fingerEdit ->
+                        "Faithful photorealistic hand edit. Keep the same hand, palm, wrist, skin tone, lighting and every other finger unchanged. Modify only the explicitly selected finger as requested: ${request.prompt}. Preserve realistic finger joints, nail placement, proportions and hand anatomy."
+                    editing ->
+                        "Faithful photorealistic edit of the supplied original photo. Keep the same person, identity, face, hair, expression, pose, camera framing, background and lighting. Change only the visible clothing as requested: ${request.prompt}. Preserve every non-clothing detail."
+                    else -> request.prompt
+                }
+                val negativePrompt = buildString {
+                    append("low quality, blurry, deformed, distorted, different person, changed identity, changed face, changed expression, changed pose, changed camera, changed background, watermark")
+                    if (hairEdit) append(", distorted hairline, bald patches, face artifacts")
+                    if (fingerEdit) append(", extra fingers, missing fingers, fused fingers, webbed fingers, deformed hand, broken joints, duplicated nails")
+                    if (editing && !hairEdit) append(", changed hair")
                 }
                 packed = MnnSdNative.generate(
                     handle = currentHandle,
                     prompt = diffusionPrompt,
-                    negativePrompt = "low quality, blurry, deformed, distorted, different person, changed identity, changed face, changed hair, changed expression, changed pose, changed camera, changed background, watermark",
+                    negativePrompt = negativePrompt,
                     width = generationWidth,
                     height = generationHeight,
                     steps = 20,
@@ -254,27 +277,49 @@ class NezumiMnnSruGenEngine(
                 SruGenDeviceGuard.assertSafeToContinue(context)
                 onProgress(92, if (editing) "Applying the automatic clothing mask" else "Decoding generated image")
                 generatedBitmap = SruGenAutoMasker.decodePackedRgb(requireNotNull(packed))
-                finalBitmap = if (editing) {
-                    SruGenAutoMasker.editClothing(
-                        context,
+                finalBitmap = when {
+                    handEditPlan != null -> SruGenHandMasker.applyGeneratedEdit(
                         requireNotNull(sourceBitmap),
-                        requireNotNull(generatedBitmap)
+                        requireNotNull(generatedBitmap),
+                        requireNotNull(handEditPlan)
                     )
-                } else {
-                    generatedBitmap
+                    hairEdit -> SruGenAutoMasker.editHair(
+                        context, requireNotNull(sourceBitmap), requireNotNull(generatedBitmap)
+                    )
+                    editing -> SruGenAutoMasker.editClothing(
+                        context, requireNotNull(sourceBitmap), requireNotNull(generatedBitmap)
+                    )
+                    else -> generatedBitmap
                 }
 
                 val png = SruGenAutoMasker.encodePng(requireNotNull(finalBitmap))
-                onProgress(100, if (editing) "Done · clothing edited locally" else "Done · generated locally")
+                val editLabel = when {
+                    fingerEdit -> "finger region"
+                    hairEdit -> "hair region"
+                    editing -> "clothing region"
+                    else -> "image"
+                }
+                onProgress(100, if (editing) "Done · $editLabel processed locally" else "Done · generated locally")
                 SruGenResult(
                     imageBytes = png,
                     mimeType = "image/png",
-                    modelName = if (editing) "$displayName · automatic clothing edit" else displayName
+                    modelName = when {
+                        fingerEdit -> "$displayName · targeted finger edit"
+                        hairEdit -> "$displayName · hair region edit"
+                        editing -> "$displayName · automatic clothing edit"
+                        else -> displayName
+                    }
                 )
             } finally {
                 sourceBitmap?.recycle()
-                clothingCrop?.takeIf { it !== resizedSource && !it.isRecycled }?.recycle()
-                resizedSource?.recycle()
+                handEditPlan?.close()
+                if (handEditPlan == null && editCrop !== resizedSource) {
+                    editCrop?.takeIf { !it.isRecycled }?.recycle()
+                }
+                resizedSource?.takeIf { it !== editCrop && !it.isRecycled }?.recycle()
+                if (handEditPlan == null && resizedSource === editCrop) {
+                    editCrop?.takeIf { !it.isRecycled }?.recycle()
+                }
                 generatedBitmap?.takeIf { it !== finalBitmap }?.recycle()
                 finalBitmap?.recycle()
                 sourceRgb?.fill(0)
