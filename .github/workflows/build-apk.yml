@@ -72,23 +72,29 @@ jobs:
         env:
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
         run: gradle --no-daemon :app:testDebugUnitTest :app:compileDebugAndroidTestKotlin
-      - name: Restore debug signing key
+      - name: Restore original Sruvik debug signing key
         uses: actions/cache@v4
         with:
-          path: .ci/sruvik-debug.keystore
-          key: sruvik-debug-keystore-v2
-      - name: Ensure stable debug signing key
+          # Restore the original key created by the default-branch workflow.
+          # GitHub Actions caches from the default branch are readable by feature branches.
+          path: ~/.android/debug.keystore
+          key: sruvik-debug-keystore-v1
+      - name: Verify and stage update-compatible signing key
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p .ci
-          if [ ! -s .ci/sruvik-debug.keystore ]; then
+          SOURCE_KEY="$HOME/.android/debug.keystore"
+          if [ ! -s "$SOURCE_KEY" ]; then
             echo "The original Sruvik signing key was not restored. Refusing to generate an incompatible APK." >&2
             exit 1
           fi
           REQUIRED="e143f659dd482479778f1da8812d5c8b5b988c420ca580e7915d5c2e893455fe"
-          ACTUAL="$(keytool -list -v -keystore .ci/sruvik-debug.keystore -storepass android -alias androiddebugkey | awk -F': ' '/SHA256:/ { gsub(":", "", $2); print tolower($2) }')"
+          ACTUAL="$(keytool -list -v -keystore "$SOURCE_KEY" -storepass android -alias androiddebugkey | awk -F': ' '/SHA256:/ { gsub(":", "", $2); print tolower($2) }')"
           echo "Required signing certificate: $REQUIRED"
           echo "Restored signing certificate: $ACTUAL"
           test "$ACTUAL" = "$REQUIRED"
+          install -m 600 "$SOURCE_KEY" .ci/sruvik-debug.keystore
       - name: Assemble update-compatible debug APK
         env:
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
