@@ -1336,11 +1336,7 @@ internal fun isSruGenImageEditInstruction(prompt: String): Boolean {
     val normalized = prompt.lowercase()
     val hasEditVerb = Regex("\\b(change|edit|recolor|recolour|turn|make|replace|switch|modify|reshape|lengthen|shorten|style|cut|grow)\\b")
         .containsMatchIn(normalized)
-    val hasClothingTarget = Regex("\\b(clothes|clothing|outfit|shirt|t-shirt|tee|jacket|coat|hoodie|sweater|dress|trousers|pants|jeans)\\b")
-        .containsMatchIn(normalized)
-    val hasRegionTarget = hasClothingTarget ||
-        SruGenEditIntentParser.isHairEdit(prompt) ||
-        SruGenEditIntentParser.isFingerEdit(prompt)
+    val hasRegionTarget = SruGenEditIntentParser.isSupportedRegionEdit(prompt)
     return hasEditVerb && hasRegionTarget
 }
 
