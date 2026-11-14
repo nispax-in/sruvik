@@ -1334,7 +1334,7 @@ fun SruGenPage(
 
 internal fun isSruGenImageEditInstruction(prompt: String): Boolean {
     val normalized = prompt.lowercase()
-    val hasEditVerb = Regex("\\b(change|edit|recolor|recolour|turn|make|replace|switch|modify|reshape|lengthen|shorten|style|cut|grow)\\b")
+    val hasEditVerb = Regex("\\b(change|edit|recolor|recolour|turn|make|replace|switch|modify|reshape|lengthen|shorten|style|cut|grow|give|add|dye|color|colour)\\b")
         .containsMatchIn(normalized)
     val hasRegionTarget = SruGenEditIntentParser.isSupportedRegionEdit(prompt)
     return hasEditVerb && hasRegionTarget
