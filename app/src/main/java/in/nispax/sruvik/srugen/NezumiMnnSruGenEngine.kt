@@ -278,7 +278,7 @@ class NezumiMnnSruGenEngine(
                     "DreamShaper image operation failed: ${MnnSdNative.getLastError()}"
                 }
                 SruGenDeviceGuard.assertSafeToContinue(context)
-                onProgress(92, if (editing) "Applying the automatic clothing mask" else "Decoding generated image")
+                onProgress(92, if (editing) "Applying the selected region mask" else "Decoding generated image")
                 generatedBitmap = SruGenAutoMasker.decodePackedRgb(requireNotNull(packed))
                 finalBitmap = when {
                     handEditPlan != null -> SruGenHandMasker.applyGeneratedEdit(
