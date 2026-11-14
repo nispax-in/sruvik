@@ -25,6 +25,13 @@ class SruGenEditIntentParserTest {
     }
 
     @Test
+    fun clothingEditsAreClassifiedSeparatelyFromUnsupportedTargets() {
+        assertTrue(SruGenEditIntentParser.isClothingEdit("make my shirt black"))
+        assertTrue(SruGenEditIntentParser.isClothingEdit("replace my jacket with a coat"))
+        assertFalse(SruGenEditIntentParser.isSupportedRegionEdit("change the background to a beach"))
+    }
+
+    @Test
     fun ambiguousWholeHandOrMultipleFingerRequestsDoNotGuess() {
         assertTrue(SruGenEditIntentParser.isFingerEdit("make my fingers longer"))
         assertEquals(null, SruGenEditIntentParser.finger("make my fingers longer"))
