@@ -22,6 +22,8 @@ import kotlin.math.max
  */
 object SruGenAutoMasker {
     private const val MODEL_ASSET = "models/selfie_multiclass_256x256.tflite"
+    private const val HAIR_LABEL = 1
+    private const val HAIR_MODEL_ASSET = "models/hair_segmenter.tflite"
     private const val CLOTHES_LABEL = 4
     private const val MAX_DECODE_SIDE = 1536
 
@@ -82,6 +84,38 @@ object SruGenAutoMasker {
                 bounds.top,
                 bounds.width(),
                 bounds.height()
+            )
+        } finally {
+            mask.values.fill(0)
+        }
+    }
+
+    /**
+     * Hair-only reference crop with generous context and expansion room. The
+     * segmentation model's hair category is class 1 in SelfieMulticlass.
+     */
+    fun cropForHairEdit(context: Context, sourceImage: Bitmap): Bitmap {
+        require(!sourceImage.isRecycled) { "The original photo was released before hair detection." }
+        val mask = segment(
+            context, sourceImage,
+            modelAsset = HAIR_MODEL_ASSET,
+            select = { label -> label == HAIR_LABEL }
+        )
+        try {
+            val selected = mask.values.count { (it.toInt() and 0xff) > 0 }
+            val ratio = selected.toFloat() / mask.values.size.toFloat()
+            require(ratio >= 0.001f) {
+                "SruGen could not confidently detect hair. Try a clear, front-facing photo with the hair visible."
+            }
+            require(ratio <= 0.60f) {
+                "The hair mask was too broad to edit safely. Try a closer portrait."
+            }
+            val bounds = clothingBounds(
+                mask, sourceImage.width, sourceImage.height,
+                paddingFactorX = 0.62f, paddingFactorY = 0.78f
+            )
+            return Bitmap.createBitmap(
+                sourceImage, bounds.left, bounds.top, bounds.width(), bounds.height()
             )
         } finally {
             mask.values.fill(0)
@@ -199,6 +233,48 @@ object SruGenAutoMasker {
         context: Context,
         sourceImage: Bitmap,
         generatedImage: Bitmap
+    ): Bitmap = editSemanticRegion(
+        context, sourceImage, generatedImage,
+        targetLabel = CLOTHES_LABEL,
+        targetName = "clothing",
+        minimumRatio = 0.008f,
+        maximumRatio = 0.90f,
+        expansionRadius = 2,
+        paddingFactorX = 0.18f,
+        paddingFactorY = 0.18f
+    )
+
+    /**
+     * Composites a generated hair crop only through an expanded hair mask.
+     * The expansion gives new hair strands room outside the original silhouette;
+     * alpha-zero regions remain byte-for-byte the original photo.
+     */
+    fun editHair(
+        context: Context,
+        sourceImage: Bitmap,
+        generatedImage: Bitmap
+    ): Bitmap = editSemanticRegion(
+        context, sourceImage, generatedImage,
+        targetLabel = HAIR_LABEL,
+        targetName = "hair",
+        minimumRatio = 0.001f,
+        maximumRatio = 0.60f,
+        expansionRadius = 8,
+        paddingFactorX = 0.62f,
+        paddingFactorY = 0.78f
+    )
+
+    private fun editSemanticRegion(
+        context: Context,
+        sourceImage: Bitmap,
+        generatedImage: Bitmap,
+        targetLabel: Int,
+        targetName: String,
+        minimumRatio: Float,
+        maximumRatio: Float,
+        expansionRadius: Int,
+        paddingFactorX: Float,
+        paddingFactorY: Float
     ): Bitmap {
         require(!sourceImage.isRecycled) { "The original photo was released before editing." }
         require(!generatedImage.isRecycled) { "The local model returned an image buffer that was already released. Retry the edit." }
@@ -210,26 +286,35 @@ object SruGenAutoMasker {
         var generatedScaled: Bitmap? = null
         var mask: SegmentationMask? = null
         var softMask: ByteArray? = null
+        var compositedPixels: IntArray? = null
         try {
-            val segmentMask = segment(context, sourceImage) { label -> label == CLOTHES_LABEL }
-            mask = segmentMask
-            val selected = segmentMask.values.count { (it.toInt() and 0xff) > 0 }
-            val ratio = selected.toFloat() / segmentMask.values.size.toFloat()
-            require(ratio >= 0.008f) {
-                "SruGen could not find clothing in this photo. Try a clear, well-lit image showing the person's outfit."
+            val semanticMask = segment(
+                context, sourceImage,
+                modelAsset = if (targetLabel == HAIR_LABEL) HAIR_MODEL_ASSET else MODEL_ASSET,
+                select = { label -> label == targetLabel }
+            )
+            mask = semanticMask
+            val selected = semanticMask.values.count { (it.toInt() and 0xff) > 0 }
+            val ratio = selected.toFloat() / semanticMask.values.size.toFloat()
+            require(ratio >= minimumRatio) {
+                "SruGen could not confidently find $targetName in this photo. Try a clearer, closer image."
             }
-            require(ratio <= 0.90f) {
-                "The clothing mask was too broad to edit safely. Try a closer photo with one clearly visible person."
+            require(ratio <= maximumRatio) {
+                "The detected $targetName region was too broad to edit safely. Try a closer photo."
             }
 
-            val bounds = clothingBounds(segmentMask, sourceWidth, sourceHeight)
-            val smoothMask = soften(segmentMask.values, segmentMask.width, segmentMask.height)
-            softMask = smoothMask
+            val bounds = clothingBounds(
+                semanticMask, sourceWidth, sourceHeight,
+                paddingFactorX = paddingFactorX,
+                paddingFactorY = paddingFactorY
+            )
+            val alphaMask = soften(
+                semanticMask.values, semanticMask.width, semanticMask.height,
+                expansionRadius = expansionRadius
+            )
+            softMask = alphaMask
             val scaledOutput = Bitmap.createScaledBitmap(
-                generatedImage,
-                bounds.width(),
-                bounds.height(),
-                true
+                generatedImage, bounds.width(), bounds.height(), true
             )
             generatedScaled = scaledOutput
             require(!scaledOutput.isRecycled) {
@@ -241,32 +326,22 @@ object SruGenAutoMasker {
                 renderedPixels, 0, bounds.width(), 0, 0, bounds.width(), bounds.height()
             )
 
-            // The diffusion model only sees a garment-focused crop. Paste its
-            // result back through the original full-resolution clothing mask;
-            // all pixels outside the detected garment remain byte-for-byte
-            // sourced from the original photograph.
-            for (y in bounds.top until bounds.bottom) {
-                val maskY = (y.toLong() * segmentMask.height / sourceHeight)
-                    .toInt().coerceIn(0, segmentMask.height - 1)
-                for (x in bounds.left until bounds.right) {
-                    val maskX = (x.toLong() * segmentMask.width / sourceWidth)
-                        .toInt().coerceIn(0, segmentMask.width - 1)
-                    val alpha = smoothMask[maskY * segmentMask.width + maskX].toInt() and 0xff
-                    if (alpha == 0) continue
-                    val oldIndex = y * sourceWidth + x
-                    val freshIndex = (y - bounds.top) * bounds.width() + (x - bounds.left)
-                    val old = originalPixels[oldIndex]
-                    val fresh = renderedPixels[freshIndex]
-                    val inverse = 255 - alpha
-                    val red = (((old ushr 16 and 0xff) * inverse) + ((fresh ushr 16 and 0xff) * alpha)) / 255
-                    val green = (((old ushr 8 and 0xff) * inverse) + ((fresh ushr 8 and 0xff) * alpha)) / 255
-                    val blue = (((old and 0xff) * inverse) + ((fresh and 0xff) * alpha)) / 255
-                    originalPixels[oldIndex] = (0xff shl 24) or (red shl 16) or (green shl 8) or blue
-                }
-            }
-
+            val resultPixels = SruGenMaskCompositor.composite(
+                originalPixels = originalPixels,
+                imageWidth = sourceWidth,
+                imageHeight = sourceHeight,
+                generatedPixels = renderedPixels,
+                generatedWidth = bounds.width(),
+                generatedHeight = bounds.height(),
+                destinationLeft = bounds.left,
+                destinationTop = bounds.top,
+                maskAlpha = alphaMask,
+                maskWidth = semanticMask.width,
+                maskHeight = semanticMask.height
+            )
+            compositedPixels = resultPixels
             return Bitmap.createBitmap(sourceWidth, sourceHeight, Bitmap.Config.ARGB_8888).also {
-                it.setPixels(originalPixels, 0, sourceWidth, 0, 0, sourceWidth, sourceHeight)
+                it.setPixels(resultPixels, 0, sourceWidth, 0, 0, sourceWidth, sourceHeight)
             }
         } finally {
             if (generatedScaled != null && generatedScaled !== generatedImage && !generatedScaled.isRecycled) {
@@ -274,12 +349,19 @@ object SruGenAutoMasker {
             }
             generatedPixels?.fill(0)
             originalPixels.fill(0)
+            compositedPixels?.fill(0)
             softMask?.fill(0)
             mask?.values?.fill(0)
         }
     }
 
-    private fun clothingBounds(mask: SegmentationMask, imageWidth: Int, imageHeight: Int): Rect {
+    private fun clothingBounds(
+        mask: SegmentationMask,
+        imageWidth: Int,
+        imageHeight: Int,
+        paddingFactorX: Float = 0.18f,
+        paddingFactorY: Float = 0.18f
+    ): Rect {
         var minX = mask.width
         var minY = mask.height
         var maxX = -1
@@ -303,8 +385,8 @@ object SruGenAutoMasker {
         val bottom = (((maxY + 1L) * imageHeight + mask.height - 1) / mask.height).toInt()
         val garmentWidth = (right - left).coerceAtLeast(1)
         val garmentHeight = (bottom - top).coerceAtLeast(1)
-        val padX = (garmentWidth * 0.18f).toInt().coerceAtLeast(12)
-        val padY = (garmentHeight * 0.18f).toInt().coerceAtLeast(12)
+        val padX = (garmentWidth * paddingFactorX).toInt().coerceAtLeast(12)
+        val padY = (garmentHeight * paddingFactorY).toInt().coerceAtLeast(12)
         return Rect(
             (left - padX).coerceAtLeast(0),
             (top - padY).coerceAtLeast(0),
@@ -390,13 +472,14 @@ object SruGenAutoMasker {
     private fun segment(
         context: Context,
         bitmap: Bitmap,
+        modelAsset: String = MODEL_ASSET,
         select: (Int) -> Boolean
     ): SegmentationMask {
         require(!bitmap.isRecycled) { "The source photo was released before segmentation." }
         val segmentationBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, false)
             ?: throw IllegalStateException("Unable to prepare a private segmentation copy.")
         val options = ImageSegmenter.ImageSegmenterOptions.builder()
-            .setBaseOptions(BaseOptions.builder().setModelAssetPath(MODEL_ASSET).build())
+            .setBaseOptions(BaseOptions.builder().setModelAssetPath(modelAsset).build())
             .setRunningMode(RunningMode.IMAGE)
             .setOutputCategoryMask(true)
             .setOutputConfidenceMasks(false)
@@ -452,50 +535,75 @@ object SruGenAutoMasker {
         height: Int,
         expansionRadius: Int = 2
     ): ByteArray {
+        require(binary.size == Math.multiplyExact(width, height))
+        require(expansionRadius >= 0)
+        val radius = expansionRadius.coerceAtMost(max(width, height))
+        val horizontalExpanded = ByteArray(binary.size)
         val expanded = ByteArray(binary.size)
+
+        // Separable square dilation. This is O(width × height), rather than
+        // checking every neighbour in an O(radius²) loop for each pixel.
         for (y in 0 until height) {
-            for (x in 0 until width) {
-                var selected = false
-                loop@ for (dy in -expansionRadius..expansionRadius) for (dx in -expansionRadius..expansionRadius) {
-                    val xx = x + dx
-                    val yy = y + dy
-                    if (xx in 0 until width && yy in 0 until height &&
-                        (binary[yy * width + xx].toInt() and 0xff) > 0
-                    ) {
-                        selected = true
-                        break@loop
-                    }
-                }
-                if (selected) expanded[y * width + x] = 0xff.toByte()
-            }
-        }
-        val radius = 5
-        val horizontal = ByteArray(binary.size)
-        val output = ByteArray(binary.size)
-        for (y in 0 until height) {
-            var sum = 0
-            for (x in -radius..radius) {
-                val xx = x.coerceIn(0, width - 1)
-                sum += expanded[y * width + xx].toInt() and 0xff
+            var selectedCount = 0
+            for (offset in -radius..radius) {
+                val sampleX = offset.coerceIn(0, width - 1)
+                if ((binary[y * width + sampleX].toInt() and 0xff) > 0) selectedCount++
             }
             for (x in 0 until width) {
-                horizontal[y * width + x] = (sum / (radius * 2 + 1)).toByte()
+                horizontalExpanded[y * width + x] =
+                    if (selectedCount > 0) 0xff.toByte() else 0
                 val removeX = (x - radius).coerceIn(0, width - 1)
                 val addX = (x + radius + 1).coerceIn(0, width - 1)
+                if ((binary[y * width + removeX].toInt() and 0xff) > 0) selectedCount--
+                if ((binary[y * width + addX].toInt() and 0xff) > 0) selectedCount++
+            }
+        }
+        for (x in 0 until width) {
+            var selectedCount = 0
+            for (offset in -radius..radius) {
+                val sampleY = offset.coerceIn(0, height - 1)
+                if ((horizontalExpanded[sampleY * width + x].toInt() and 0xff) > 0) selectedCount++
+            }
+            for (y in 0 until height) {
+                expanded[y * width + x] =
+                    if (selectedCount > 0) 0xff.toByte() else 0
+                val removeY = (y - radius).coerceIn(0, height - 1)
+                val addY = (y + radius + 1).coerceIn(0, height - 1)
+                if ((horizontalExpanded[removeY * width + x].toInt() and 0xff) > 0) selectedCount--
+                if ((horizontalExpanded[addY * width + x].toInt() and 0xff) > 0) selectedCount++
+            }
+        }
+        horizontalExpanded.fill(0)
+
+        // A small separable box blur feathers only the mask edge.
+        val featherRadius = 5
+        val horizontal = ByteArray(binary.size)
+        val output = ByteArray(binary.size)
+        val kernelSize = featherRadius * 2 + 1
+        for (y in 0 until height) {
+            var sum = 0
+            for (offset in -featherRadius..featherRadius) {
+                val sampleX = offset.coerceIn(0, width - 1)
+                sum += expanded[y * width + sampleX].toInt() and 0xff
+            }
+            for (x in 0 until width) {
+                horizontal[y * width + x] = (sum / kernelSize).toByte()
+                val removeX = (x - featherRadius).coerceIn(0, width - 1)
+                val addX = (x + featherRadius + 1).coerceIn(0, width - 1)
                 sum += (expanded[y * width + addX].toInt() and 0xff) -
                     (expanded[y * width + removeX].toInt() and 0xff)
             }
         }
         for (x in 0 until width) {
             var sum = 0
-            for (y in -radius..radius) {
-                val yy = y.coerceIn(0, height - 1)
-                sum += horizontal[yy * width + x].toInt() and 0xff
+            for (offset in -featherRadius..featherRadius) {
+                val sampleY = offset.coerceIn(0, height - 1)
+                sum += horizontal[sampleY * width + x].toInt() and 0xff
             }
             for (y in 0 until height) {
-                output[y * width + x] = (sum / (radius * 2 + 1)).toByte()
-                val removeY = (y - radius).coerceIn(0, height - 1)
-                val addY = (y + radius + 1).coerceIn(0, height - 1)
+                output[y * width + x] = (sum / kernelSize).toByte()
+                val removeY = (y - featherRadius).coerceIn(0, height - 1)
+                val addY = (y + featherRadius + 1).coerceIn(0, height - 1)
                 sum += (horizontal[addY * width + x].toInt() and 0xff) -
                     (horizontal[removeY * width + x].toInt() and 0xff)
             }
