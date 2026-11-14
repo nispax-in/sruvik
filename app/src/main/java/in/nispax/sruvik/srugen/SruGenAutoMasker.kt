@@ -535,50 +535,75 @@ object SruGenAutoMasker {
         height: Int,
         expansionRadius: Int = 2
     ): ByteArray {
+        require(binary.size == Math.multiplyExact(width, height))
+        require(expansionRadius >= 0)
+        val radius = expansionRadius.coerceAtMost(max(width, height))
+        val horizontalExpanded = ByteArray(binary.size)
         val expanded = ByteArray(binary.size)
+
+        // Separable square dilation. This is O(width × height), rather than
+        // checking every neighbour in an O(radius²) loop for each pixel.
         for (y in 0 until height) {
-            for (x in 0 until width) {
-                var selected = false
-                loop@ for (dy in -expansionRadius..expansionRadius) for (dx in -expansionRadius..expansionRadius) {
-                    val xx = x + dx
-                    val yy = y + dy
-                    if (xx in 0 until width && yy in 0 until height &&
-                        (binary[yy * width + xx].toInt() and 0xff) > 0
-                    ) {
-                        selected = true
-                        break@loop
-                    }
-                }
-                if (selected) expanded[y * width + x] = 0xff.toByte()
-            }
-        }
-        val radius = 5
-        val horizontal = ByteArray(binary.size)
-        val output = ByteArray(binary.size)
-        for (y in 0 until height) {
-            var sum = 0
-            for (x in -radius..radius) {
-                val xx = x.coerceIn(0, width - 1)
-                sum += expanded[y * width + xx].toInt() and 0xff
+            var selectedCount = 0
+            for (offset in -radius..radius) {
+                val sampleX = offset.coerceIn(0, width - 1)
+                if ((binary[y * width + sampleX].toInt() and 0xff) > 0) selectedCount++
             }
             for (x in 0 until width) {
-                horizontal[y * width + x] = (sum / (radius * 2 + 1)).toByte()
+                horizontalExpanded[y * width + x] =
+                    if (selectedCount > 0) 0xff.toByte() else 0
                 val removeX = (x - radius).coerceIn(0, width - 1)
                 val addX = (x + radius + 1).coerceIn(0, width - 1)
+                if ((binary[y * width + removeX].toInt() and 0xff) > 0) selectedCount--
+                if ((binary[y * width + addX].toInt() and 0xff) > 0) selectedCount++
+            }
+        }
+        for (x in 0 until width) {
+            var selectedCount = 0
+            for (offset in -radius..radius) {
+                val sampleY = offset.coerceIn(0, height - 1)
+                if ((horizontalExpanded[sampleY * width + x].toInt() and 0xff) > 0) selectedCount++
+            }
+            for (y in 0 until height) {
+                expanded[y * width + x] =
+                    if (selectedCount > 0) 0xff.toByte() else 0
+                val removeY = (y - radius).coerceIn(0, height - 1)
+                val addY = (y + radius + 1).coerceIn(0, height - 1)
+                if ((horizontalExpanded[removeY * width + x].toInt() and 0xff) > 0) selectedCount--
+                if ((horizontalExpanded[addY * width + x].toInt() and 0xff) > 0) selectedCount++
+            }
+        }
+        horizontalExpanded.fill(0)
+
+        // A small separable box blur feathers only the mask edge.
+        val featherRadius = 5
+        val horizontal = ByteArray(binary.size)
+        val output = ByteArray(binary.size)
+        val kernelSize = featherRadius * 2 + 1
+        for (y in 0 until height) {
+            var sum = 0
+            for (offset in -featherRadius..featherRadius) {
+                val sampleX = offset.coerceIn(0, width - 1)
+                sum += expanded[y * width + sampleX].toInt() and 0xff
+            }
+            for (x in 0 until width) {
+                horizontal[y * width + x] = (sum / kernelSize).toByte()
+                val removeX = (x - featherRadius).coerceIn(0, width - 1)
+                val addX = (x + featherRadius + 1).coerceIn(0, width - 1)
                 sum += (expanded[y * width + addX].toInt() and 0xff) -
                     (expanded[y * width + removeX].toInt() and 0xff)
             }
         }
         for (x in 0 until width) {
             var sum = 0
-            for (y in -radius..radius) {
-                val yy = y.coerceIn(0, height - 1)
-                sum += horizontal[yy * width + x].toInt() and 0xff
+            for (offset in -featherRadius..featherRadius) {
+                val sampleY = offset.coerceIn(0, height - 1)
+                sum += horizontal[sampleY * width + x].toInt() and 0xff
             }
             for (y in 0 until height) {
-                output[y * width + x] = (sum / (radius * 2 + 1)).toByte()
-                val removeY = (y - radius).coerceIn(0, height - 1)
-                val addY = (y + radius + 1).coerceIn(0, height - 1)
+                output[y * width + x] = (sum / kernelSize).toByte()
+                val removeY = (y - featherRadius).coerceIn(0, height - 1)
+                val addY = (y + featherRadius + 1).coerceIn(0, height - 1)
                 sum += (horizontal[addY * width + x].toInt() and 0xff) -
                     (horizontal[removeY * width + x].toInt() and 0xff)
             }
