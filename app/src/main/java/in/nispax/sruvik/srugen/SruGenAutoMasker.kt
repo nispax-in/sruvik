@@ -351,7 +351,13 @@ object SruGenAutoMasker {
         }
     }
 
-    private fun clothingBounds(\n        mask: SegmentationMask,\n        imageWidth: Int,\n        imageHeight: Int,\n        paddingFactorX: Float = 0.18f,\n        paddingFactorY: Float = 0.18f\n    ): Rect {
+    private fun clothingBounds(
+        mask: SegmentationMask,
+        imageWidth: Int,
+        imageHeight: Int,
+        paddingFactorX: Float = 0.18f,
+        paddingFactorY: Float = 0.18f
+    ): Rect {
         var minX = mask.width
         var minY = mask.height
         var maxX = -1
