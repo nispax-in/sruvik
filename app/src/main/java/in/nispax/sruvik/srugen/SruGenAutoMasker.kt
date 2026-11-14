@@ -458,8 +458,8 @@ object SruGenAutoMasker {
     private fun segment(
         context: Context,
         bitmap: Bitmap,
-        select: (Int) -> Boolean,
-        modelAsset: String = MODEL_ASSET
+        modelAsset: String = MODEL_ASSET,
+        select: (Int) -> Boolean
     ): SegmentationMask {
         require(!bitmap.isRecycled) { "The source photo was released before segmentation." }
         val segmentationBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, false)
