@@ -7,7 +7,6 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Rect
-import android.graphics.RectF
 import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
@@ -16,7 +15,6 @@ import java.io.Closeable
 import kotlin.math.ceil
 import kotlin.math.hypot
 import kotlin.math.max
-import kotlin.math.min
 
 /**
  * Produces a finger-specific edit region from MediaPipe's 21 hand landmarks.
@@ -64,21 +62,22 @@ object SruGenHandMasker {
             require(hands.isNotEmpty()) {
                 "SruGen could not find a clear hand. Try a well-lit photo with the whole hand visible."
             }
+            val handedness = result.handedness()
+            val requestedSide = SruGenEditIntentParser.handSide(prompt)
             val handIndex = when {
-                hands.size == 1 -> 0
-                else -> {
-                    val requestedSide = SruGenEditIntentParser.handSide(prompt)
-                        ?: throw IllegalArgumentException(
-                            "More than one hand is visible. Specify 'left hand' or 'right hand' so SruGen edits the correct finger."
-                        )
-                    val handedness = result.handedness()
-                    handedness.indices.firstOrNull { index ->
-                        val name = handedness.getOrNull(index)?.firstOrNull()?.categoryName().orEmpty()
-                        name.equals(requestedSide.name, ignoreCase = true)
-                    } ?: throw IllegalArgumentException(
-                        "SruGen could not confidently identify the requested hand. Try a clearer photo."
+                requestedSide != null -> {
+                    handedness.indices.filter { index ->
+                        val category = handedness.getOrNull(index)?.firstOrNull()
+                        category?.categoryName().equals(requestedSide.name, ignoreCase = true) &&
+                            (category?.score() ?: 0f) >= 0.50f
+                    }.singleOrNull() ?: throw IllegalArgumentException(
+                        "SruGen could not confidently identify the requested ${requestedSide.name.lowercase()} hand. Check whether the photo is mirrored or try a clearer photo."
                     )
                 }
+                hands.size == 1 -> 0
+                else -> throw IllegalArgumentException(
+                    "More than one hand is visible. Specify 'left hand' or 'right hand' so SruGen edits the correct finger."
+                )
             }
             val hand = hands[handIndex]
             require(hand.size >= 21) { "The hand landmark model returned an incomplete hand." }
@@ -94,7 +93,7 @@ object SruGenHandMasker {
 
             val adjacentSpacing = when (finger) {
                 SruGenEditIntentParser.Finger.THUMB ->
-                    distance(pointsX[0], pointsY[0], pointsX[1], pointsY[1])
+                    distance(pointsX[1], pointsY[1], pointsX[5], pointsY[5])
                 SruGenEditIntentParser.Finger.INDEX ->
                     distance(pointsX[5], pointsY[5], pointsX[9], pointsY[9])
                 SruGenEditIntentParser.Finger.MIDDLE ->
