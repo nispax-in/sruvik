@@ -64,6 +64,8 @@ jobs:
         run: bash scripts/fetch-upscaler-model.sh
       - name: Download and verify MediaPipe automatic segmentation model
         run: bash scripts/fetch-srugen-segmentation-model.sh
+      - name: Run JVM regression tests and compile Android tests
+        run: gradle --no-daemon :app:testDebugUnitTest :app:compileDebugAndroidTestKotlin
       - name: Restore debug signing key
         uses: actions/cache@v4
         with:
@@ -84,7 +86,7 @@ jobs:
       - name: Run JVM regression tests and build debug APK
         env:
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
-        run: gradle --no-daemon :app:testDebugUnitTest :app:compileDebugAndroidTestKotlin :app:assembleDebug
+        run: gradle --no-daemon :app:assembleDebug
       - name: Verify native runtime and license files in APK
         shell: bash
         run: |
