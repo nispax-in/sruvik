@@ -30,7 +30,6 @@ internal class DeviceThermalLimitException :
 
 internal object RealEsrganUpscaler {
     private const val ASSET_NAME = "realesr_general_x4v3.tflite"
-    private const val STAGED_NAME = "realesr-general-x4v3-bsd-v1.tflite"
     private const val MODEL_INPUT = 128
     private const val MODEL_OUTPUT = 512
     private const val MODEL_SCALE = 4
@@ -97,7 +96,7 @@ internal object RealEsrganUpscaler {
                     val compiled = CompiledModel.create(
                         appContext.assets,
                         ASSET_NAME,
-                        CompiledModel.Options(Accelerator.CPU),
+                        CompiledModel.Options(Accelerator.GPU, Accelerator.CPU),
                         environment
                     )
                     model = compiled
@@ -133,6 +132,9 @@ internal object RealEsrganUpscaler {
                     working.getPixels(sourcePixelsArray, 0, width, 0, 0, width, height)
                     val input = FloatArray(MODEL_INPUT * MODEL_INPUT * 3)
                     val outputPatch = IntArray(OUTPUT_CORE * OUTPUT_CORE)
+                    // Reuse this destination for every tile; avoid allocating temporary
+                    // Android Bitmaps and pixel arrays in the 2× export path.
+                    val halfOutputPatch = IntArray((OUTPUT_CORE / 2) * (OUTPUT_CORE / 2))
                     val tileColumns = ceil(width.toDouble() / TILE_CORE).toInt()
                     val tileRows = ceil(height.toDouble() / TILE_CORE).toInt()
                     val totalTiles = tileColumns * tileRows
@@ -185,22 +187,11 @@ internal object RealEsrganUpscaler {
                                         validHeight * requestedScale
                                     )
                                 } else {
-                                    val patch = Bitmap.createBitmap(
-                                        outputPatch, OUTPUT_CORE, OUTPUT_CORE,
-                                        Bitmap.Config.ARGB_8888
+                                    downsample2xBoxInto(
+                                        outputPatch, OUTPUT_CORE, halfOutputPatch
                                     )
-                                    val halfPatch = Bitmap.createScaledBitmap(
-                                        patch, OUTPUT_CORE / 2, OUTPUT_CORE / 2, true
-                                    )
-                                    patch.recycle()
-                                    val halfPixels = IntArray((OUTPUT_CORE / 2) * (OUTPUT_CORE / 2))
-                                    halfPatch.getPixels(
-                                        halfPixels, 0, OUTPUT_CORE / 2,
-                                        0, 0, OUTPUT_CORE / 2, OUTPUT_CORE / 2
-                                    )
-                                    halfPatch.recycle()
                                     outputBitmap.setPixels(
-                                        halfPixels, 0, OUTPUT_CORE / 2,
+                                        halfOutputPatch, 0, OUTPUT_CORE / 2,
                                         outX, outY,
                                         validWidth * requestedScale,
                                         validHeight * requestedScale
@@ -231,6 +222,44 @@ internal object RealEsrganUpscaler {
         } finally {
             dispatcher.close()
             executor.shutdown()
+        }
+    }
+
+    /**
+     * 2× export is a filtered reduction of the x4 model prediction. A 2×2 box
+     * average provides deterministic antialiasing without per-tile Bitmap objects.
+     * The destination buffer is supplied by the caller and reused across tiles.
+     */
+    internal fun downsample2xBoxInto(
+        source: IntArray,
+        sourceWidth: Int,
+        destination: IntArray
+    ) {
+        require(sourceWidth > 0 && sourceWidth % 2 == 0)
+        val sourceHeight = source.size / sourceWidth
+        require(source.size == sourceWidth * sourceHeight && sourceHeight % 2 == 0)
+        val outputWidth = sourceWidth / 2
+        val outputHeight = sourceHeight / 2
+        require(destination.size == outputWidth * outputHeight)
+
+        for (y in 0 until outputHeight) {
+            val sourceRow = y * 2 * sourceWidth
+            val outputRow = y * outputWidth
+            for (x in 0 until outputWidth) {
+                val sourceIndex = sourceRow + x * 2
+                val p00 = source[sourceIndex]
+                val p01 = source[sourceIndex + 1]
+                val p10 = source[sourceIndex + sourceWidth]
+                val p11 = source[sourceIndex + sourceWidth + 1]
+                val red = (((p00 shr 16) and 0xFF) + ((p01 shr 16) and 0xFF) +
+                    ((p10 shr 16) and 0xFF) + ((p11 shr 16) and 0xFF) + 2) / 4
+                val green = (((p00 shr 8) and 0xFF) + ((p01 shr 8) and 0xFF) +
+                    ((p10 shr 8) and 0xFF) + ((p11 shr 8) and 0xFF) + 2) / 4
+                val blue = ((p00 and 0xFF) + (p01 and 0xFF) +
+                    (p10 and 0xFF) + (p11 and 0xFF) + 2) / 4
+                destination[outputRow + x] =
+                    (0xFF shl 24) or (red shl 16) or (green shl 8) or blue
+            }
         }
     }
 
