@@ -2,7 +2,6 @@ package `in`.nispax.sruvik.ui
 
 import `in`.nispax.sruvik.ui.theme.SruvikColors
 
-import `in`.nispax.sruvik.R
 
 import android.Manifest
 import android.app.ActivityManager
@@ -21,9 +20,6 @@ import android.os.ParcelFileDescriptor
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -43,9 +39,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
@@ -59,7 +53,6 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 private val LabInk = SruvikColors.Background
-private val LabViolet = SruvikColors.SecondaryAccent
 private val LabCyan = Color(0xFFD1CCC7)
 private val LabCoral = SruvikColors.Primary
 private val LabGold = Color(0xFFF0B58F)
@@ -77,6 +70,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
     var original by remember { mutableStateOf<Bitmap?>(null) }
     var result by remember { mutableStateOf<Bitmap?>(null) }
     var scale by remember { mutableIntStateOf(session.scale) }
+    var previewMode by remember { mutableIntStateOf(0) } // 0 original, 1 enhanced, 2 compare
     var isLoading by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
     var isQuickResizing by remember { mutableStateOf(false) }
@@ -103,6 +97,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
         recycleAfterFrame(previous)
         optimizedSource = false
         showQuickResize = false
+        previewMode = 0
         UpscaleSession.clearResult()
     }
 
@@ -246,6 +241,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
             if (restored != null) {
                 val previous = result
                 result = restored
+                previewMode = 1
                 recycleAfterFrame(previous)
                 optimizedSource = session.sourceWasOptimized
                 showQuickResize = false
@@ -301,155 +297,178 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
     }
 
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(17.dp)
+        Modifier.fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Row(
-            Modifier.fillMaxWidth().padding(top = 16.dp),
+            Modifier.fillMaxWidth().padding(top = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TextButton(onClick = onBack, enabled = !isSaving) {
-                Icon(Icons.Rounded.ArrowBack, null, tint = LabMuted)
-                Text("  STUDIO", color = LabMuted, style = MaterialTheme.typography.labelLarge,
-                    letterSpacing = 1.4.sp)
+            IconButton(onClick = onBack, enabled = !isSaving, modifier = Modifier.size(48.dp)) {
+                Icon(Icons.Rounded.ArrowBack, contentDescription = "Back to studio", tint = LabText)
             }
-            Spacer(Modifier.weight(1f))
-            Surface(color = Color(0xFF252525), shape = CircleShape) {
-                Row(Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(6.dp).clip(CircleShape).background(LabCyan))
-                    Text("  ON-DEVICE AI", color = LabCyan,
-                        style = MaterialTheme.typography.labelSmall, letterSpacing = 1.sp)
-                }
+            Column(Modifier.weight(1f).padding(start = 4.dp)) {
+                Text("Image upscaler", color = LabText,
+                    style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                Text("Restore detail on your device", color = LabMuted,
+                    style = MaterialTheme.typography.bodySmall)
             }
-        }
-
-        Box(
-            Modifier.fillMaxWidth().height(194.dp).clip(RoundedCornerShape(27.dp))
-        ) {
-            Image(
-                painter = painterResource(R.drawable.sruvik_alpine_art),
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
-            Box(Modifier.fillMaxSize().background(
-                Brush.verticalGradient(listOf(Color(0x16212D4A), Color(0x8C101727), Color(0xF20C1421)))
-            ))
-            Column(
-                Modifier.fillMaxSize().padding(19.dp),
-                verticalArrangement = Arrangement.Bottom
+            Surface(
+                color = LabCyan.copy(alpha = .10f),
+                shape = RoundedCornerShape(30.dp)
             ) {
-                Text("IMAGE RESTORATION", color = LabCoral,
-                    style = MaterialTheme.typography.labelLarge, letterSpacing = 2.3.sp)
-                Text("Bring back the\ndetail.", color = LabText,
-                    style = MaterialTheme.typography.displayMedium, lineHeight = 40.sp)
-                Text("Reconstruct fine detail and enlarge your photo with a local AI model.",
-                    color = LabMuted, style = MaterialTheme.typography.bodySmall)
+                Row(
+                    Modifier.padding(horizontal = 11.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Box(Modifier.size(7.dp).clip(CircleShape).background(LabCyan))
+                    Text("LOCAL", color = LabCyan, style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold)
+                }
             }
         }
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = LabSurface,
-            shape = RoundedCornerShape(28.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .09f))
+            shape = RoundedCornerShape(24.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .07f))
         ) {
             Column(
-                Modifier.background(Brush.linearGradient(
-                    listOf(Color(0xFF262626), Color(0xFF1D1D1D), Color(0xFF141414))
-                )).padding(17.dp),
-                verticalArrangement = Arrangement.spacedBy(13.dp)
+                Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(43.dp).clip(RoundedCornerShape(15.dp))
-                        .background(LabViolet.copy(alpha = .18f)), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Rounded.AutoFixHigh, null, tint = LabViolet)
+                    Column(Modifier.weight(1f)) {
+                        Text("PHOTO CANVAS", color = LabMuted,
+                            style = MaterialTheme.typography.labelSmall, letterSpacing = 1.2.sp)
+                        Text(
+                            when {
+                                isLoading -> "Loading image…"
+                                original != null -> "Ready to enhance"
+                                else -> "Start with a photo"
+                            },
+                            color = LabText, style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
-                    Column(Modifier.weight(1f).padding(start = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text("REAL-ESRGAN", color = LabText,
-                            style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text("General x4v3  ·  1.21M parameters", color = LabMuted,
-                            style = MaterialTheme.typography.labelSmall)
-                    }
-                    Text("AI MODEL", color = LabGold,
-                        style = MaterialTheme.typography.labelSmall, letterSpacing = 1.sp)
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    ModelTag("4× detail")
-                    ModelTag("Noise aware")
-                    ModelTag("Local processing")
-                }
-                Text(
-                    "The model reconstructs at 4×. Choose 2× to downsample its AI result for a smaller file.",
-                    color = Color(0xFFD0D7E4), style = MaterialTheme.typography.bodySmall
-                )
-            }
-        }
-
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = LabSurface,
-            shape = RoundedCornerShape(26.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .08f))
-        ) {
-            Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.Image, null, tint = LabCyan)
-                    Text("  SOURCE PHOTO", color = LabText,
-                        style = MaterialTheme.typography.labelLarge, letterSpacing = 1.4.sp)
-                    Spacer(Modifier.weight(1f))
                     original?.let {
                         Text("${it.width} × ${it.height}", color = LabMuted,
                             style = MaterialTheme.typography.labelSmall)
                     }
                 }
-                if (original != null) {
-                    ImagePreview(original!!, Modifier.fillMaxWidth().height(190.dp))
-                } else {
-                    Box(
-                        Modifier.fillMaxWidth().height(176.dp).clip(RoundedCornerShape(20.dp))
-                            .background(Brush.linearGradient(
-                                listOf(SruvikColors.SurfaceElevated, SruvikColors.Surface, SruvikColors.Background)
-                            ))
-                            .clickable(enabled = !isProcessing && !isSaving && !isLoading) {
-                                launchImagePicker()
-                            },
-                        contentAlignment = Alignment.Center
+
+                if (result != null && original != null) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                            if (isLoading) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(34.dp),
-                                    color = LabCyan,
-                                    strokeWidth = 3.dp
+                        listOf("Original", "Enhanced", "Compare").forEachIndexed { index, label ->
+                            FilterChip(
+                                selected = previewMode == index,
+                                onClick = { previewMode = index },
+                                modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                                label = {
+                                    Text(label, maxLines = 1,
+                                        style = MaterialTheme.typography.labelMedium)
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = LabCyan.copy(alpha = .16f),
+                                    selectedLabelColor = LabCyan,
+                                    labelColor = LabMuted
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    enabled = true,
+                                    selected = previewMode == index,
+                                    borderColor = Color.White.copy(alpha = .12f),
+                                    selectedBorderColor = LabCyan.copy(alpha = .65f)
                                 )
-                                Text("Loading selected image…", color = LabText,
-                                    fontWeight = FontWeight.SemiBold)
-                            } else {
-                                Icon(Icons.Rounded.AddPhotoAlternate, null, tint = LabCyan,
-                                    modifier = Modifier.size(37.dp))
-                                Text("Choose an image", color = LabText,
-                                    fontWeight = FontWeight.SemiBold)
-                                Text("JPG  ·  PNG  ·  WebP", color = LabMuted,
-                                    style = MaterialTheme.typography.labelSmall)
-                            }
+                            )
                         }
                     }
                 }
+
+                when {
+                    original == null -> {
+                        Box(
+                            Modifier.fillMaxWidth().height(248.dp)
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(Color(0xFF111716))
+                                .clickable(enabled = !isLoading && !isProcessing && !isSaving) {
+                                    launchImagePicker()
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(9.dp)
+                            ) {
+                                if (isLoading) {
+                                    CircularProgressIndicator(color = LabCyan)
+                                    Text("Reading photo…", color = LabText)
+                                } else {
+                                    Icon(Icons.Rounded.AddPhotoAlternate, null,
+                                        tint = LabCyan, modifier = Modifier.size(38.dp))
+                                    Text("Choose a photo to begin", color = LabText,
+                                        style = MaterialTheme.typography.titleMedium)
+                                    Text("JPG · PNG · WebP", color = LabMuted,
+                                        style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
+                    }
+                    result != null && previewMode == 2 -> {
+                        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                            original?.let {
+                                ComparisonCard(
+                                    "ORIGINAL", "${it.width} × ${it.height}", it,
+                                    Modifier.weight(1f), LabMuted
+                                )
+                            }
+                            result?.let {
+                                ComparisonCard(
+                                    if (optimizedSource) "RESIZED" else "ENHANCED",
+                                    "${it.width} × ${it.height}", it,
+                                    Modifier.weight(1f), LabCyan
+                                )
+                            }
+                        }
+                    }
+                    result != null && previewMode == 1 -> {
+                        Box {
+                            ImagePreview(result!!, Modifier.fillMaxWidth().height(248.dp))
+                            Surface(
+                                Modifier.align(Alignment.BottomStart).padding(10.dp),
+                                color = Color(0xD9101715), shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    if (optimizedSource) "BASIC RESIZE · NOT AI" else "AI ENHANCED",
+                                    Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                    color = if (optimizedSource) LabGold else LabCyan,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                    else -> {
+                        ImagePreview(requireNotNull(original), Modifier.fillMaxWidth().height(248.dp))
+                    }
+                }
+
                 Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                     OutlinedButton(
-                        onClick = {
-                            launchImagePicker()
-                        },
-                        modifier = Modifier.weight(1f).height(48.dp),
-                        shape = RoundedCornerShape(15.dp),
-                        enabled = !isProcessing && !isSaving && !isLoading
+                        onClick = { launchImagePicker() },
+                        modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                        enabled = !isProcessing && !isSaving && !isLoading,
+                        shape = RoundedCornerShape(13.dp)
                     ) {
-                        Icon(Icons.Rounded.AddPhotoAlternate, null)
-                        Text(if (original == null) "Photo library" else "Change photo")
+                        Icon(Icons.Rounded.PhotoLibrary, null)
+                        Spacer(Modifier.width(7.dp))
+                        Text(if (original == null) "Photos" else "Change photo")
                     }
                     OutlinedButton(
                         onClick = {
@@ -460,111 +479,125 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                                     }
                             }
                         },
-                        modifier = Modifier.weight(1f).height(48.dp),
-                        shape = RoundedCornerShape(15.dp),
-                        enabled = !isProcessing && !isSaving && !isLoading
+                        modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                        enabled = !isProcessing && !isSaving && !isLoading,
+                        shape = RoundedCornerShape(13.dp)
                     ) {
                         Icon(Icons.Rounded.FolderOpen, null)
+                        Spacer(Modifier.width(7.dp))
                         Text("Browse files")
                     }
                 }
+
                 if (isLoading || original == null || message.startsWith("Couldn't") ||
                     message.startsWith("This photo") || message.startsWith("No ")) {
-                    val isLoadError = !isLoading &&
+                    val loadError = !isLoading &&
                         (message.startsWith("Couldn't") || message.startsWith("This photo"))
-                    Surface(
-                        color = if (isLoadError) LabCoral.copy(alpha = .10f)
-                            else Color.White.copy(alpha = .045f),
-                        shape = RoundedCornerShape(14.dp)
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                            .background(if (loadError) LabCoral.copy(alpha = .10f)
+                                else Color.White.copy(alpha = .035f))
+                            .padding(11.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                if (isLoadError) Icons.Rounded.ErrorOutline else Icons.Rounded.Info,
-                                contentDescription = null,
-                                tint = if (isLoadError) LabCoral else LabMuted,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Text(
-                                message,
-                                modifier = Modifier.padding(start = 9.dp),
-                                color = if (isLoadError) LabCoral else LabMuted,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
+                        Icon(
+                            if (loadError) Icons.Rounded.ErrorOutline else Icons.Rounded.Info,
+                            contentDescription = null,
+                            tint = if (loadError) LabCoral else LabMuted,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(message, Modifier.padding(start = 8.dp), color = if (loadError) LabCoral else LabMuted,
+                            style = MaterialTheme.typography.bodySmall)
                     }
                 }
-                Text(
-                    "Access is limited to the image you choose. No full-library storage permission is needed.",
-                    color = LabMuted.copy(alpha = .85f),
-                    style = MaterialTheme.typography.labelSmall
-                )
             }
         }
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = Color(0xFF2A2A2A),
-            shape = RoundedCornerShape(25.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, LabViolet.copy(alpha = .24f))
+            color = LabSurface,
+            shape = RoundedCornerShape(20.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .07f))
         ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+            Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("OUTPUT SIZE", color = LabText,
-                        style = MaterialTheme.typography.labelLarge, letterSpacing = 1.5.sp)
-                    Spacer(Modifier.weight(1f))
-                    Text("AI SUPER-RESOLUTION", color = LabViolet,
-                        style = MaterialTheme.typography.labelSmall, letterSpacing = .8.sp)
+                    Column(Modifier.weight(1f)) {
+                        Text("OUTPUT", color = LabMuted,
+                            style = MaterialTheme.typography.labelSmall, letterSpacing = 1.2.sp)
+                        Text("Choose enlargement", color = LabText,
+                            style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    }
+                    Text("Real-ESRGAN x4v3", color = LabCyan,
+                        style = MaterialTheme.typography.labelSmall)
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(2, 4).forEach { option ->
                         FilterChip(
                             selected = scale == option,
-                            onClick = { if (!isProcessing) { scale = option; resetResult() } },
+                            onClick = {
+                                if (!isProcessing) {
+                                    scale = option
+                                    resetResult()
+                                }
+                            },
+                            modifier = Modifier.weight(1f).heightIn(min = 52.dp),
                             label = {
-                                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                     Text("${option}×", style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold)
-                                    Text(if (option == 4) "4× output" else "2× output",
-                                        style = MaterialTheme.typography.labelSmall)
+                                    Text(
+                                        if (option == 2) "Smaller export" else "Full output",
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
                                 }
                             },
                             leadingIcon = if (scale == option) {
                                 { Icon(Icons.Rounded.CheckCircle, null, modifier = Modifier.size(16.dp)) }
                             } else null,
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = LabViolet.copy(alpha = .22f),
-                                selectedLabelColor = Color.White,
+                                selectedContainerColor = LabCyan.copy(alpha = .14f),
+                                selectedLabelColor = LabCyan,
                                 labelColor = LabMuted,
                                 selectedLeadingIconColor = LabCyan
                             ),
                             border = FilterChipDefaults.filterChipBorder(
                                 enabled = true, selected = scale == option,
-                                borderColor = Color.White.copy(alpha = .15f),
-                                selectedBorderColor = LabViolet
+                                borderColor = Color.White.copy(alpha = .13f),
+                                selectedBorderColor = LabCyan.copy(alpha = .6f)
                             )
                         )
                     }
                 }
+
                 Text(
-                    "Progress notifications let the enhancement continue visibly while you switch tabs or apps.",
-                    color = LabMuted,
-                    style = MaterialTheme.typography.bodySmall
+                    if (scale == 2) "The x4 AI result is downsampled to a 2× export for a smaller file."
+                    else "Uses the full 4× super-resolution output.",
+                    color = LabMuted, style = MaterialTheme.typography.bodySmall
                 )
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Memory, null, tint = LabMuted, modifier = Modifier.size(17.dp))
+                    Text(
+                        "GPU when supported · CPU fallback · tiled for memory safety",
+                        Modifier.padding(start = 7.dp),
+                        color = LabMuted, style = MaterialTheme.typography.labelSmall
+                    )
+                }
+
                 Button(
                     onClick = {
                         val uri = selectedUri ?: return@Button
                         requestUpscale(uri, scale)
                     },
-                    modifier = Modifier.fillMaxWidth().height(55.dp),
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
                     enabled = original != null && !isLoading && !isProcessing && !isSaving,
-                    shape = RoundedCornerShape(17.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = LabViolet, contentColor = LabInk,
-                        disabledContainerColor = Color(0xFF45413F),
-                        disabledContentColor = Color(0xFF96918D)
+                        containerColor = LabCyan,
+                        contentColor = LabInk,
+                        disabledContainerColor = Color.White.copy(alpha = .08f),
+                        disabledContentColor = LabMuted
                     )
                 ) {
                     if (isProcessing) {
@@ -572,35 +605,30 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                         Text("  Enhancing…", fontWeight = FontWeight.Bold)
                     } else {
                         Icon(Icons.Rounded.AutoFixHigh, null)
-                        Text("  Enhance with AI", fontWeight = FontWeight.Bold)
+                        Text("  Enhance photo", fontWeight = FontWeight.Bold)
                     }
                 }
 
                 if (isProcessing) {
                     LinearProgressIndicator(
                         progress = progress,
-                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
+                        modifier = Modifier.fillMaxWidth().height(5.dp).clip(CircleShape),
                         color = LabCyan, trackColor = Color.White.copy(alpha = .10f)
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(progressLabel, color = LabMuted, style = MaterialTheme.typography.labelSmall,
+                        Text(progressLabel, color = LabMuted,
+                            style = MaterialTheme.typography.labelSmall,
                             modifier = Modifier.weight(1f))
                         Text("${(progress * 100).roundToInt()}%", color = LabCyan,
                             style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                     }
-                    if (session.notificationsEnabled) {
-                        Text(
-                            "This task keeps running when you switch tabs or leave Sruvik in Recents.",
-                            color = LabMuted,
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    } else {
-                        Text(
-                            "Notifications are off. Android may show this task under Active apps, but hide progress from the notification shade.",
-                            color = LabGold,
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    }
+                    Text(
+                        if (session.notificationsEnabled)
+                            "You can leave this screen; processing continues in the background."
+                        else
+                            "Notifications are off. Progress may only appear under Android Active apps.",
+                        color = LabMuted, style = MaterialTheme.typography.bodySmall
+                    )
                     TextButton(
                         onClick = {
                             context.startService(
@@ -608,15 +636,18 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                                     .setAction(ImageUpscaleService.ACTION_CANCEL)
                             )
                         },
-                        modifier = Modifier.align(Alignment.End)
+                        modifier = Modifier.align(Alignment.End).heightIn(min = 48.dp)
                     ) {
                         Icon(Icons.Rounded.Close, null, tint = LabCoral)
-                        Text("  Cancel", color = LabCoral)
+                        Text("Cancel", color = LabCoral)
                     }
                 } else {
-                    val currentMessage = if (session.status == UpscaleStatus.IDLE) message else session.message
-                    Text(currentMessage, color = if (result != null) LabCyan else LabMuted,
-                        style = MaterialTheme.typography.bodySmall)
+                    val statusMessage = if (session.status == UpscaleStatus.IDLE) message else session.message
+                    Text(statusMessage, color = when {
+                        session.status == UpscaleStatus.FAILED -> LabCoral
+                        result != null -> LabCyan
+                        else -> LabMuted
+                    }, style = MaterialTheme.typography.bodySmall)
                 }
 
                 if (showQuickResize && original != null) {
@@ -631,6 +662,7 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                                         quickResize(source, scale, context)
                                     }
                                     optimizedSource = true
+                                    previewMode = 1
                                     message = "Basic resize complete. This fallback does not reconstruct detail with AI."
                                     showQuickResize = false
                                 } catch (error: Exception) {
@@ -640,79 +672,55 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
                                 }
                             }
                         },
-                        modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(15.dp)
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                        shape = RoundedCornerShape(13.dp)
                     ) {
-                        Text("Use quick resize instead  ·  not AI")
+                        Text("Use basic resize instead · not AI")
                     }
                 }
             }
         }
 
-        AnimatedVisibility(visible = result != null, enter = fadeIn() + slideInVertically { it / 6 }) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (result != null) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("BEFORE / AFTER", color = LabCyan,
-                        style = MaterialTheme.typography.labelLarge, letterSpacing = 1.7.sp)
-                    Spacer(Modifier.weight(1f))
-                    val actualScale = if (original != null && result != null) {
-                        minOf(
-                            result!!.width.toFloat() / original!!.width,
-                            result!!.height.toFloat() / original!!.height
-                        )
-                    } else 0f
-                    val actualScaleLabel = ((actualScale * 100f).roundToInt() / 100f)
                     Text(
-                        if (result != null) "ACTUAL ${actualScaleLabel}× OUTPUT" else "READY",
-                        color = LabGold,
-                        style = MaterialTheme.typography.labelSmall
+                        if (optimizedSource) "RESIZED PREVIEW" else "ENHANCED IMAGE",
+                        color = LabCyan, style = MaterialTheme.typography.labelLarge,
+                        letterSpacing = 1.1.sp
                     )
+                    Spacer(Modifier.weight(1f))
+                    val output = requireNotNull(result)
+                    Text("${output.width} × ${output.height}", color = LabMuted,
+                        style = MaterialTheme.typography.labelSmall)
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    original?.let {
-                        ComparisonCard("ORIGINAL", "${it.width} × ${it.height}", it,
-                            Modifier.weight(1f), LabMuted)
-                    }
-                    result?.let {
-                        ComparisonCard("ENHANCED", "${it.width} × ${it.height}", it,
-                            Modifier.weight(1f), LabCyan)
-                    }
-                }
-                result?.let {
-                    Button(
-                        onClick = { saver.launch("sruvik-ai-upscaled.png") },
-                        modifier = Modifier.fillMaxWidth().height(54.dp),
-                        shape = RoundedCornerShape(17.dp),
-                        enabled = !isSaving && !isProcessing,
-                        colors = ButtonDefaults.buttonColors(containerColor = LabCyan, contentColor = LabInk)
-                    ) {
-                        Icon(Icons.Rounded.Download, null)
-                        Text(if (isSaving) "  Saving…" else "  Save enhanced PNG", fontWeight = FontWeight.Bold)
-                    }
+                Button(
+                    onClick = { saver.launch("sruvik-ai-upscaled.png") },
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    enabled = !isSaving && !isProcessing,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = LabCyan, contentColor = LabInk
+                    )
+                ) {
+                    Icon(Icons.Rounded.Download, null)
+                    Text(if (isSaving) "  Saving…" else "  Save image to device",
+                        fontWeight = FontWeight.Bold)
                 }
             }
         }
 
-        Surface(
-            color = SruvikColors.Surface, shape = RoundedCornerShape(18.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, LabCyan.copy(alpha = .14f))
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            verticalAlignment = Alignment.Top
         ) {
-            Row(Modifier.padding(13.dp), verticalAlignment = Alignment.Top) {
-                Icon(Icons.Rounded.Shield, null, tint = LabCyan, modifier = Modifier.size(18.dp))
-                Text(
-                    "  Your photo is processed locally and is never uploaded. The first run may prepare the LiteRT runtime through Google Play services.",
-                    color = LabMuted, style = MaterialTheme.typography.labelSmall
-                )
-            }
+            Icon(Icons.Rounded.Shield, null, tint = LabCyan, modifier = Modifier.size(17.dp))
+            Text(
+                "  Photo pixels are processed on this device. GPU runtime setup may happen through Google Play services.",
+                color = LabMuted, style = MaterialTheme.typography.labelSmall
+            )
         }
-        Spacer(Modifier.height(100.dp))
-    }
-}
-
-@Composable
-private fun ModelTag(label: String) {
-    Surface(color = Color.White.copy(alpha = .08f), shape = CircleShape) {
-        Text(label, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            color = Color(0xFFD7E5EE), style = MaterialTheme.typography.labelSmall)
+        Spacer(Modifier.height(28.dp))
     }
 }
 
@@ -725,7 +733,7 @@ private fun ComparisonCard(title: String, size: String, bitmap: Bitmap, modifier
         Column(Modifier.padding(9.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text(title, color = accent, style = MaterialTheme.typography.labelSmall,
                 letterSpacing = 1.sp, fontWeight = FontWeight.Bold)
-            ImagePreview(bitmap, Modifier.fillMaxWidth().height(126.dp))
+            ImagePreview(bitmap, Modifier.fillMaxWidth().height(164.dp))
             Text(size, color = LabMuted, style = MaterialTheme.typography.labelSmall)
         }
     }
