@@ -2,7 +2,6 @@ package `in`.nispax.sruvik.ui
 
 import `in`.nispax.sruvik.ui.theme.SruvikColors
 
-import `in`.nispax.sruvik.R
 
 import android.Manifest
 import android.app.ActivityManager
@@ -21,9 +20,6 @@ import android.os.ParcelFileDescriptor
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -43,9 +39,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
@@ -59,7 +53,6 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 private val LabInk = SruvikColors.Background
-private val LabViolet = SruvikColors.SecondaryAccent
 private val LabCyan = Color(0xFFD1CCC7)
 private val LabCoral = SruvikColors.Primary
 private val LabGold = Color(0xFFF0B58F)
@@ -728,14 +721,6 @@ fun ImageUpscalerPage(onBack: () -> Unit) {
             )
         }
         Spacer(Modifier.height(28.dp))
-    }
-}
-
-@Composable
-private fun ModelTag(label: String) {
-    Surface(color = Color.White.copy(alpha = .08f), shape = CircleShape) {
-        Text(label, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            color = Color(0xFFD7E5EE), style = MaterialTheme.typography.labelSmall)
     }
 }
 
